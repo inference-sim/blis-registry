@@ -1,0 +1,54 @@
+# Example coefficient set — illustrative values only.
+#
+# This set exists so CI has something to validate and so a reader can see every schema
+# feature in one place. The NUMBERS are illustrative, NOT the real registry values:
+# R2 is value-preserving and the real roofline numbers are transcribed by R2G2
+# (blis-registry#2). Do not cite the values here.
+#
+# It feeds the `roofline` backend, which consumes `mfu_prefill` and `mfu_decode`
+# (see backends/roofline.yaml). The two extra entries below are present but not
+# consumed by roofline — that is allowed, and demonstrates the ABSENT case and the
+# priced-at-zero (`not_charged`) case the schema distinguishes.
+name: example
+backend: roofline
+
+coefficients:
+  mfu_prefill:
+    value: 0.45
+    units: dimensionless
+    method: literature
+    fitted: false
+    ci95: [0.40, 0.50]
+    sources: ["https://github.com/inference-sim/inference-sim/discussions/589"]
+    rationale: "Prefill MFU discount; see #589. Illustrative value."
+    scope: {hardware: [H100]}
+
+  mfu_decode:
+    value: 0.30
+    units: dimensionless
+    method: literature
+    fitted: false
+    sources: ["https://github.com/inference-sim/inference-sim/discussions/589"]
+    rationale: "Decode MFU discount; see #589. Illustrative value."
+    scope: {hardware: [H100]}
+
+  # A term priced at exactly zero cost: ZERO is distinct from ABSENT and requires
+  # method: not_charged. Present but not consumed by roofline, which is allowed.
+  cross_node_hop_latency:
+    value: 0.0
+    units: us_per_hop
+    method: not_charged
+    fitted: false
+    rationale: "No measured per-hop latency shipped; priced at zero, not defaulted."
+    scope: {nodes_spanned: [1, 8]}
+
+  # A value copied from a fitted sibling: fitted in lineage but not against its own
+  # term, so fitted: false, and method: copied requires copied_from.
+  mfu_prefill_l40s:
+    value: 0.32
+    units: dimensionless
+    method: copied
+    fitted: false
+    copied_from: mfu_prefill
+    rationale: "Illustrative copy to show the copied provenance shape."
+    scope: {hardware: [L40S]}

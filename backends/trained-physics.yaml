@@ -1,0 +1,36 @@
+# Backend manifest: trained-physics
+#
+# A backend declares the coefficient NAMES it consumes. See backends/roofline.yaml for
+# the ABSENT-vs-ZERO contract this list encodes.
+#
+# The trained-physics backend prices latency from a regression over the operator basis:
+# eleven step-time coefficients (the betas) and three per-request overheads outside the
+# step loop (the alphas), per the R2 design. A trained-physics set EXTENDS the roofline
+# set, inheriting the MFU discounts it does not override (see the `extends` mechanism in
+# the schema), so those two names are consumed here as well.
+#
+# NOTE (R2G3, blis-registry#3 owns this): the eleven beta / three alpha NAMES below
+# enumerate the coefficients of the trained-physics form; R2G3 transcribes their VALUES
+# and may refine these to semantic names as it does so. The count (11 beta + 3 alpha)
+# and the inherited MFU pair are fixed by the design; this manifest is the contract G3
+# writes those values against. G1 ships no trained-physics VALUES (R2 is value-preserving).
+consumes:
+  # Inherited from the roofline set via `extends`.
+  - mfu_prefill
+  - mfu_decode
+  # Step-time regression coefficients (11 betas).
+  - beta_1
+  - beta_2
+  - beta_3
+  - beta_4
+  - beta_5
+  - beta_6
+  - beta_7
+  - beta_8
+  - beta_9
+  - beta_10
+  - beta_11
+  # Per-request overheads outside the step loop (3 alphas).
+  - alpha_1
+  - alpha_2
+  - alpha_3

@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""Validate coefficient sets against the CoefficientSet schema.
+
+Usage:
+    validate.py [PATH ...]
+
+Each PATH is a coefficient-set YAML file or a directory scanned for ``*.yaml``. With no
+PATH, the repository's ``operators/`` directory is validated. The tool loads each set,
+resolves its ``extends`` chain and its backend manifest, runs the strict schema checks,
+and prints one line per problem. Exit code is 0 iff every set is valid — this is the
+gate CI runs on every committed set.
+
+Backend manifests live in ``backends/<name>.yaml`` and declare the coefficient names a
+backend consumes:
+
+    consumes: [mfu_prefill, mfu_decode]
+
+A set names its backend with ``backend:`` and may inherit entries with ``extends:``. The
+manifest is what lets the validator refuse an omitted coefficient BY NAME rather than let
+it default silently.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import yaml
+
+# Support running both as a module (``python -m validator.validate``) and as a script
+# (``python validator/validate.py``), where the package is not on sys.path.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from validator.loader import DuplicateKeyError, load_strict
+    from validator.schema import check_set
+else:
+    from .loader import DuplicateKeyError, load_strict
+    from .schema import check_set
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BACKENDS_DIR = REPO_ROOT / "backends"
+OPERATORS_DIR = REPO_ROOT / "operators"
+
+
+# Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a
+# ValueError subclass, NOT an OSError) covers a non-UTF-8 file; TypeError covers a
+# complex/unhashable key surfacing from the loader. Catching these keeps a malformed
+# committed file a NAMED error instead of a stack trace escaping to CI.
+LOAD_ERRORS = (yaml.YAMLError, DuplicateKeyError, OSError, ValueError, TypeError)
+
+
+def _load_file(path: Path):
+    """Load and strictly parse one YAML file. Raises a LOAD_ERRORS member on bad input."""
+    return load_strict(path.read_text(encoding="utf-8"))
+
+
+def _backend_consumes(backend: str) -> tuple[frozenset[str] | None, str | None]:
+    """Resolve a backend's consumed-names list.
+
+    Returns ``(names, None)`` on success, or ``(None, reason)`` where ``reason``
+    distinguishes a *missing* manifest from a *malformed* one — so the caller can refuse
+    a set naming the real problem instead of misreporting a present-but-broken manifest
+    as absent (which would also silently skip the omitted-by-name check).
+    """
+    manifest = BACKENDS_DIR / f"{backend}.yaml"
+    if not manifest.is_file():
+        return None, f"backend {backend!r} has no manifest (add backends/{backend}.yaml)"
+    try:
+        data = _load_file(manifest)
+    except LOAD_ERRORS as exc:
+        return None, f"backend manifest backends/{backend}.yaml could not be parsed: {exc}"
+    if not isinstance(data, dict):
+        return None, f"backend manifest backends/{backend}.yaml must be a mapping"
+    consumes = data.get("consumes")
+    if not isinstance(consumes, list) or not all(isinstance(c, str) for c in consumes):
+        return None, (
+            f"backend manifest backends/{backend}.yaml must have a 'consumes' list of "
+            f"coefficient-name strings"
+        )
+    return frozenset(consumes), None
+
+
+def _resolve_inherited(
+    data: dict, sets_by_name: dict[str, dict], _seen: frozenset[str] = frozenset()
+) -> tuple[frozenset[str], list[str]]:
+    """Collect coefficient names available via the ``extends`` chain.
+
+    Returns (inherited_names, errors). An ``extends`` naming an absent set, or a cycle,
+    is reported as an error and contributes no names.
+    """
+    parent_name = data.get("extends")
+    if parent_name is None:
+        return frozenset(), []
+    if not isinstance(parent_name, str):
+        return frozenset(), [f"'extends' must be a string, got {parent_name!r}"]
+    if parent_name in _seen:
+        return frozenset(), [f"'extends' cycle detected involving {parent_name!r}"]
+    parent = sets_by_name.get(parent_name)
+    if parent is None:
+        return frozenset(), [
+            f"'extends' names {parent_name!r}, which is not a known coefficient set"
+        ]
+    names: set[str] = set()
+    parent_coeffs = parent.get("coefficients")
+    if isinstance(parent_coeffs, dict):
+        names.update(parent_coeffs)
+    grand, errs = _resolve_inherited(parent, sets_by_name, _seen | {parent_name})
+    names.update(grand)
+    return frozenset(names), errs
+
+
+def _discover(paths: list[str]) -> list[Path]:
+    files: list[Path] = []
+    targets = [Path(p) for p in paths] if paths else [OPERATORS_DIR]
+    for target in targets:
+        if target.is_dir():
+            files.extend(sorted(target.glob("*.yaml")))
+        elif target.is_file():
+            files.append(target)
+        else:
+            # Reported later as a load error so the run fails loudly.
+            files.append(target)
+    return files
+
+
+def _index_sets(files: list[Path]) -> tuple[dict[str, dict], list[str]]:
+    """Load every set once and index by ``name`` so ``extends`` can resolve siblings."""
+    sets_by_name: dict[str, dict] = {}
+    errors: list[str] = []
+    for path in files:
+        try:
+            data = _load_file(path)
+        except LOAD_ERRORS:
+            continue  # per-file errors are reported in the main validation pass
+        if isinstance(data, dict) and isinstance(data.get("name"), str):
+            name = data["name"]
+            if name in sets_by_name:
+                errors.append(f"duplicate coefficient-set name {name!r}")
+            sets_by_name[name] = data
+    return sets_by_name, errors
+
+
+def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
+    """Validate the given paths. Returns (exit_code, output_lines)."""
+    files = _discover(paths)
+    if not files:
+        return 1, ["no coefficient sets found to validate"]
+
+    sets_by_name, index_errors = _index_sets(files)
+    lines: list[str] = []
+    ok = not index_errors
+    for err in index_errors:
+        lines.append(f"registry: {err}")
+
+    for path in files:
+        rel = path
+        try:
+            data = _load_file(path)
+        except FileNotFoundError:
+            ok = False
+            lines.append(f"{rel}: file not found")
+            continue
+        except LOAD_ERRORS as exc:
+            ok = False
+            lines.append(f"{rel}: could not parse: {exc}")
+            continue
+
+        if data is None:
+            ok = False
+            lines.append(f"{rel}: empty file")
+            continue
+        if not isinstance(data, dict):
+            ok = False
+            lines.append(f"{rel}: top level must be a mapping, got {type(data).__name__}")
+            continue
+
+        backend = data.get("backend")
+        file_errors: list[str] = []
+        consumed: frozenset[str] | None = None
+        if not isinstance(backend, str):
+            file_errors.append("missing or non-string 'backend'")
+        else:
+            consumed, backend_reason = _backend_consumes(backend)
+            if backend_reason is not None:
+                file_errors.append(backend_reason)
+
+        inherited, extend_errors = _resolve_inherited(data, sets_by_name)
+        file_errors.extend(extend_errors)
+        file_errors.extend(check_set(data, consumed, inherited))
+
+        if file_errors:
+            ok = False
+            for err in sorted(file_errors):
+                lines.append(f"{rel}: {err}")
+        else:
+            lines.append(f"{rel}: OK")
+
+    return (0 if ok else 1), lines
+
+
+def main(argv: list[str]) -> int:
+    exit_code, lines = validate_paths(argv)
+    for line in lines:
+        print(line)
+    if exit_code == 0:
+        print("All coefficient sets valid.")
+    else:
+        print("Validation FAILED.", file=sys.stderr)
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

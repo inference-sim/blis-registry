@@ -43,9 +43,10 @@ OPERATORS_DIR = REPO_ROOT / "operators"
 
 
 # Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a
-# ValueError subclass, NOT an OSError) covers a non-UTF-8 file; TypeError covers a
-# complex/unhashable key surfacing from the loader. Catching these keeps a malformed
-# committed file a NAMED error instead of a stack trace escaping to CI.
+# ValueError subclass, NOT an OSError) covers a non-UTF-8 file. Complex/unhashable keys
+# are named by the loader as a DuplicateKeyError, so TypeError is retained only as a
+# defensive catch-all for any unhashable value that might still surface. Catching these
+# keeps a malformed committed file a NAMED error instead of a stack trace escaping to CI.
 LOAD_ERRORS = (yaml.YAMLError, DuplicateKeyError, OSError, ValueError, TypeError)
 
 
@@ -81,32 +82,38 @@ def _backend_consumes(backend: str) -> tuple[frozenset[str] | None, str | None]:
 
 
 def _resolve_inherited(
-    data: dict, sets_by_name: dict[str, dict], _seen: frozenset[str] = frozenset()
+    data: dict, sets_by_name: dict[str, dict]
 ) -> tuple[frozenset[str], list[str]]:
     """Collect coefficient names available via the ``extends`` chain.
 
-    Returns (inherited_names, errors). An ``extends`` naming an absent set, or a cycle,
-    is reported as an error and contributes no names.
+    Returns (inherited_names, errors). An ``extends`` naming an absent set, a non-string
+    ``extends``, or a cycle is reported as an error and stops the walk. Walked iteratively
+    (not recursively) so an arbitrarily deep acyclic chain cannot overflow the stack and
+    escape as a traceback; ``seen`` bounds the walk to the number of distinct sets.
     """
-    parent_name = data.get("extends")
-    if parent_name is None:
-        return frozenset(), []
-    if not isinstance(parent_name, str):
-        return frozenset(), [f"'extends' must be a string, got {parent_name!r}"]
-    if parent_name in _seen:
-        return frozenset(), [f"'extends' cycle detected involving {parent_name!r}"]
-    parent = sets_by_name.get(parent_name)
-    if parent is None:
-        return frozenset(), [
-            f"'extends' names {parent_name!r}, which is not a known coefficient set"
-        ]
     names: set[str] = set()
-    parent_coeffs = parent.get("coefficients")
-    if isinstance(parent_coeffs, dict):
-        names.update(parent_coeffs)
-    grand, errs = _resolve_inherited(parent, sets_by_name, _seen | {parent_name})
-    names.update(grand)
-    return frozenset(names), errs
+    seen: set[str] = set()
+    current = data
+    while True:
+        parent_name = current.get("extends")
+        if parent_name is None:
+            return frozenset(names), []
+        if not isinstance(parent_name, str):
+            return frozenset(names), [f"'extends' must be a string, got {parent_name!r}"]
+        if parent_name in seen:
+            return frozenset(names), [
+                f"'extends' cycle detected involving {parent_name!r}"
+            ]
+        parent = sets_by_name.get(parent_name)
+        if parent is None:
+            return frozenset(names), [
+                f"'extends' names {parent_name!r}, which is not a known coefficient set"
+            ]
+        seen.add(parent_name)
+        parent_coeffs = parent.get("coefficients")
+        if isinstance(parent_coeffs, dict):
+            names.update(parent_coeffs)
+        current = parent
 
 
 def _discover(paths: list[str]) -> list[Path]:

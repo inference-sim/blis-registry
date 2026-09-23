@@ -1,9 +1,9 @@
 """Behavioral tests for the CoefficientSet validator.
 
-Each test maps to a behavioral contract (BC-n) from the plan, which maps to an
-acceptance criterion of registry issue #1. Tests assert on BEHAVIOR (is it rejected, and
-does the message name the offending entry/key), not on internal structure, so they
-survive a refactor of the validator.
+Each test maps to an acceptance criterion of registry issue #1 (the BC-n behavioral
+contracts). Tests assert on BEHAVIOR (is it rejected, and does the message name the
+offending entry/key), not on internal structure, so they survive a refactor of the
+validator.
 """
 
 from __future__ import annotations
@@ -198,6 +198,45 @@ def test_empty_scope_rejected():
     assert any("scope" in e for e in errs), errs
 
 
+def test_empty_coefficients_rejected():
+    data = a_valid_set(coeffs={})
+    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    assert any("coefficients" in e for e in errs), errs
+
+
+def test_non_mapping_coefficients_rejected():
+    data = a_valid_set()
+    data["coefficients"] = [1, 2, 3]
+    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    assert any("coefficients" in e for e in errs), errs
+
+
+def test_non_mapping_entry_rejected():
+    errs = check_set(a_valid_set(coeffs={"c": "not-a-mapping"}), ROOFLINE, NO_INHERIT)
+    assert any("c" in e and "mapping" in e for e in errs), errs
+
+
+def test_non_mapping_scope_rejected():
+    errs = errors_for("c", a_valid_entry(scope="H100"))
+    assert any("scope" in e and "mapping" in e for e in errs), errs
+
+
+def test_duplicate_set_name_reported(tmp_path):
+    body = (
+        "name: dup\nbackend: roofline\ncoefficients:\n"
+        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+    )
+    (tmp_path / "a.yaml").write_text(body)
+    (tmp_path / "b.yaml").write_text(body)
+    code, lines = validate_mod.validate_paths([str(tmp_path / "a.yaml"),
+                                               str(tmp_path / "b.yaml")])
+    assert code == 1
+    assert any("duplicate coefficient-set name" in ln and "dup" in ln for ln in lines), lines
+
+
 # --- BC-5: backend consumed-names -----------------------------------------------
 
 
@@ -244,7 +283,66 @@ def test_ci95_absent_is_accepted():
     assert errs == [], errs
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "banana",                    # non-list
+        [0.4],                       # wrong arity
+        [0.4, 0.5, 0.6],             # wrong arity
+        [float("nan"), 0.5],         # non-finite
+        [0.4, float("inf")],         # non-finite
+        ["a", "b"],                  # non-numeric
+    ],
+)
+def test_ci95_malformed_rejected(bad):
+    errs = errors_for("c", a_valid_entry(ci95=bad))
+    assert any("ci95" in e for e in errs), (bad, errs)
+
+
+def test_ci95_lower_exceeds_upper_rejected():
+    errs = errors_for("c", a_valid_entry(ci95=[0.9, 0.1]))
+    assert any("ci95" in e and ("exceeds" in e or "lower" in e) for e in errs), errs
+
+
+# --- Optional-field value validation (C2-C5 hardening) --------------------------
+
+
+def test_supersedes_must_be_non_empty_string():
+    errs = errors_for("c", a_valid_entry(supersedes={"arbitrary": "map"}))
+    assert any("supersedes" in e for e in errs), errs
+
+
+def test_supersedes_valid_string_accepted():
+    errs = errors_for("c", a_valid_entry(supersedes="old_coeff"))
+    assert errs == [], errs
+
+
+def test_sources_malformed_rejected_even_when_not_required():
+    # method: assumed does not REQUIRE sources, but junk in it must not pass silently.
+    entry = a_valid_entry(method="assumed", sources=999)
+    entry.pop("sources", None)
+    entry["sources"] = 999
+    errs = errors_for("c", entry)
+    assert any("sources" in e for e in errs), errs
+
+
+def test_scope_null_value_under_known_key_rejected():
+    errs = errors_for("c", a_valid_entry(scope={"hardware": None}))
+    assert any("scope" in e and "hardware" in e for e in errs), errs
+
+
+def test_scope_empty_list_value_rejected():
+    errs = errors_for("c", a_valid_entry(scope={"hardware": []}))
+    assert any("scope" in e and "hardware" in e for e in errs), errs
+
+
 # --- BC-8: extends resolution (CLI-level) ---------------------------------------
+
+
+def _write_set(dirpath, filename, text):
+    p = dirpath / filename
+    p.write_text(text)
+    return p
 
 
 def test_unknown_extends_rejected():
@@ -261,12 +359,106 @@ def test_extends_cycle_rejected():
     assert any("cycle" in e for e in errs), errs
 
 
+def test_non_string_extends_rejected():
+    data = {"name": "c", "backend": "roofline", "extends": 123, "coefficients": {}}
+    _, errs = validate_mod._resolve_inherited(data, {})
+    assert any("extends" in e for e in errs), errs
+
+
+def test_multilevel_extends_chain_accumulates_names():
+    # grandparent -> parent -> child; child sees names from BOTH ancestors.
+    gp = {"name": "gp", "backend": "roofline",
+          "coefficients": {"mfu_prefill": a_valid_entry()}}
+    parent = {"name": "p", "backend": "roofline", "extends": "gp",
+              "coefficients": {"mfu_decode": a_valid_entry()}}
+    child = {"name": "c", "backend": "roofline", "extends": "p", "coefficients": {}}
+    inherited, errs = validate_mod._resolve_inherited(
+        child, {"gp": gp, "p": parent, "c": child}
+    )
+    assert errs == [], errs
+    assert "mfu_prefill" in inherited and "mfu_decode" in inherited
+
+
+def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
+    # A very deep acyclic chain must produce a named result, never a RecursionError
+    # traceback escaping to CI. 2000 > default recursion limit if this were recursive.
+    ops = tmp_path / "operators"
+    ops.mkdir()
+    n = 2000
+    for i in range(n):
+        ext = f"extends: s{i - 1}\n" if i > 0 else ""
+        _write_set(
+            ops, f"s{i}.yaml",
+            f"name: s{i}\nbackend: roofline\n{ext}"
+            "coefficients:\n"
+            "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+            "fitted: true, scope: {hardware: [H100]}}\n"
+            "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+            "fitted: true, scope: {hardware: [H100]}}\n",
+        )
+    code, lines = validate_mod.validate_paths([str(ops)])
+    # Whatever the verdict, it must not have crashed — every file gets a verdict line.
+    assert code in (0, 1)
+    assert not any("Traceback" in ln for ln in lines)
+
+
 # --- BC-9 / BC-10: committed set + CLI ------------------------------------------
 
 
 def test_committed_example_set_validates():
     code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
     assert code == 0, "\n".join(lines)
+
+
+# --- C1: name value validation + duplicate-name guard ---------------------------
+
+
+@pytest.mark.parametrize("bad_name", [123, "", "   ", ["a"], None])
+def test_non_string_or_empty_name_rejected(bad_name):
+    data = a_valid_set()
+    data["name"] = bad_name
+    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    assert any("name" in e for e in errs), (bad_name, errs)
+
+
+def test_non_string_name_does_not_bypass_duplicate_guard(tmp_path):
+    # Two structurally-identical sets both named 123 (int) must NOT slip past the
+    # duplicate-name guard by being silently dropped from the index.
+    body = (
+        "name: 123\nbackend: roofline\ncoefficients:\n"
+        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+    )
+    _write_set(tmp_path, "a.yaml", body)
+    _write_set(tmp_path, "b.yaml", body)
+    code, lines = validate_mod.validate_paths([str(tmp_path / "a.yaml"),
+                                               str(tmp_path / "b.yaml")])
+    assert code == 1
+    # Each file is individually rejected for the bad name.
+    assert sum("'name' must be a non-empty string" in ln for ln in lines) >= 2, lines
+
+
+def test_committed_trained_physics_set_validates():
+    # Exercises the trained-physics manifest end-to-end over a committed set.
+    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
+    assert code == 0, "\n".join(lines)
+
+
+def test_trained_physics_manifest_omitted_beta_refused_by_name(tmp_path, monkeypatch):
+    # If a set on the trained-physics backend omits a consumed beta, it is refused BY NAME
+    # — the guarantee the manifest exists to provide.
+    consumed, reason = validate_mod._backend_consumes("trained-physics")
+    assert reason is None and consumed is not None
+    # A set providing everything except beta_11 (and relying on no inheritance).
+    coeffs = {n: a_valid_entry(method="measured", fitted=True) for n in consumed
+              if n != "beta_11"}
+    for c in coeffs.values():
+        c.pop("sources", None)
+    data = {"name": "tp", "backend": "trained-physics", "coefficients": coeffs}
+    errs = check_set(data, consumed, NO_INHERIT)
+    assert any("beta_11" in e for e in errs), errs
 
 
 def test_cli_exits_nonzero_on_bad_set(tmp_path):

@@ -24,7 +24,7 @@ blis-registry/
 └── validator/                  # the strict validator + its tests (Python 3 + PyYAML)
     ├── validate.py             #   CLI: validate a file or a directory
     ├── schema.py               #   the CoefficientSet rules
-    ├── loader.py               #   strict YAML load (duplicate keys are an error)
+    ├── loader.py               #   strict YAML load (duplicate + complex keys are errors)
     └── test_validate.py
 ```
 
@@ -90,7 +90,8 @@ python -m pytest validator/ -q          # run the validator's own tests
 
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected. CI (`.github/workflows/validate.yml`)
-runs the unit tests and validates every committed set on every push and pull request.
+runs the unit tests and validates every committed set on every pull request and on
+every push to `main`.
 
 ## Scope of this repository
 

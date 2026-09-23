@@ -146,6 +146,61 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                         f"coefficient {name!r}: unknown scope key {key!r} "
                         f"(known: {sorted(SCOPE_KEYS)})"
                     )
+                    continue
+                # A known scope key must carry an actual range/value. A null or empty
+                # value conveys no scoping yet would satisfy a mere presence check —
+                # the "truthy but empty" hole the provenance fields already guard against.
+                val = scope[key]
+                if val is None or (isinstance(val, (list, dict, str)) and not val):
+                    errors.append(
+                        f"coefficient {name!r}: scope key {key!r} must have a non-empty value"
+                    )
+
+    # ci95: optional, but when present it must be a 2-element [lower, upper] interval of
+    # finite numbers with lower <= upper. "Accepted when present" must not mean "ignored":
+    # a NaN/Inf or non-numeric confidence interval is bad provenance, checked with the same
+    # rigor as `value`.
+    if "ci95" in entry:
+        ci95 = entry["ci95"]
+        if (
+            not isinstance(ci95, list)
+            or len(ci95) != 2
+            or not all(_is_finite_number(x) for x in ci95)
+        ):
+            errors.append(
+                f"coefficient {name!r}: ci95 must be a 2-element list of finite numbers "
+                f"[lower, upper], got {ci95!r}"
+            )
+        elif ci95[0] > ci95[1]:
+            errors.append(
+                f"coefficient {name!r}: ci95 lower bound {ci95[0]!r} exceeds upper "
+                f"bound {ci95[1]!r}"
+            )
+
+    # supersedes: optional; when present, names a prior coefficient it replaces, so it
+    # must be a non-empty string (mirroring copied_from). An arbitrary map/list is not a
+    # coefficient name.
+    if "supersedes" in entry:
+        supersedes = entry["supersedes"]
+        if not isinstance(supersedes, str) or not supersedes.strip():
+            errors.append(
+                f"coefficient {name!r}: supersedes must be a non-empty string "
+                f"(the coefficient name it replaces)"
+            )
+
+    # sources: well-formed whenever PRESENT (a list of non-empty strings), independent of
+    # whether the method REQUIRES it below. A committer who typed sources under any method
+    # meant to cite something; junk there should not pass silently.
+    if "sources" in entry:
+        sources = entry["sources"]
+        if (
+            not isinstance(sources, list)
+            or not sources
+            or not all(isinstance(s, str) and s.strip() for s in sources)
+        ):
+            errors.append(
+                f"coefficient {name!r}: sources must be a non-empty list of strings"
+            )
 
     # Required-by-method companion fields. Provenance must be human-readable text, so
     # these are checked as non-empty STRINGS (or a list of strings for sources) — a bare
@@ -159,12 +214,10 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                     f"string 'rationale'"
                 )
         if method in ("literature", "vendor_spec"):
+            # The "present ⇒ well-formed" check above already validates shape; here we only
+            # additionally REQUIRE its presence for these two methods.
             sources = entry.get("sources")
-            if (
-                not isinstance(sources, list)
-                or not sources
-                or not all(isinstance(s, str) and s.strip() for s in sources)
-            ):
+            if not isinstance(sources, list) or not sources:
                 errors.append(
                     f"coefficient {name!r}: method {method!r} requires a non-empty "
                     f"'sources' list of strings"
@@ -202,6 +255,15 @@ def check_set(data: Any, consumed: frozenset[str] | None, inherited: frozenset[s
     for key in sorted(TOP_LEVEL_REQUIRED):
         if key not in data:
             errors.append(f"missing required top-level key {key!r}")
+
+    # name must be a non-empty string. A non-string name (e.g. an unquoted number) not
+    # only carries no identity, it is silently dropped from the CLI's set index — which
+    # would bypass the duplicate-name guard and make the set invisible as an `extends`
+    # target. Rejecting it here closes that silent hole at the schema level.
+    if "name" in data:
+        set_name = data["name"]
+        if not isinstance(set_name, str) or not set_name.strip():
+            errors.append(f"'name' must be a non-empty string, got {set_name!r}")
 
     coefficients = data.get("coefficients")
     own_names: frozenset[str] = frozenset()

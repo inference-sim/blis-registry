@@ -1,11 +1,13 @@
 """Strict YAML loading for the coefficient registry.
 
 The registry's whole point is that a number states where it came from and where it
-holds; a silent parse would undo that. So loading is strict in two ways the stock
+holds; a silent parse would undo that. So loading is strict in three ways the stock
 ``yaml.safe_load`` is not:
 
   * duplicate mapping keys are an error, not last-wins — a second ``value:`` in an
     entry must never silently shadow the first;
+  * a complex (unhashable) mapping key — a list or map used as a key — is a named
+    error rather than a raw ``TypeError`` escaping to CI;
   * the loader is only ever asked for ``dict``/``list``/scalar data (SafeLoader),
     never arbitrary Python objects.
 
@@ -18,7 +20,7 @@ import yaml
 
 
 class DuplicateKeyError(ValueError):
-    """Raised when a mapping contains the same key twice."""
+    """Raised for a repeated mapping key, or an unsupported complex (unhashable) key."""
 
 
 class _StrictLoader(yaml.SafeLoader):
@@ -58,7 +60,7 @@ def load_strict(text: str):
     """Parse a single YAML document with duplicate-key detection.
 
     Returns the parsed value (``None`` for an empty document). Raises
-    ``DuplicateKeyError`` on a repeated mapping key and ``yaml.YAMLError`` on any
-    other malformed input.
+    ``DuplicateKeyError`` on a repeated mapping key or an unsupported complex
+    (unhashable) key, and ``yaml.YAMLError`` on any other malformed input.
     """
     return yaml.load(text, Loader=_StrictLoader)

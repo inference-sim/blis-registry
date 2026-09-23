@@ -6,11 +6,11 @@ Usage:
 
 Each PATH is a coefficient-set YAML file or a directory scanned recursively for YAML
 files (``*.yaml``/``*.yml``, case-insensitive). With no PATH, the real sets in
-``operators/`` are validated; that directory may be empty until real sets are transcribed,
-in which case the run is a clean pass (the validator's own test suite is what proves the
-checks on every CI run). The tool loads each set, resolves its ``extends`` chain and its
-backend manifest, runs the strict schema checks, and prints one line per problem. Exit
-code is 0 iff every set is valid — this is the gate CI runs on every committed set.
+``operators/`` and the committed schema fixtures in ``fixtures/`` are validated;
+``operators/`` may be empty until real sets are transcribed. The tool loads each set,
+resolves its ``extends`` chain and its backend manifest, runs the strict schema checks,
+and prints one line per problem. Exit code is 0 iff every set is valid — this is the gate
+CI runs on every committed set.
 
 A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
 the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
@@ -46,11 +46,13 @@ else:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKENDS_DIR = REPO_ROOT / "backends"
 OPERATORS_DIR = REPO_ROOT / "operators"   # the real coefficient sets
+FIXTURES_DIR = REPO_ROOT / "fixtures"     # committed synthetic schema fixtures (not data)
 
-# With no explicit path, validate the real sets in operators/. It may be empty (no real
-# sets shipped yet); the validator's own test suite is what proves the checks on every CI
-# run, so an empty registry is a clean pass rather than a failure.
-DEFAULT_TARGETS = [OPERATORS_DIR]
+# With no explicit path, validate the real sets in operators/ AND the committed schema
+# fixtures in fixtures/. operators/ may be empty until real sets are transcribed; the
+# fixtures give CI a committed artifact to validate on every run (issue #1's deliverable).
+# A missing default dir is not an error — either directory may legitimately be absent.
+DEFAULT_TARGETS = [OPERATORS_DIR, FIXTURES_DIR]
 
 
 # Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a

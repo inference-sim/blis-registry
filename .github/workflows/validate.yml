@@ -1,10 +1,10 @@
 name: validate
 
-# Run the validator's own unit tests (which prove the schema checks over many
-# in-test sets) and the strict validator over every committed coefficient set in
-# operators/, on every push to main and every pull request. A rejection or a failing
-# test fails the job — this is the CI gate the schema contract requires. operators/ may
-# be empty until real sets are transcribed; the test suite keeps the gate meaningful.
+# Run the validator's own unit tests (which prove the schema checks over many in-test
+# sets) and the strict validator over every committed set — the real sets in operators/
+# and the committed schema fixtures in fixtures/ — on every push to main and every pull
+# request. A rejection or a failing test fails the job. operators/ may be empty until
+# real sets are transcribed; the fixtures give CI a committed artifact to validate.
 
 on:
   push:

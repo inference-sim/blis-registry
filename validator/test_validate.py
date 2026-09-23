@@ -521,9 +521,25 @@ def test_valid_set_validates_end_to_end(tmp_path):
     assert code == 0, "\n".join(lines)
 
 
-def test_empty_registry_is_a_clean_pass():
-    # No-arg run scans the (currently empty) operators/ registry. An empty registry is a
-    # clean pass, not a failure — the test suite is what proves the checks meanwhile.
+def test_no_arg_default_validates_committed_artifacts():
+    # No-arg run scans operators/ + fixtures/; the committed schema fixture(s) make this a
+    # real validation of a committed artifact, and it must pass on the current tree.
+    code, lines = validate_mod.validate_paths([])
+    assert code == 0, "\n".join(lines)
+
+
+def test_committed_fixtures_validate():
+    # The committed schema fixture(s) in fixtures/ validate against their real backend.
+    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "fixtures")])
+    assert code == 0, "\n".join(lines)
+
+
+def test_empty_registry_dir_is_a_clean_pass(monkeypatch, tmp_path):
+    # An empty default registry (no committed sets) is a clean pass, not a failure —
+    # verified by pointing DEFAULT_TARGETS at an empty dir so the check is real.
+    empty = tmp_path / "operators"
+    empty.mkdir()
+    monkeypatch.setattr(validate_mod, "DEFAULT_TARGETS", [empty])
     code, lines = validate_mod.validate_paths([])
     assert code == 0, "\n".join(lines)
 

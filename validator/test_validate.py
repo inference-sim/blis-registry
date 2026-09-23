@@ -419,8 +419,15 @@ def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
 # --- BC-9 / BC-10: committed set + CLI ------------------------------------------
 
 
-def test_committed_example_set_validates():
-    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
+def test_committed_fixtures_validate():
+    # The committed schema fixture(s) in fixtures/ validate clean.
+    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "fixtures")])
+    assert code == 0, "\n".join(lines)
+
+
+def test_default_targets_validate():
+    # No-arg run validates operators/ + fixtures/; passes even while operators/ is empty.
+    code, lines = validate_mod.validate_paths([])
     assert code == 0, "\n".join(lines)
 
 
@@ -614,10 +621,9 @@ def test_validated_unsupported_fields_accepted():
 
 
 def test_cli_subprocess_smoke():
-    """The script runs as a subprocess (as CI invokes it) and passes on operators/."""
+    """The script runs as a subprocess (as CI invokes it) with no args and passes."""
     result = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "validator" / "validate.py"),
-         str(REPO_ROOT / "operators")],
+        [sys.executable, str(REPO_ROOT / "validator" / "validate.py")],
         capture_output=True,
         text=True,
     )

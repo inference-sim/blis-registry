@@ -1,8 +1,9 @@
 name: validate
 
-# Run the strict validator over every committed coefficient set, and the validator's
-# own unit tests, on every push and pull request. A rejection or a failing test fails
-# the job — this is the CI gate the schema contract (registry issue #1) requires.
+# Run the strict validator over every committed coefficient set (the real sets in
+# operators/ and the synthetic schema fixtures in fixtures/), and the validator's own
+# unit tests, on every push to main and every pull request. A rejection or a failing
+# test fails the job — this is the CI gate the schema contract requires.
 
 on:
   push:
@@ -25,5 +26,5 @@ jobs:
       - name: Run validator unit tests
         run: python -m pytest validator/ -q
 
-      - name: Validate every committed coefficient set
-        run: python validator/validate.py operators/
+      - name: Validate every committed coefficient set (operators/ + fixtures/)
+        run: python validator/validate.py

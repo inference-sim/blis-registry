@@ -1,0 +1,3 @@
+# The real coefficient sets live here (one file per set, <stem>.yaml). This repository
+# ships none yet — they are transcribed by later tasks. The schema fixture that keeps CI
+# non-vacuous is in fixtures/, deliberately kept out of this real-data directory.

@@ -5,10 +5,11 @@ Usage:
     validate.py [PATH ...]
 
 Each PATH is a coefficient-set YAML file or a directory scanned for ``*.yaml``. With no
-PATH, the repository's ``operators/`` directory is validated. The tool loads each set,
-resolves its ``extends`` chain and its backend manifest, runs the strict schema checks,
-and prints one line per problem. Exit code is 0 iff every set is valid — this is the
-gate CI runs on every committed set.
+PATH, the real sets in ``operators/`` and the synthetic schema fixtures in ``fixtures/``
+are validated (``operators/`` may be empty until real sets are transcribed). The tool
+loads each set, resolves its ``extends`` chain and its backend manifest, runs the strict
+schema checks, and prints one line per problem. Exit code is 0 iff every set is valid —
+this is the gate CI runs on every committed set.
 
 A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
 the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
@@ -43,7 +44,12 @@ else:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKENDS_DIR = REPO_ROOT / "backends"
-OPERATORS_DIR = REPO_ROOT / "operators"
+OPERATORS_DIR = REPO_ROOT / "operators"   # the real coefficient sets
+FIXTURES_DIR = REPO_ROOT / "fixtures"     # synthetic schema fixtures (not registry data)
+
+# With no explicit path, validate both the real sets and the fixtures. `operators/` may be
+# empty (no real sets shipped yet); the fixtures keep the CI gate non-vacuous meanwhile.
+DEFAULT_TARGETS = [OPERATORS_DIR, FIXTURES_DIR]
 
 
 # Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a
@@ -125,15 +131,18 @@ def _resolve_inherited(
 
 def _discover(paths: list[str]) -> list[Path]:
     files: list[Path] = []
-    targets = [Path(p) for p in paths] if paths else [OPERATORS_DIR]
+    targets = [Path(p) for p in paths] if paths else DEFAULT_TARGETS
     for target in targets:
         if target.is_dir():
             files.extend(sorted(target.glob("*.yaml")))
         elif target.is_file():
             files.append(target)
         else:
-            # Reported later as a load error so the run fails loudly.
-            files.append(target)
+            # A missing DEFAULT target (e.g. an as-yet-uncreated operators/) is not an
+            # error — there may simply be no real sets yet. An explicitly-named missing
+            # path IS reported, as a load error, so a bad argument fails loudly.
+            if paths:
+                files.append(target)
     return files
 
 

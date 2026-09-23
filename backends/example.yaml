@@ -1,0 +1,10 @@
+# Backend manifest: example  (SCHEMA FIXTURE SUPPORT — not a real backend)
+#
+# This manifest exists only so the schema fixture in fixtures/ has a backend to validate
+# against. It is deliberately synthetic: `example` is not a latency model BLIS runs, and
+# `coeff_a` / `coeff_b` are not real coefficients. It doubles as a worked example of the
+# manifest format — a backend declares the coefficient NAMES it consumes, and a set on
+# that backend is refused by name if it omits one.
+consumes:
+  - coeff_a
+  - coeff_b

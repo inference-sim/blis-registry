@@ -576,8 +576,8 @@ def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
 
 def test_valid_set_validates_end_to_end(tmp_path):
     # BC-9: a well-formed set on a real backend, validated through the CLI over a
-    # directory, passes cleanly. (No such set is committed — real sets are transcribed
-    # later — so this exercises the happy path over a temp dir.)
+    # directory, passes cleanly. (The committed fixtures/roofline-example.yaml is such a
+    # set; this exercises the happy path over a temp dir independent of the fixture.)
     ops = tmp_path / "operators"
     ops.mkdir()
     _write_set(

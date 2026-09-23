@@ -58,6 +58,12 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
+Real sets live in `operators/` (currently empty — they are transcribed by later tasks).
+A committed, clearly-labelled **synthetic** set in `fixtures/` gives CI a committed
+artifact to validate on every run; it is a schema fixture, never real data, and forms a
+separate namespace — a set in one directory cannot `extends` or collide with a set in
+another.
+
 ## Usage
 
 This repository holds and validates the coefficient data; it does not run simulations.

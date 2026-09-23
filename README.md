@@ -36,8 +36,8 @@ schema so that missing provenance, unrecognized fields, or ill-formed values are
 
 A coefficient set is one YAML file under `operators/`, identified by its filename. It
 declares `kind: CoefficientSet`, the `backend` it feeds, and a map of `coefficients`; it
-may `extends` another set — a sibling in the same directory, named by filename stem — to
-inherit entries it does not override. Each backend under `backends/` declares the
+may `extends` another set — one in the same scanned root (namespace), named by filename
+stem — to inherit entries it does not override. Each backend under `backends/` declares the
 coefficient names it consumes, and a set is validated against that list — an omitted
 coefficient is refused by name rather than silently defaulted.
 
@@ -61,8 +61,8 @@ or key, and exits non-zero if any set is rejected.
 Real sets live in `operators/` (currently empty — they are transcribed by later tasks).
 A committed, clearly-labelled **synthetic** set in `fixtures/` gives CI a committed
 artifact to validate on every run; it is a schema fixture, never real data, and forms a
-separate namespace — a set in one directory cannot `extends` or collide with a set in
-another.
+separate namespace — a set under one scanned root cannot `extends` or collide with a set
+under another.
 
 ## Usage
 

@@ -14,9 +14,10 @@ CI runs on every committed set.
 
 A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
 the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
-base set to inherit from — resolved only among **siblings in the same directory**, so
-sets in different scanned roots (e.g. ``operators/`` and ``fixtures/``) form isolated
-namespaces that never inherit from, or collide with, one another.
+base set to inherit from — resolved only within the **same scanned root (namespace)**, so
+sets in different roots (e.g. ``operators/`` and ``fixtures/``) form isolated namespaces
+that never inherit from, or collide with, one another. A root is scanned recursively, so
+subdirectories under one root share its namespace.
 
 Backend manifests live in ``backends/<name>.yaml`` and declare the coefficient names a
 backend consumes:
@@ -101,13 +102,13 @@ def _resolve_inherited(
 ) -> tuple[frozenset[str], list[str]]:
     """Collect coefficient names available via the ``extends`` chain.
 
-    ``sets_by_stem`` is the index for the current file's OWN namespace, mapping a filename
-    stem to its parsed document; ``extends`` names the stem of a base set in that same
-    namespace. Returns (inherited_names, errors). An ``extends`` naming an absent set (not
-    a sibling in this namespace), a non-string ``extends``, or a cycle is reported as an
-    error and stops the walk. Walked iteratively (not recursively) so an arbitrarily deep
-    acyclic chain cannot overflow the stack and escape as a traceback; ``seen`` bounds the
-    walk to the number of distinct sets.
+    ``sets_by_stem`` is the index for the current file's OWN namespace (its scanned root),
+    mapping a filename stem to its parsed document; ``extends`` names the stem of a base
+    set in that same namespace. Returns (inherited_names, errors). An ``extends`` naming an
+    absent set (not present in this namespace), a non-string ``extends``, or a cycle is
+    reported as an error and stops the walk. Walked iteratively (not recursively) so an
+    arbitrarily deep acyclic chain cannot overflow the stack and escape as a traceback;
+    ``seen`` bounds the walk to the number of distinct sets.
     """
     names: set[str] = set()
     seen: set[str] = set()
@@ -126,7 +127,7 @@ def _resolve_inherited(
         if parent is None:
             return frozenset(names), [
                 f"'extends' names {parent_stem!r}, which is not a coefficient set in the "
-                f"same directory (extends resolves only among sibling sets)"
+                f"same namespace (extends resolves only within the same scanned root)"
             ]
         seen.add(parent_stem)
         parent_coeffs = parent.get("coefficients")
@@ -180,7 +181,7 @@ def _discover(paths: list[str]) -> list[tuple[Path, Path]]:
 def _index_sets(
     found: list[tuple[Path, Path]]
 ) -> tuple[dict[Path, dict[str, dict]], list[str]]:
-    """Index sets by stem WITHIN each namespace so ``extends`` resolves only among siblings.
+    """Index sets by stem WITHIN each namespace so ``extends`` resolves only in that root.
 
     Returns ``(indexes, errors)`` where ``indexes[namespace]`` maps a filename stem to its
     parsed document. Indexing per namespace keeps production sets (``operators/``) and

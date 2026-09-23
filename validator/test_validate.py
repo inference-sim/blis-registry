@@ -341,6 +341,23 @@ def test_extends_does_not_leak_across_namespaces(tmp_path):
     assert "child.yaml" in joined and ("extends" in joined or "mfu_prefill" in joined), joined
 
 
+def test_extends_resolves_across_subdirs_of_same_root(tmp_path):
+    # A namespace is a SCANNED ROOT, not a single directory: a set in one subdirectory may
+    # extend a set in another subdirectory of the same root (the root is scanned
+    # recursively). This locks in the documented "same scanned root" wording.
+    ops = tmp_path / "operators"
+    (ops / "a").mkdir(parents=True)
+    (ops / "b").mkdir(parents=True)
+    (ops / "a" / "base.yaml").write_text(_SET_BODY)
+    (ops / "b" / "child.yaml").write_text(
+        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
+        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [A100]}}\n"
+    )
+    code, lines = validate_mod.validate_paths([str(ops)])
+    assert code == 0, "\n".join(lines)
+
+
 # --- BC-5: backend consumed-names -----------------------------------------------
 
 

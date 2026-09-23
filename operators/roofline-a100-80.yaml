@@ -24,8 +24,8 @@ coefficients:
       - {kind: publication, cite: "Korthikanti et al., Reducing Activation Recomputation (MLSys 2022): 54.2% MFU on A100 (training)", role: upper_bound}
       - {kind: publication, cite: "Chowdhery et al., PaLM (2022): 46.2% MFU on TPUv4", role: supporting}
     rationale: >
-      A100-80 is an alias of A100-SXM and carries its calibration: training reaches ~54%
-      MFU, vLLM production prefill 35-40% on 1K-4K-token batches. Discounted to 0.38 for
+      A100-80 is an alias of A100-SXM and carries the same #589 literature basis: training
+      reaches ~54% MFU, vLLM production prefill 35-40% on 1K-4K-token batches. Discounted to 0.38 for
       inference (no backward-pass optimization, variable batch sizes), conservatively below
       the training ceiling.
     scope: {hardware: [A100-80]}

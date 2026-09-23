@@ -9,7 +9,8 @@ values to full precision, so the guarantee is enforced by a test rather than by 
 two places they currently live:
 
   * the catalog hardware files (``hardware/<gpu>.yaml`` in blis-catalog), and
-  * the simulator's ``hardware_config.json`` (L7-L8 of each GPU block) in inference-sim,
+  * the ``mfuPrefill``/``mfuDecode`` fields of each GPU block in the simulator's
+    ``hardware_config.json`` (inference-sim),
 
 which agree by construction. The registry cannot reach those repos at test time, so the
 snapshot is embedded here as literals — that embedding *is* the frozen snapshot. This is
@@ -54,7 +55,9 @@ def _load_set(stem: str) -> dict:
 def test_every_covered_gpu_has_a_set():
     # Coverage spans every GPU BLIS ships MFU for today — not H100 alone. A missing set is a
     # coverage gap; an unexpected set means the snapshot and the tree have drifted apart.
-    present = {p.stem for p in OPERATORS_DIR.glob("roofline-*.yaml")}
+    # rglob to match validate.py's recursive scan, so the two tools agree on what "the
+    # tree" is: a set dropped in an operators/ subdirectory is caught here too.
+    present = {p.stem for p in OPERATORS_DIR.rglob("roofline-*.yaml")}
     assert present == set(SHIPPED_MFU), (present, set(SHIPPED_MFU))
 
 
@@ -77,13 +80,17 @@ def test_each_entry_scoped_to_its_gpu_with_literature_provenance(stem):
     # a rationale, fitted: false, and a hardware scope naming exactly its GPU.
     expected = SHIPPED_MFU[stem]
     coeffs = _load_set(stem)["coefficients"]
+    # Exactly the two MFU discounts are entries — no more, no less. This is also the
+    # vendor-spec-exclusion guard: a TFlopsPeak/TFlopsFP8/BwPeakTBs key leaking in as an
+    # entry (they are catalog references, cited not copied) fails here by name.
     assert set(coeffs) == {"mfu_prefill", "mfu_decode"}, coeffs.keys()
     for name, entry in coeffs.items():
         assert entry["method"] == "literature", (stem, name)
         assert entry["fitted"] is False, (stem, name)
+        assert entry["units"] == "dimensionless", (stem, name, entry.get("units"))
         assert entry["scope"] == {"hardware": [expected["hardware"]]}, (stem, name)
         assert isinstance(entry.get("rationale"), str) and entry["rationale"].strip()
-        cites = [s["cite"] for s in entry["sources"]]
-        assert "inference-sim#589" in cites, (stem, name, cites)
-        # The three vendor specs are catalog references, never entries in a set.
-        assert name not in ("TFlopsPeak", "TFlopsFP8", "BwPeakTBs")
+        # #589 is the PRIMARY basis, not merely present: the discount is a #589 estimate,
+        # so a demotion to a supporting role would misstate provenance.
+        cite_roles = [(s["cite"], s["role"]) for s in entry["sources"]]
+        assert ("inference-sim#589", "primary") in cite_roles, (stem, name, cite_roles)

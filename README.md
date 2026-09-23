@@ -32,6 +32,31 @@ The repository validates its own contents: the committed data is checked against
 schema so that missing provenance, unrecognized fields, or ill-formed values are rejected
 — each failure pointing at the specific place it occurred — before the data is relied on.
 
+## Authoring and validating a set
+
+A coefficient set is one YAML file under `operators/`, identified by its filename. It
+declares `kind: CoefficientSet`, the `backend` it feeds, and a map of `coefficients`; it
+may `extends` another set to inherit entries it does not override. Each backend under
+`backends/` declares the coefficient names it consumes, and a set is validated against
+that list — an omitted coefficient is refused by name rather than silently defaulted.
+
+Every coefficient records `value`, `units`, `method` (how the number was obtained),
+`fitted`, and `scope` (the range it holds over), plus optional provenance
+(`sources`, `rationale`, `ci95`, …). The strict rules — which fields are required, the
+allowed enums, and the required-by-method provenance — are defined and enforced by the
+validator in `validator/`, which is the authoritative, maintained specification.
+
+To validate the registry (the same check CI runs on every pull request):
+
+```sh
+pip install -r requirements.txt
+python validator/validate.py            # validate every committed set
+python -m pytest validator/ -q          # run the validator's own test suite
+```
+
+The validator prints one line per problem, each naming the file and the offending entry
+or key, and exits non-zero if any set is rejected.
+
 ## Usage
 
 This repository holds and validates the coefficient data; it does not run simulations.

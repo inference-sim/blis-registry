@@ -52,8 +52,9 @@ OPERATORS_DIR = REPO_ROOT / "operators"   # the real coefficient sets
 FIXTURES_DIR = REPO_ROOT / "fixtures"     # committed synthetic schema fixtures (not data)
 
 # With no explicit path, validate the real sets in operators/ AND the committed schema
-# fixtures in fixtures/. operators/ may be empty until real sets are transcribed; the
-# fixtures give CI a committed artifact to validate on every run (issue #1's deliverable).
+# fixtures in fixtures/. operators/ holds the real sets (e.g. the per-GPU roofline MFU
+# sets) and may be sparse before a given task transcribes its numbers; the fixtures give
+# CI a committed artifact to validate on every run (issue #1's deliverable).
 # A missing default dir is not an error — either directory may legitimately be absent.
 DEFAULT_TARGETS = [OPERATORS_DIR, FIXTURES_DIR]
 

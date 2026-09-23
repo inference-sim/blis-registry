@@ -469,14 +469,27 @@ def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
 # --- BC-9 / BC-10: committed set + CLI ------------------------------------------
 
 
-def test_committed_fixtures_validate():
-    # The committed schema fixture(s) in fixtures/ validate clean.
-    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "fixtures")])
+def test_valid_set_validates_end_to_end(tmp_path):
+    # BC-9: a well-formed set on a real backend, validated through the CLI over a
+    # directory, passes cleanly. (No such set is committed — real sets are transcribed
+    # later — so this exercises the happy path over a temp dir.)
+    ops = tmp_path / "operators"
+    ops.mkdir()
+    _write_set(
+        ops, "roofline.yaml",
+        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
+        "  mfu_prefill: {value: 0.45, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+        "  mfu_decode: {value: 0.30, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(ops)])
     assert code == 0, "\n".join(lines)
 
 
-def test_default_targets_validate():
-    # No-arg run validates operators/ + fixtures/; passes even while operators/ is empty.
+def test_empty_registry_is_a_clean_pass():
+    # No-arg run scans the (currently empty) operators/ registry. An empty registry is a
+    # clean pass, not a failure — the test suite is what proves the checks meanwhile.
     code, lines = validate_mod.validate_paths([])
     assert code == 0, "\n".join(lines)
 

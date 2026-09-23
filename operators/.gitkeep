@@ -1,3 +1,4 @@
 # The real coefficient sets live here (one file per set, <stem>.yaml). This repository
-# ships none yet — they are transcribed by later tasks. The schema fixture that keeps CI
-# non-vacuous is in fixtures/, deliberately kept out of this real-data directory.
+# ships none yet — they are transcribed by later tasks. Until then this directory is
+# empty and the validator treats an empty registry as a clean pass; the validator's own
+# test suite is what exercises the schema checks on every CI run.

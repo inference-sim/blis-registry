@@ -5,12 +5,12 @@ Usage:
     validate.py [PATH ...]
 
 Each PATH is a coefficient-set YAML file or a directory scanned recursively for YAML
-files (``*.yaml``/``*.yml``, case-insensitive). With no
-PATH, the real sets in ``operators/`` and the synthetic schema fixtures in ``fixtures/``
-are validated (``operators/`` may be empty until real sets are transcribed). The tool
-loads each set, resolves its ``extends`` chain and its backend manifest, runs the strict
-schema checks, and prints one line per problem. Exit code is 0 iff every set is valid —
-this is the gate CI runs on every committed set.
+files (``*.yaml``/``*.yml``, case-insensitive). With no PATH, the real sets in
+``operators/`` are validated; that directory may be empty until real sets are transcribed,
+in which case the run is a clean pass (the validator's own test suite is what proves the
+checks on every CI run). The tool loads each set, resolves its ``extends`` chain and its
+backend manifest, runs the strict schema checks, and prints one line per problem. Exit
+code is 0 iff every set is valid — this is the gate CI runs on every committed set.
 
 A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
 the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
@@ -46,11 +46,11 @@ else:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKENDS_DIR = REPO_ROOT / "backends"
 OPERATORS_DIR = REPO_ROOT / "operators"   # the real coefficient sets
-FIXTURES_DIR = REPO_ROOT / "fixtures"     # synthetic schema fixtures (not registry data)
 
-# With no explicit path, validate both the real sets and the fixtures. `operators/` may be
-# empty (no real sets shipped yet); the fixtures keep the CI gate non-vacuous meanwhile.
-DEFAULT_TARGETS = [OPERATORS_DIR, FIXTURES_DIR]
+# With no explicit path, validate the real sets in operators/. It may be empty (no real
+# sets shipped yet); the validator's own test suite is what proves the checks on every CI
+# run, so an empty registry is a clean pass rather than a failure.
+DEFAULT_TARGETS = [OPERATORS_DIR]
 
 
 # Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a
@@ -191,7 +191,12 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
     """Validate the given paths. Returns (exit_code, output_lines)."""
     files = _discover(paths)
     if not files:
-        return 1, ["no coefficient sets found to validate"]
+        # No explicit paths => scanning the default registry, which may legitimately be
+        # empty (no real sets shipped yet): that is a clean pass, not a failure. An
+        # explicit path that matched nothing IS an error — the caller asked for something.
+        if paths:
+            return 1, ["no coefficient sets found to validate"]
+        return 0, ["no coefficient sets to validate (registry is empty)"]
 
     sets_by_stem, index_errors = _index_sets(files)
     lines: list[str] = []

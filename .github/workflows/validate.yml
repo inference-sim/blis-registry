@@ -1,0 +1,31 @@
+name: validate
+
+# Run the validator's own unit tests (which prove the schema checks over many in-test
+# sets) and the strict validator over every committed set — the real sets in operators/
+# and the committed schema fixtures in fixtures/ — on every push to main and every pull
+# request. A rejection or a failing test fails the job. operators/ may be empty until
+# real sets are transcribed; the fixtures give CI a committed artifact to validate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run validator unit tests
+        run: python -m pytest validator/ -q
+
+      - name: Validate every committed coefficient set
+        run: python validator/validate.py

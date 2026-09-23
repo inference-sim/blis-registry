@@ -1,0 +1,34 @@
+# SCHEMA FIXTURE — NOT REGISTRY DATA. DO NOT CITE THESE VALUES.
+#
+# This is a committed artifact so CI validates a real file on every run (issue #1's
+# "at least one example/committed set" deliverable). It lives in fixtures/, NOT in
+# operators/, so it is never mistaken for a real coefficient set — operators/ holds only
+# real, transcribed sets.
+#
+# It feeds the REAL `roofline` backend (backends/roofline.yaml), so it exercises the
+# genuine consumed-names contract end-to-end. The VALUES are deliberately implausible
+# placeholders (not the real MFU discounts, which are transcribed by a later task); the
+# 0.111.../0.222... digits are chosen to be obviously synthetic so no reader could take
+# them for calibrated numbers. This repository is value-preserving and ships no real
+# coefficient values.
+kind: CoefficientSet
+backend: roofline
+
+coefficients:
+  mfu_prefill:
+    value: 0.11111
+    units: dimensionless
+    method: assumed
+    fitted: false
+    rationale: "Synthetic placeholder value for schema validation only; not a real MFU."
+    scope: {hardware: [ExampleGPU]}
+    ci95: null
+    supersedes: null
+
+  mfu_decode:
+    value: 0.22222
+    units: dimensionless
+    method: assumed
+    fitted: false
+    rationale: "Synthetic placeholder value for schema validation only; not a real MFU."
+    scope: {hardware: [ExampleGPU]}

@@ -8,8 +8,8 @@
 #
 # The roofline backend estimates latency from hardware peaks discounted by a
 # model-utilization factor (MFU): prefill and decode each carry their own discount.
-# The real values are transcribed by R2G2 (blis-registry#2); this manifest only fixes
-# the names those values must appear under.
+# The real values are transcribed by a later coefficient-set task; this manifest only
+# fixes the names those values must appear under.
 consumes:
   - mfu_prefill
   - mfu_decode

@@ -5,15 +5,15 @@
 #
 # The trained-physics backend prices latency from a regression over the operator basis:
 # eleven step-time coefficients (the betas) and three per-request overheads outside the
-# step loop (the alphas), per the R2 design. A trained-physics set EXTENDS the roofline
-# set, inheriting the MFU discounts it does not override (see the `extends` mechanism in
-# the schema), so those two names are consumed here as well.
+# step loop (the alphas). A trained-physics set EXTENDS the roofline set, inheriting the
+# MFU discounts it does not override (see the `extends` mechanism in the schema), so
+# those two names are consumed here as well.
 #
-# NOTE (R2G3, blis-registry#3 owns this): the eleven beta / three alpha NAMES below
-# enumerate the coefficients of the trained-physics form; R2G3 transcribes their VALUES
-# and may refine these to semantic names as it does so. The count (11 beta + 3 alpha)
-# and the inherited MFU pair are fixed by the design; this manifest is the contract G3
-# writes those values against. G1 ships no trained-physics VALUES (R2 is value-preserving).
+# The eleven beta / three alpha NAMES below enumerate the coefficients of the
+# trained-physics form; a later coefficient-set task transcribes their VALUES and may
+# refine these to semantic names as it does so. The count (11 beta + 3 alpha) and the
+# inherited MFU pair are fixed by the design; this manifest is the contract those values
+# are written against. This repository ships no trained-physics values (value-preserving).
 consumes:
   # Inherited from the roofline set via `extends`.
   - mfu_prefill

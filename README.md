@@ -22,11 +22,11 @@ can say not just *what* it computed but *on what evidence*.
 
 ## What this repository holds
 
-A **coefficient set** is a named, immutable collection of coefficients. Each coefficient
-records its value alongside the provenance and scope that make it auditable, so a reader
-can tell a measured number from an assumed one and know the range it was established over.
-Sets are organized so that related numbers can be shared and built upon rather than
-duplicated.
+A **coefficient set** is an immutable collection of coefficients that feeds one latency
+model. Each coefficient records its value alongside the provenance and scope that make it
+auditable, so a reader can tell a measured number from an assumed one and know the range
+it was established over. Sets are organized so that related numbers can be shared and
+built upon rather than duplicated.
 
 The repository validates its own contents: the committed data is checked against the
 schema so that missing provenance, unrecognized fields, or ill-formed values are rejected

@@ -1,19 +1,25 @@
 """The CoefficientSet schema and its strict validation rules.
 
-A ``CoefficientSet`` is a named, immutable set of coefficients that feeds ONE backend
-and may ``extend`` another set. Validation is strict: an unknown key is an error, never
-a silent default, and every rejection names the offending entry or key so a committer
-can find it without guessing.
+A ``CoefficientSet`` is an immutable set of coefficients that feeds ONE backend and may
+``extend`` another set. It is identified by its **filename** (its stem), not by a field
+in the document — the same way the north-star design and the catalog identify their
+objects. Validation is strict: an unknown key is an error, never a silent default, and
+every rejection names the offending entry or key so a committer can find it without
+guessing.
 
-The rules encoded here are exactly the acceptance criteria of registry issue #1:
+The shape follows the north-star architecture design (the source both registry issue #1
+and the coefficient-transcription tasks derive from):
 
-  * an entry missing ``method``/``units``/``scope`` is rejected, naming the entry;
-  * a method lacking its companion field (``rationale``/``sources``/``copied_from``)
-    is rejected;
+  * a document declares ``kind: CoefficientSet``, its ``backend``, its ``coefficients``,
+    and optionally ``extends`` (the stem of a base set it inherits from);
+  * every entry carries ``value``/``units``/``method``/``fitted``/``scope``; a missing
+    one is rejected, naming the entry;
+  * a method lacking its companion (``rationale`` for all but ``measured``; ``sources``
+    for ``literature``/``vendor_spec``; ``copied_from`` for ``copied``) is rejected;
   * a zero ``value`` is rejected unless ``method: not_charged``;
-  * an unknown top-level key, entry field, or ``scope`` key is rejected;
-  * a set that omits a coefficient its backend consumes is refused, naming it;
-  * ``ci95`` is accepted when present and never required.
+  * ``sources`` is a list of ``{kind, cite, role}`` provenance objects;
+  * ``ci95`` and ``supersedes`` are optional and may be an explicit ``null``;
+  * a set that omits a coefficient its backend consumes is refused, naming it.
 
 ``check_set`` returns a sorted list of human-readable error strings — empty means the
 set is valid. It never raises on bad data; malformed input becomes an error string so a
@@ -51,18 +57,31 @@ METHODS = frozenset(
 )
 
 # Scope keys are OPEN by design: a key the resolver does not know is an error (strict),
-# but adding one here is a schema addition, not a redesign.
-SCOPE_KEYS = frozenset({"hardware", "tp", "ep", "nodes_spanned", "model_class"})
+# but adding one here is a schema addition, not a redesign. `model` scopes an entry to a
+# model or model class (design: `scope: {model: [...]}`).
+SCOPE_KEYS = frozenset({"hardware", "tp", "ep", "nodes_spanned", "model"})
 
-# Top-level keys of a CoefficientSet document.
-TOP_LEVEL_REQUIRED = frozenset({"name", "backend", "coefficients"})
+# Provenance source-object fields and their vocabularies (design: each source is a
+# {kind, cite, role} object; the value is triangulated across a list of them).
+SOURCE_KINDS = frozenset(
+    {"discussion", "publication", "datasheet", "model", "vendor_doc"}
+)
+SOURCE_ROLES = frozenset({"primary", "supporting", "upper_bound"})
+SOURCE_REQUIRED = frozenset({"kind", "cite", "role"})
+
+# Top-level keys of a CoefficientSet document. The set's identity is its filename, so
+# there is no `name` field; `kind` is the type discriminator the design uses.
+TOP_LEVEL_REQUIRED = frozenset({"kind", "backend", "coefficients"})
 TOP_LEVEL_OPTIONAL = frozenset({"extends"})
 TOP_LEVEL_KEYS = TOP_LEVEL_REQUIRED | TOP_LEVEL_OPTIONAL
 
-# Entry fields.
+# Entry fields. `validated`/`unsupported` carry the honest-asymmetry scoping the design
+# introduces for transfer/LoRA entries (a term may be validated for one metric and
+# explicitly unsupported for another).
 ENTRY_REQUIRED = frozenset({"value", "units", "method", "fitted", "scope"})
 ENTRY_OPTIONAL = frozenset(
-    {"ci95", "sources", "rationale", "copied_from", "supersedes"}
+    {"ci95", "sources", "rationale", "copied_from", "supersedes",
+     "validated", "unsupported"}
 )
 ENTRY_KEYS = ENTRY_REQUIRED | ENTRY_OPTIONAL
 
@@ -72,6 +91,47 @@ def _is_finite_number(v: Any) -> bool:
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return False
     return math.isfinite(v)
+
+
+def _check_sources(name: str, sources: Any) -> list[str]:
+    """Validate a `sources` list of {kind, cite, role} provenance objects.
+
+    The design models a value as triangulated across a LIST of sources, each a structured
+    object rather than a bare string, so a reviewer can see what kind of evidence it is
+    (a discussion, a publication, a datasheet …) and what role it plays (the primary
+    basis, a supporting agreement, or an upper bound). Returns error strings.
+    """
+    errors: list[str] = []
+    if not isinstance(sources, list) or not sources:
+        return [f"coefficient {name!r}: 'sources' must be a non-empty list"]
+    for i, src in enumerate(sources):
+        if not isinstance(src, dict):
+            errors.append(
+                f"coefficient {name!r}: sources[{i}] must be a {{kind, cite, role}} "
+                f"mapping, got {type(src).__name__}"
+            )
+            continue
+        for key in sorted(src, key=str):
+            if key not in SOURCE_REQUIRED:
+                errors.append(f"coefficient {name!r}: sources[{i}] unknown field {key!r}")
+        kind = src.get("kind")
+        if kind not in SOURCE_KINDS:
+            errors.append(
+                f"coefficient {name!r}: sources[{i}] kind {kind!r} not one of "
+                f"{sorted(SOURCE_KINDS)}"
+            )
+        cite = src.get("cite")
+        if not isinstance(cite, str) or not cite.strip():
+            errors.append(
+                f"coefficient {name!r}: sources[{i}] requires a non-empty string 'cite'"
+            )
+        role = src.get("role")
+        if role not in SOURCE_ROLES:
+            errors.append(
+                f"coefficient {name!r}: sources[{i}] role {role!r} not one of "
+                f"{sorted(SOURCE_ROLES)}"
+            )
+    return errors
 
 
 def _check_entry(name: str, entry: Any) -> list[str]:
@@ -156,11 +216,10 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                         f"coefficient {name!r}: scope key {key!r} must have a non-empty value"
                     )
 
-    # ci95: optional, but when present it must be a 2-element [lower, upper] interval of
-    # finite numbers with lower <= upper. "Accepted when present" must not mean "ignored":
-    # a NaN/Inf or non-numeric confidence interval is bad provenance, checked with the same
-    # rigor as `value`.
-    if "ci95" in entry:
+    # ci95: optional; an explicit `null` is the canonical "no interval claimed" (design).
+    # When it carries a value it must be a 2-element [lower, upper] of finite numbers with
+    # lower <= upper — checked with the same rigor as `value`, not ignored.
+    if entry.get("ci95") is not None:
         ci95 = entry["ci95"]
         if (
             not isinstance(ci95, list)
@@ -168,8 +227,8 @@ def _check_entry(name: str, entry: Any) -> list[str]:
             or not all(_is_finite_number(x) for x in ci95)
         ):
             errors.append(
-                f"coefficient {name!r}: ci95 must be a 2-element list of finite numbers "
-                f"[lower, upper], got {ci95!r}"
+                f"coefficient {name!r}: ci95 must be null or a 2-element list of finite "
+                f"numbers [lower, upper], got {ci95!r}"
             )
         elif ci95[0] > ci95[1]:
             errors.append(
@@ -177,34 +236,33 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                 f"bound {ci95[1]!r}"
             )
 
-    # supersedes: optional; when present, names a prior coefficient it replaces, so it
-    # must be a non-empty string (mirroring copied_from). An arbitrary map/list is not a
-    # coefficient name.
-    if "supersedes" in entry:
+    # supersedes: optional; an explicit `null` is canonical (design). When set, it names a
+    # prior coefficient it replaces, so it must be a non-empty string.
+    if entry.get("supersedes") is not None:
         supersedes = entry["supersedes"]
         if not isinstance(supersedes, str) or not supersedes.strip():
             errors.append(
-                f"coefficient {name!r}: supersedes must be a non-empty string "
+                f"coefficient {name!r}: supersedes must be null or a non-empty string "
                 f"(the coefficient name it replaces)"
             )
 
-    # sources: well-formed whenever PRESENT (a list of non-empty strings), independent of
-    # whether the method REQUIRES it below. A committer who typed sources under any method
-    # meant to cite something; junk there should not pass silently.
+    # sources: well-formed whenever PRESENT (a list of {kind, cite, role} objects),
+    # independent of whether the method REQUIRES it below.
     if "sources" in entry:
-        sources = entry["sources"]
-        if (
-            not isinstance(sources, list)
-            or not sources
-            or not all(isinstance(s, str) and s.strip() for s in sources)
-        ):
-            errors.append(
-                f"coefficient {name!r}: sources must be a non-empty list of strings"
-            )
+        errors.extend(_check_sources(name, entry["sources"]))
 
-    # Required-by-method companion fields. Provenance must be human-readable text, so
-    # these are checked as non-empty STRINGS (or a list of strings for sources) — a bare
-    # number or list would satisfy a truthiness test while carrying no provenance.
+    # validated / unsupported: optional honest-asymmetry fields (design). When present,
+    # each names a metric (e.g. throughput / absolute_ttft) as a non-empty string.
+    for field in ("validated", "unsupported"):
+        if field in entry:
+            v = entry[field]
+            if not isinstance(v, str) or not v.strip():
+                errors.append(
+                    f"coefficient {name!r}: {field!r} must be a non-empty string "
+                    f"(the metric it applies to)"
+                )
+
+    # Required-by-method companion fields.
     if method in METHODS:
         if method != "measured":
             rationale = entry.get("rationale")
@@ -214,13 +272,10 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                     f"string 'rationale'"
                 )
         if method in ("literature", "vendor_spec"):
-            # The "present ⇒ well-formed" check above already validates shape; here we only
-            # additionally REQUIRE its presence for these two methods.
-            sources = entry.get("sources")
-            if not isinstance(sources, list) or not sources:
+            # Shape is validated above when present; here we additionally REQUIRE presence.
+            if "sources" not in entry:
                 errors.append(
-                    f"coefficient {name!r}: method {method!r} requires a non-empty "
-                    f"'sources' list of strings"
+                    f"coefficient {name!r}: method {method!r} requires 'sources'"
                 )
         if method == "copied":
             copied_from = entry.get("copied_from")
@@ -256,14 +311,17 @@ def check_set(data: Any, consumed: frozenset[str] | None, inherited: frozenset[s
         if key not in data:
             errors.append(f"missing required top-level key {key!r}")
 
-    # name must be a non-empty string. A non-string name (e.g. an unquoted number) not
-    # only carries no identity, it is silently dropped from the CLI's set index — which
-    # would bypass the duplicate-name guard and make the set invisible as an `extends`
-    # target. Rejecting it here closes that silent hole at the schema level.
-    if "name" in data:
-        set_name = data["name"]
-        if not isinstance(set_name, str) or not set_name.strip():
-            errors.append(f"'name' must be a non-empty string, got {set_name!r}")
+    # kind is the type discriminator; it must be exactly 'CoefficientSet' so a file that
+    # is actually some other object (or a typo) is refused rather than half-validated.
+    if "kind" in data and data["kind"] != "CoefficientSet":
+        errors.append(f"'kind' must be 'CoefficientSet', got {data['kind']!r}")
+
+    # backend must be a non-empty string (it names the manifest this set is checked
+    # against). The CLI reports the missing-manifest / malformed-manifest detail.
+    if "backend" in data and (
+        not isinstance(data["backend"], str) or not data["backend"].strip()
+    ):
+        errors.append(f"'backend' must be a non-empty string, got {data['backend']!r}")
 
     coefficients = data.get("coefficients")
     own_names: frozenset[str] = frozenset()

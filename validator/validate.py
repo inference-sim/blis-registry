@@ -10,6 +10,10 @@ resolves its ``extends`` chain and its backend manifest, runs the strict schema 
 and prints one line per problem. Exit code is 0 iff every set is valid — this is the
 gate CI runs on every committed set.
 
+A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
+the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
+base set to inherit from.
+
 Backend manifests live in ``backends/<name>.yaml`` and declare the coefficient names a
 backend consumes:
 
@@ -82,34 +86,37 @@ def _backend_consumes(backend: str) -> tuple[frozenset[str] | None, str | None]:
 
 
 def _resolve_inherited(
-    data: dict, sets_by_name: dict[str, dict]
+    data: dict, sets_by_stem: dict[str, dict]
 ) -> tuple[frozenset[str], list[str]]:
     """Collect coefficient names available via the ``extends`` chain.
 
-    Returns (inherited_names, errors). An ``extends`` naming an absent set, a non-string
-    ``extends``, or a cycle is reported as an error and stops the walk. Walked iteratively
-    (not recursively) so an arbitrarily deep acyclic chain cannot overflow the stack and
-    escape as a traceback; ``seen`` bounds the walk to the number of distinct sets.
+    ``sets_by_stem`` maps a set's filename stem to its parsed document. ``extends`` names
+    the stem of a base set. Returns (inherited_names, errors). An ``extends`` naming an
+    absent set, a non-string ``extends``, or a cycle is reported as an error and stops the
+    walk. Walked iteratively (not recursively) so an arbitrarily deep acyclic chain cannot
+    overflow the stack and escape as a traceback; ``seen`` bounds the walk to the number
+    of distinct sets.
     """
     names: set[str] = set()
     seen: set[str] = set()
     current = data
     while True:
-        parent_name = current.get("extends")
-        if parent_name is None:
+        parent_stem = current.get("extends")
+        if parent_stem is None:
             return frozenset(names), []
-        if not isinstance(parent_name, str):
-            return frozenset(names), [f"'extends' must be a string, got {parent_name!r}"]
-        if parent_name in seen:
+        if not isinstance(parent_stem, str):
+            return frozenset(names), [f"'extends' must be a string, got {parent_stem!r}"]
+        if parent_stem in seen:
             return frozenset(names), [
-                f"'extends' cycle detected involving {parent_name!r}"
+                f"'extends' cycle detected involving {parent_stem!r}"
             ]
-        parent = sets_by_name.get(parent_name)
+        parent = sets_by_stem.get(parent_stem)
         if parent is None:
             return frozenset(names), [
-                f"'extends' names {parent_name!r}, which is not a known coefficient set"
+                f"'extends' names {parent_stem!r}, which is not a known coefficient set "
+                f"(expected a file operators/{parent_stem}.yaml)"
             ]
-        seen.add(parent_name)
+        seen.add(parent_stem)
         parent_coeffs = parent.get("coefficients")
         if isinstance(parent_coeffs, dict):
             names.update(parent_coeffs)
@@ -131,20 +138,25 @@ def _discover(paths: list[str]) -> list[Path]:
 
 
 def _index_sets(files: list[Path]) -> tuple[dict[str, dict], list[str]]:
-    """Load every set once and index by ``name`` so ``extends`` can resolve siblings."""
-    sets_by_name: dict[str, dict] = {}
+    """Load every set once and index by filename STEM so ``extends`` can resolve siblings.
+
+    A set's identity is its stem, so two files with the same stem in different scanned
+    directories collide — reported here so the ambiguity fails loudly rather than one
+    silently shadowing the other in the index.
+    """
+    sets_by_stem: dict[str, dict] = {}
     errors: list[str] = []
     for path in files:
         try:
             data = _load_file(path)
         except LOAD_ERRORS:
             continue  # per-file errors are reported in the main validation pass
-        if isinstance(data, dict) and isinstance(data.get("name"), str):
-            name = data["name"]
-            if name in sets_by_name:
-                errors.append(f"duplicate coefficient-set name {name!r}")
-            sets_by_name[name] = data
-    return sets_by_name, errors
+        if isinstance(data, dict):
+            stem = path.stem
+            if stem in sets_by_stem:
+                errors.append(f"duplicate coefficient-set stem {stem!r}")
+            sets_by_stem[stem] = data
+    return sets_by_stem, errors
 
 
 def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
@@ -153,7 +165,7 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
     if not files:
         return 1, ["no coefficient sets found to validate"]
 
-    sets_by_name, index_errors = _index_sets(files)
+    sets_by_stem, index_errors = _index_sets(files)
     lines: list[str] = []
     ok = not index_errors
     for err in index_errors:
@@ -184,14 +196,14 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
         backend = data.get("backend")
         file_errors: list[str] = []
         consumed: frozenset[str] | None = None
-        if not isinstance(backend, str):
-            file_errors.append("missing or non-string 'backend'")
-        else:
+        # The schema (check_set) reports a missing/non-string backend; here we additionally
+        # resolve the manifest when the backend is a usable string.
+        if isinstance(backend, str) and backend.strip():
             consumed, backend_reason = _backend_consumes(backend)
             if backend_reason is not None:
                 file_errors.append(backend_reason)
 
-        inherited, extend_errors = _resolve_inherited(data, sets_by_name)
+        inherited, extend_errors = _resolve_inherited(data, sets_by_stem)
         file_errors.extend(extend_errors)
         file_errors.extend(check_set(data, consumed, inherited))
 

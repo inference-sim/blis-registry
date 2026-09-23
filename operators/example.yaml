@@ -1,15 +1,15 @@
 # Example coefficient set — illustrative values only.
 #
 # This set exists so CI has something to validate and so a reader can see every schema
-# feature in one place. The NUMBERS are illustrative, NOT the real registry values:
-# R2 is value-preserving and the real roofline numbers are transcribed by R2G2
-# (blis-registry#2). Do not cite the values here.
+# feature in one place. The NUMBERS are illustrative, NOT the real registry values: the
+# real roofline numbers are transcribed by a later task. Do not cite the values here.
 #
-# It feeds the `roofline` backend, which consumes `mfu_prefill` and `mfu_decode`
-# (see backends/roofline.yaml). The two extra entries below are present but not
-# consumed by roofline — that is allowed, and demonstrates the ABSENT case and the
+# The set is identified by its FILENAME (this file is the set `example`); there is no
+# `name` field. It feeds the `roofline` backend, which consumes `mfu_prefill` and
+# `mfu_decode` (see backends/roofline.yaml). The two extra entries below are present but
+# not consumed by roofline — that is allowed, and demonstrates the ABSENT case and the
 # priced-at-zero (`not_charged`) case the schema distinguishes.
-name: example
+kind: CoefficientSet
 backend: roofline
 
 coefficients:
@@ -18,17 +18,21 @@ coefficients:
     units: dimensionless
     method: literature
     fitted: false
-    ci95: [0.40, 0.50]
-    sources: ["https://github.com/inference-sim/inference-sim/discussions/589"]
+    sources:
+      - {kind: discussion, cite: "inference-sim#589, Roofline Physics Model", role: primary}
+      - {kind: publication, cite: "FlashAttention-3 (Shah et al. 2024)", role: upper_bound}
     rationale: "Prefill MFU discount; see #589. Illustrative value."
     scope: {hardware: [H100]}
+    ci95: null
+    supersedes: null
 
   mfu_decode:
     value: 0.30
     units: dimensionless
     method: literature
     fitted: false
-    sources: ["https://github.com/inference-sim/inference-sim/discussions/589"]
+    sources:
+      - {kind: discussion, cite: "inference-sim#589, Roofline Physics Model", role: primary}
     rationale: "Decode MFU discount; see #589. Illustrative value."
     scope: {hardware: [H100]}
 

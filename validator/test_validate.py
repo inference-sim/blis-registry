@@ -27,6 +27,13 @@ ROOFLINE = frozenset({"mfu_prefill", "mfu_decode"})
 NO_INHERIT = frozenset()
 
 
+def a_source(**overrides):
+    """A minimal valid {kind, cite, role} provenance object."""
+    src = {"kind": "discussion", "cite": "some#ref", "role": "primary"}
+    src.update(overrides)
+    return src
+
+
 def a_valid_entry(**overrides):
     """A minimal valid entry; override fields per test."""
     entry = {
@@ -34,7 +41,7 @@ def a_valid_entry(**overrides):
         "units": "dimensionless",
         "method": "literature",
         "fitted": False,
-        "sources": ["https://example.invalid/src"],
+        "sources": [a_source()],
         "rationale": "why",
         "scope": {"hardware": ["H100"]},
     }
@@ -44,7 +51,7 @@ def a_valid_entry(**overrides):
 
 def a_valid_set(coeffs=None, **top):
     data = {
-        "name": "t",
+        "kind": "CoefficientSet",
         "backend": "roofline",
         "coefficients": coeffs
         if coeffs is not None
@@ -221,20 +228,26 @@ def test_non_mapping_scope_rejected():
     assert any("scope" in e and "mapping" in e for e in errs), errs
 
 
-def test_duplicate_set_name_reported(tmp_path):
+def test_duplicate_set_stem_reported(tmp_path):
+    # A set's identity is its filename stem; two files with the same stem in different
+    # scanned directories collide and must be reported, not silently shadowed.
     body = (
-        "name: dup\nbackend: roofline\ncoefficients:\n"
+        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
         "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
         "fitted: true, scope: {hardware: [H100]}}\n"
         "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
         "fitted: true, scope: {hardware: [H100]}}\n"
     )
-    (tmp_path / "a.yaml").write_text(body)
-    (tmp_path / "b.yaml").write_text(body)
-    code, lines = validate_mod.validate_paths([str(tmp_path / "a.yaml"),
-                                               str(tmp_path / "b.yaml")])
+    d1 = tmp_path / "one"
+    d2 = tmp_path / "two"
+    d1.mkdir()
+    d2.mkdir()
+    (d1 / "dup.yaml").write_text(body)
+    (d2 / "dup.yaml").write_text(body)
+    code, lines = validate_mod.validate_paths([str(d1 / "dup.yaml"),
+                                               str(d2 / "dup.yaml")])
     assert code == 1
-    assert any("duplicate coefficient-set name" in ln and "dup" in ln for ln in lines), lines
+    assert any("duplicate coefficient-set stem" in ln and "dup" in ln for ln in lines), lines
 
 
 # --- BC-5: backend consumed-names -----------------------------------------------
@@ -319,8 +332,7 @@ def test_supersedes_valid_string_accepted():
 
 def test_sources_malformed_rejected_even_when_not_required():
     # method: assumed does not REQUIRE sources, but junk in it must not pass silently.
-    entry = a_valid_entry(method="assumed", sources=999)
-    entry.pop("sources", None)
+    entry = a_valid_entry(method="assumed", rationale="why")
     entry["sources"] = 999
     errs = errors_for("c", entry)
     assert any("sources" in e for e in errs), errs
@@ -353,25 +365,27 @@ def test_unknown_extends_rejected():
 
 
 def test_extends_cycle_rejected():
-    a = {"name": "a", "backend": "roofline", "extends": "b", "coefficients": {}}
-    b = {"name": "b", "backend": "roofline", "extends": "a", "coefficients": {}}
+    # `extends` names a filename stem; the map is keyed by stem.
+    a = {"kind": "CoefficientSet", "backend": "roofline", "extends": "b", "coefficients": {}}
+    b = {"kind": "CoefficientSet", "backend": "roofline", "extends": "a", "coefficients": {}}
     _, errs = validate_mod._resolve_inherited(a, {"a": a, "b": b})
     assert any("cycle" in e for e in errs), errs
 
 
 def test_non_string_extends_rejected():
-    data = {"name": "c", "backend": "roofline", "extends": 123, "coefficients": {}}
+    data = {"kind": "CoefficientSet", "backend": "roofline", "extends": 123, "coefficients": {}}
     _, errs = validate_mod._resolve_inherited(data, {})
     assert any("extends" in e for e in errs), errs
 
 
 def test_multilevel_extends_chain_accumulates_names():
     # grandparent -> parent -> child; child sees names from BOTH ancestors.
-    gp = {"name": "gp", "backend": "roofline",
+    gp = {"kind": "CoefficientSet", "backend": "roofline",
           "coefficients": {"mfu_prefill": a_valid_entry()}}
-    parent = {"name": "p", "backend": "roofline", "extends": "gp",
+    parent = {"kind": "CoefficientSet", "backend": "roofline", "extends": "gp",
               "coefficients": {"mfu_decode": a_valid_entry()}}
-    child = {"name": "c", "backend": "roofline", "extends": "p", "coefficients": {}}
+    child = {"kind": "CoefficientSet", "backend": "roofline", "extends": "p",
+             "coefficients": {}}
     inherited, errs = validate_mod._resolve_inherited(
         child, {"gp": gp, "p": parent, "c": child}
     )
@@ -410,56 +424,46 @@ def test_committed_example_set_validates():
     assert code == 0, "\n".join(lines)
 
 
-# --- C1: name value validation + duplicate-name guard ---------------------------
+# --- kind / backend top-level validation ----------------------------------------
 
 
-@pytest.mark.parametrize("bad_name", [123, "", "   ", ["a"], None])
-def test_non_string_or_empty_name_rejected(bad_name):
+@pytest.mark.parametrize("bad_kind", ["Coefficient", "coefficientset", 123, ""])
+def test_wrong_kind_rejected(bad_kind):
     data = a_valid_set()
-    data["name"] = bad_name
+    data["kind"] = bad_kind
     errs = check_set(data, ROOFLINE, NO_INHERIT)
-    assert any("name" in e for e in errs), (bad_name, errs)
+    assert any("kind" in e for e in errs), (bad_kind, errs)
 
 
-def test_non_string_name_does_not_bypass_duplicate_guard(tmp_path):
-    # Two structurally-identical sets both named 123 (int) must NOT slip past the
-    # duplicate-name guard by being silently dropped from the index.
-    body = (
-        "name: 123\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n"
-        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n"
-    )
-    _write_set(tmp_path, "a.yaml", body)
-    _write_set(tmp_path, "b.yaml", body)
-    code, lines = validate_mod.validate_paths([str(tmp_path / "a.yaml"),
-                                               str(tmp_path / "b.yaml")])
-    assert code == 1
-    # Each file is individually rejected for the bad name.
-    assert sum("'name' must be a non-empty string" in ln for ln in lines) >= 2, lines
+def test_missing_kind_rejected():
+    data = a_valid_set()
+    del data["kind"]
+    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    assert any("kind" in e for e in errs), errs
 
 
-def test_committed_trained_physics_set_validates():
-    # Exercises the trained-physics manifest AND the `extends` chain (BC-8) end-to-end
-    # over a committed set: example-trained-physics extends the roofline `example` set.
-    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
-    assert code == 0, "\n".join(lines)
+@pytest.mark.parametrize("bad_backend", [123, "", "   ", None])
+def test_non_string_or_empty_backend_rejected(bad_backend):
+    data = a_valid_set()
+    data["backend"] = bad_backend
+    errs = check_set(data, None, NO_INHERIT)
+    assert any("backend" in e for e in errs), (bad_backend, errs)
 
 
-def test_trained_physics_manifest_omitted_beta_refused_by_name(tmp_path, monkeypatch):
-    # If a set on the trained-physics backend omits a consumed beta, it is refused BY NAME
-    # — the guarantee the manifest exists to provide.
+def test_declared_backend_manifest_omitted_coefficient_refused_by_name():
+    # Against the real trained-physics manifest (a shipped contract with no committed set
+    # in this PR), a set that omits a consumed coefficient is refused BY NAME — the
+    # guarantee the manifest exists to provide. Uses check_set directly; commits no set.
     consumed, reason = validate_mod._backend_consumes("trained-physics")
     assert reason is None and consumed is not None
-    # A set providing everything except beta_11 (and relying on no inheritance).
+    missing = sorted(consumed)[0]
     coeffs = {n: a_valid_entry(method="measured", fitted=True) for n in consumed
-              if n != "beta_11"}
+              if n != missing}
     for c in coeffs.values():
         c.pop("sources", None)
-    data = {"name": "tp", "backend": "trained-physics", "coefficients": coeffs}
+    data = {"kind": "CoefficientSet", "backend": "trained-physics", "coefficients": coeffs}
     errs = check_set(data, consumed, NO_INHERIT)
-    assert any("beta_11" in e for e in errs), errs
+    assert any(missing in e for e in errs), (missing, errs)
 
 
 def test_cli_exits_nonzero_on_bad_set(tmp_path):
@@ -541,14 +545,72 @@ def test_missing_manifest_distinguished_from_malformed(tmp_path, monkeypatch):
     assert reason is not None and "no manifest" in reason
 
 
-def test_non_string_sources_rejected():
-    errs = errors_for("c", a_valid_entry(method="literature", sources=[123, None]))
+# --- Structured sources ({kind, cite, role} objects) ---------------------------
+
+
+def test_bare_string_sources_rejected():
+    # The old string-list shape is no longer valid; sources are structured objects.
+    errs = errors_for("c", a_valid_entry(method="literature",
+                                         sources=["https://example.invalid"]))
     assert any("sources" in e for e in errs), errs
+
+
+def test_valid_structured_sources_accepted():
+    srcs = [a_source(role="primary"),
+            a_source(kind="publication", cite="Paper 2024", role="upper_bound")]
+    errs = errors_for("c", a_valid_entry(method="literature", sources=srcs))
+    assert errs == [], errs
+
+
+@pytest.mark.parametrize("bad_field,value", [
+    ("kind", "blog"),          # not in SOURCE_KINDS
+    ("role", "footnote"),      # not in SOURCE_ROLES
+    ("cite", ""),              # empty cite
+    ("cite", 123),             # non-string cite
+])
+def test_source_object_field_validated(bad_field, value):
+    src = a_source()
+    src[bad_field] = value
+    errs = errors_for("c", a_valid_entry(method="literature", sources=[src]))
+    assert any("sources[0]" in e for e in errs), (bad_field, errs)
+
+
+def test_source_unknown_field_rejected():
+    src = a_source()
+    src["surprise"] = 1
+    errs = errors_for("c", a_valid_entry(method="literature", sources=[src]))
+    assert any("sources[0]" in e and "surprise" in e for e in errs), errs
+
+
+def test_source_missing_field_rejected():
+    src = a_source()
+    del src["role"]
+    errs = errors_for("c", a_valid_entry(method="literature", sources=[src]))
+    assert any("sources[0]" in e and "role" in e for e in errs), errs
 
 
 def test_non_string_rationale_rejected():
     errs = errors_for("c", a_valid_entry(method="assumed", rationale=123))
     assert any("rationale" in e for e in errs), errs
+
+
+# --- null-valued optional fields (design: explicit null is canonical) -----------
+
+
+def test_ci95_null_accepted():
+    errs = errors_for("c", a_valid_entry(ci95=None))
+    assert errs == [], errs
+
+
+def test_supersedes_null_accepted():
+    errs = errors_for("c", a_valid_entry(supersedes=None))
+    assert errs == [], errs
+
+
+def test_validated_unsupported_fields_accepted():
+    errs = errors_for("c", a_valid_entry(validated="throughput",
+                                         unsupported="absolute_ttft"))
+    assert errs == [], errs
 
 
 def test_cli_subprocess_smoke():

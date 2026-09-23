@@ -105,6 +105,40 @@ def test_bad_method_rejected():
     assert any("method" in e and "c" in e for e in errs), errs
 
 
+@pytest.mark.parametrize("bad", [[], {}, 123, None, True])
+def test_non_string_units_rejected_without_crash(bad):
+    # A non-string (or unhashable) units value must be a NAMED error, not a TypeError
+    # from a set-membership test escaping check_set's no-raise contract.
+    errs = errors_for("c", a_valid_entry(units=bad))
+    assert any("units" in e for e in errs), (bad, errs)
+
+
+@pytest.mark.parametrize("bad", [[], {}, 123, None, True])
+def test_non_string_method_rejected_without_crash(bad):
+    errs = errors_for("c", a_valid_entry(method=bad))
+    assert any("method" in e for e in errs), (bad, errs)
+
+
+def test_unhashable_enum_values_do_not_crash_end_to_end(tmp_path):
+    # CLI-level regression: units:[] and method:{} in a committed file must be reported,
+    # never a traceback. (Reproduces the maintainer's blocking finding.)
+    ops = tmp_path / "operators"
+    ops.mkdir()
+    _write_set(
+        ops, "s.yaml",
+        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
+        "  mfu_prefill: {value: 0.4, units: [], method: {}, fitted: false, "
+        "scope: {hardware: [X]}}\n"
+        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [X]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(ops)])
+    assert code == 1
+    joined = "\n".join(lines)
+    assert "Traceback" not in joined, joined
+    assert any("units" in ln for ln in lines) and any("method" in ln for ln in lines), lines
+
+
 def test_non_bool_fitted_rejected():
     errs = errors_for("c", a_valid_entry(fitted="yes"))
     assert any("fitted" in e for e in errs), errs
@@ -634,7 +668,10 @@ def test_valid_structured_sources_accepted():
 
 @pytest.mark.parametrize("bad_field,value", [
     ("kind", "blog"),          # not in SOURCE_KINDS
+    ("kind", []),              # unhashable — must not crash the membership test
+    ("kind", {}),              # unhashable
     ("role", "footnote"),      # not in SOURCE_ROLES
+    ("role", []),              # unhashable
     ("cite", ""),              # empty cite
     ("cite", 123),             # non-string cite
 ])
@@ -662,6 +699,22 @@ def test_source_missing_field_rejected():
 def test_non_string_rationale_rejected():
     errs = errors_for("c", a_valid_entry(method="assumed", rationale=123))
     assert any("rationale" in e for e in errs), errs
+
+
+def test_rationale_malformed_rejected_even_when_not_required():
+    # A measured entry does not REQUIRE rationale, but if present it must be well-formed.
+    entry = a_valid_entry(method="measured", fitted=True, rationale=123)
+    entry.pop("sources", None)
+    errs = errors_for("c", entry)
+    assert any("rationale" in e for e in errs), errs
+
+
+def test_copied_from_malformed_rejected_even_when_not_required():
+    # A measured entry does not REQUIRE copied_from, but junk in it must not pass silently.
+    entry = a_valid_entry(method="measured", fitted=True, copied_from=[])
+    entry.pop("sources", None)
+    errs = errors_for("c", entry)
+    assert any("copied_from" in e for e in errs), errs
 
 
 # --- null-valued optional fields (design: explicit null is canonical) -----------

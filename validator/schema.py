@@ -93,6 +93,17 @@ def _is_finite_number(v: Any) -> bool:
     return math.isfinite(v)
 
 
+def _in_enum(value: Any, allowed: frozenset[str]) -> bool:
+    """True iff ``value`` is a member of ``allowed``.
+
+    A non-string (or unhashable, e.g. a list/dict from a malformed YAML value) can never
+    be a valid enum member, so it is reported as "not in the enum" rather than being fed
+    to ``value in allowed`` — where an unhashable value would raise ``TypeError`` and
+    escape ``check_set``'s no-raise contract as a traceback.
+    """
+    return isinstance(value, str) and value in allowed
+
+
 def _check_sources(name: str, sources: Any) -> list[str]:
     """Validate a `sources` list of {kind, cite, role} provenance objects.
 
@@ -115,7 +126,7 @@ def _check_sources(name: str, sources: Any) -> list[str]:
             if key not in SOURCE_REQUIRED:
                 errors.append(f"coefficient {name!r}: sources[{i}] unknown field {key!r}")
         kind = src.get("kind")
-        if kind not in SOURCE_KINDS:
+        if not _in_enum(kind, SOURCE_KINDS):
             errors.append(
                 f"coefficient {name!r}: sources[{i}] kind {kind!r} not one of "
                 f"{sorted(SOURCE_KINDS)}"
@@ -126,7 +137,7 @@ def _check_sources(name: str, sources: Any) -> list[str]:
                 f"coefficient {name!r}: sources[{i}] requires a non-empty string 'cite'"
             )
         role = src.get("role")
-        if role not in SOURCE_ROLES:
+        if not _in_enum(role, SOURCE_ROLES):
             errors.append(
                 f"coefficient {name!r}: sources[{i}] role {role!r} not one of "
                 f"{sorted(SOURCE_ROLES)}"
@@ -153,13 +164,13 @@ def _check_entry(name: str, entry: Any) -> list[str]:
             errors.append(f"coefficient {name!r}: missing required field {field!r}")
 
     units = entry.get("units")
-    if "units" in entry and units not in UNITS:
+    if "units" in entry and not _in_enum(units, UNITS):
         errors.append(
             f"coefficient {name!r}: units {units!r} not one of {sorted(UNITS)}"
         )
 
     method = entry.get("method")
-    if "method" in entry and method not in METHODS:
+    if "method" in entry and not _in_enum(method, METHODS):
         errors.append(
             f"coefficient {name!r}: method {method!r} not one of {sorted(METHODS)}"
         )
@@ -251,39 +262,37 @@ def _check_entry(name: str, entry: Any) -> list[str]:
     if "sources" in entry:
         errors.extend(_check_sources(name, entry["sources"]))
 
-    # validated / unsupported: optional honest-asymmetry fields (design). When present,
-    # each names a metric (e.g. throughput / absolute_ttft) as a non-empty string.
-    for field in ("validated", "unsupported"):
+    # String-valued optional fields: well-formed (a non-empty string) WHENEVER PRESENT,
+    # independent of whether any method requires them. A `measured` entry carrying
+    # `rationale: 123` or `copied_from: []` is malformed even though neither is required
+    # there — the same "present ⇒ well-formed" rule sources/ci95/supersedes already follow.
+    # `validated`/`unsupported` are the honest-asymmetry metric names (design).
+    for field in ("rationale", "copied_from", "validated", "unsupported"):
         if field in entry:
             v = entry[field]
             if not isinstance(v, str) or not v.strip():
                 errors.append(
-                    f"coefficient {name!r}: {field!r} must be a non-empty string "
-                    f"(the metric it applies to)"
+                    f"coefficient {name!r}: {field!r} must be a non-empty string, "
+                    f"got {v!r}"
                 )
 
-    # Required-by-method companion fields.
-    if method in METHODS:
-        if method != "measured":
-            rationale = entry.get("rationale")
-            if not isinstance(rationale, str) or not rationale.strip():
-                errors.append(
-                    f"coefficient {name!r}: method {method!r} requires a non-empty "
-                    f"string 'rationale'"
-                )
-        if method in ("literature", "vendor_spec"):
-            # Shape is validated above when present; here we additionally REQUIRE presence.
-            if "sources" not in entry:
-                errors.append(
-                    f"coefficient {name!r}: method {method!r} requires 'sources'"
-                )
-        if method == "copied":
-            copied_from = entry.get("copied_from")
-            if not isinstance(copied_from, str) or not copied_from.strip():
-                errors.append(
-                    f"coefficient {name!r}: method 'copied' requires a non-empty "
-                    f"string 'copied_from'"
-                )
+    # Required-by-method: which companion fields must be PRESENT. Shape is enforced above
+    # (or in _check_sources); here we only require presence for the relevant methods.
+    # _in_enum guards against a non-string/unhashable method (already flagged above) that
+    # would otherwise raise on the set-membership test.
+    if _in_enum(method, METHODS):
+        if method != "measured" and "rationale" not in entry:
+            errors.append(
+                f"coefficient {name!r}: method {method!r} requires a 'rationale'"
+            )
+        if method in ("literature", "vendor_spec") and "sources" not in entry:
+            errors.append(
+                f"coefficient {name!r}: method {method!r} requires 'sources'"
+            )
+        if method == "copied" and "copied_from" not in entry:
+            errors.append(
+                f"coefficient {name!r}: method 'copied' requires 'copied_from'"
+            )
 
     return errors
 

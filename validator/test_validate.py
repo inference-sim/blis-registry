@@ -81,6 +81,31 @@ def test_loader_accepts_normal_mapping():
     assert load_strict("a: 1\nb: 2\n") == {"a": 1, "b": 2}
 
 
+def test_loader_rejects_multi_document_yaml():
+    # A multi-document stream (--- separated) must NOT silently load only the first doc;
+    # yaml.load raises a ComposerError (a YAMLError), which the CLI reports as a parse
+    # failure. Lock this in so a committed file can't smuggle a second hidden document.
+    import yaml
+    with pytest.raises(yaml.YAMLError):
+        load_strict("kind: CoefficientSet\n---\nkind: CoefficientSet\n")
+
+
+def test_multi_document_file_is_named_error(tmp_path):
+    f = tmp_path / "multi.yaml"
+    f.write_text("kind: CoefficientSet\nbackend: roofline\n---\nkind: CoefficientSet\n")
+    code, lines = validate_mod.validate_paths([str(f)])
+    assert code == 1
+    assert any("could not parse" in ln for ln in lines), lines
+
+
+def test_loader_accepts_aliases_without_bypassing_duplicate_detection():
+    # YAML aliases reuse a value (valid); they must not become a hole in duplicate-key
+    # detection, and a duplicate key in flow style is still caught.
+    assert load_strict("a: &x 1\nb: *x\n") == {"a": 1, "b": 1}
+    with pytest.raises(DuplicateKeyError):
+        load_strict("m: {k: 1, k: 2}\n")
+
+
 # --- BC-1: missing required entry fields ----------------------------------------
 
 
@@ -387,6 +412,20 @@ def test_known_scope_keys_accepted(key):
     # Every known scope key (including `model`) is accepted with a non-empty value.
     errs = errors_for("c", a_valid_entry(scope={key: ["x"]}))
     assert errs == [], (key, errs)
+
+
+@pytest.mark.parametrize("bad_list", [
+    [" "],       # whitespace-only string
+    [""],        # empty string
+    [[]],        # nested empty container
+    [None],      # null element
+    ["H100", ""],  # one good, one blank — still rejected
+])
+def test_scope_list_with_empty_or_nonscalar_element_rejected(bad_list):
+    # A non-empty scope list must not carry empty/blank/non-scalar elements, which convey
+    # no range yet would pass a mere "list is non-empty" check.
+    errs = errors_for("c", a_valid_entry(scope={"hardware": bad_list}))
+    assert any("scope" in e and "hardware" in e for e in errs), (bad_list, errs)
 
 
 # --- BC-8: extends resolution (CLI-level) ---------------------------------------

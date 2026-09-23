@@ -226,6 +226,20 @@ def _check_entry(name: str, entry: Any) -> list[str]:
                     errors.append(
                         f"coefficient {name!r}: scope key {key!r} must have a non-empty value"
                     )
+                elif isinstance(val, list):
+                    # Each element of a scope range must be a non-empty scalar: a null, a
+                    # nested container, or a blank/whitespace-only string conveys no range
+                    # and must not slip through inside an otherwise non-empty list.
+                    for elem in val:
+                        if (
+                            elem is None
+                            or isinstance(elem, (list, dict))
+                            or (isinstance(elem, str) and not elem.strip())
+                        ):
+                            errors.append(
+                                f"coefficient {name!r}: scope key {key!r} has an empty or "
+                                f"non-scalar element {elem!r}"
+                            )
 
     # ci95: optional; an explicit `null` is the canonical "no interval claimed" (design).
     # When it carries a value it must be a 2-element [lower, upper] of finite numbers with

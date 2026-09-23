@@ -348,6 +348,13 @@ def test_scope_empty_list_value_rejected():
     assert any("scope" in e and "hardware" in e for e in errs), errs
 
 
+@pytest.mark.parametrize("key", ["hardware", "tp", "ep", "nodes_spanned", "model"])
+def test_known_scope_keys_accepted(key):
+    # Every known scope key (including `model`) is accepted with a non-empty value.
+    errs = errors_for("c", a_valid_entry(scope={key: ["x"]}))
+    assert errs == [], (key, errs)
+
+
 # --- BC-8: extends resolution (CLI-level) ---------------------------------------
 
 
@@ -393,6 +400,49 @@ def test_multilevel_extends_chain_accumulates_names():
     assert "mfu_prefill" in inherited and "mfu_decode" in inherited
 
 
+def test_extends_satisfies_consumed_end_to_end(tmp_path):
+    # Exercises the REAL wiring validate_paths -> _resolve_inherited -> check_set: a child
+    # that omits a consumed coefficient PASSES because the parent (resolved by stem)
+    # provides it. Guards against a regression in how inherited names reach check_set.
+    ops = tmp_path / "operators"
+    ops.mkdir()
+    _write_set(
+        ops, "base.yaml",
+        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
+        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    # Child provides only mfu_decode; mfu_prefill must be inherited from base to satisfy
+    # the roofline backend's consumed-names check.
+    _write_set(
+        ops, "child.yaml",
+        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
+        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [A100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(ops)])
+    assert code == 0, "\n".join(lines)
+
+
+def test_extends_missing_inherited_coefficient_refused_end_to_end(tmp_path):
+    # The same wiring, negative: with no parent providing mfu_prefill, the child is
+    # refused by name — proving the pass above is real, not vacuous.
+    ops = tmp_path / "operators"
+    ops.mkdir()
+    _write_set(
+        ops, "child.yaml",
+        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
+        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [A100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(ops)])
+    assert code == 1
+    joined = "\n".join(lines)
+    assert "mfu_prefill" in joined, joined
+
+
 def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
     # A very deep acyclic chain must produce a named result, never a RecursionError
     # traceback escaping to CI. 2000 > default recursion limit if this were recursive.
@@ -403,7 +453,7 @@ def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
         ext = f"extends: s{i - 1}\n" if i > 0 else ""
         _write_set(
             ops, f"s{i}.yaml",
-            f"name: s{i}\nbackend: roofline\n{ext}"
+            f"kind: CoefficientSet\nbackend: roofline\n{ext}"
             "coefficients:\n"
             "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
             "fitted: true, scope: {hardware: [H100]}}\n"
@@ -476,7 +526,7 @@ def test_declared_backend_manifest_omitted_coefficient_refused_by_name():
 def test_cli_exits_nonzero_on_bad_set(tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text(
-        "name: b\nbackend: roofline\ncoefficients:\n"
+        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
         "  mfu_prefill: {value: 0.4, units: dimensionless, method: assumed, "
         "fitted: false, scope: {hardware: [H100]}}\n"  # assumed w/o rationale + missing mfu_decode
     )
@@ -499,7 +549,7 @@ def test_cli_rejects_empty_file(tmp_path):
 def test_mixed_type_coefficient_keys_do_not_crash(tmp_path):
     # An unquoted numeric key parses to int; sorting str+int must not raise.
     f = tmp_path / "mixed.yaml"
-    f.write_text("name: m\nbackend: roofline\ncoefficients:\n  1: {}\n  a: {}\n")
+    f.write_text("kind: CoefficientSet\nbackend: roofline\ncoefficients:\n  1: {}\n  a: {}\n")
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     joined = "\n".join(lines)
@@ -509,7 +559,7 @@ def test_mixed_type_coefficient_keys_do_not_crash(tmp_path):
 
 def test_non_utf8_file_is_named_error(tmp_path):
     f = tmp_path / "nonutf8.yaml"
-    f.write_bytes(b"name: x\nbackend: roofline\n\xff\n")
+    f.write_bytes(b"kind: CoefficientSet\nbackend: roofline\n\xff\n")
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     assert any("could not parse" in ln for ln in lines), lines

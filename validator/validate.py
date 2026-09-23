@@ -4,7 +4,8 @@
 Usage:
     validate.py [PATH ...]
 
-Each PATH is a coefficient-set YAML file or a directory scanned for ``*.yaml``. With no
+Each PATH is a coefficient-set YAML file or a directory scanned recursively for YAML
+files (``*.yaml``/``*.yml``, case-insensitive). With no
 PATH, the real sets in ``operators/`` and the synthetic schema fixtures in ``fixtures/``
 are validated (``operators/`` may be empty until real sets are transcribed). The tool
 loads each set, resolves its ``extends`` chain and its backend manifest, runs the strict
@@ -129,12 +130,30 @@ def _resolve_inherited(
         current = parent
 
 
+# YAML extensions a coefficient set may use. Matched case-insensitively so a set named
+# `roofline.YAML` is not skipped. A set the gate does not SEE is worse than one it
+# rejects, so discovery must not depend on an exact-case, single-spelling extension.
+YAML_SUFFIXES = frozenset({".yaml", ".yml"})
+
+
+def _scan_dir(directory: Path) -> list[Path]:
+    """Every YAML file under ``directory``, recursively.
+
+    Recursive (``rglob``) so a set dropped in a subdirectory is still validated rather
+    than silently unchecked; extension match is case-insensitive over YAML_SUFFIXES.
+    """
+    return sorted(
+        p for p in directory.rglob("*")
+        if p.is_file() and p.suffix.lower() in YAML_SUFFIXES
+    )
+
+
 def _discover(paths: list[str]) -> list[Path]:
     files: list[Path] = []
     targets = [Path(p) for p in paths] if paths else DEFAULT_TARGETS
     for target in targets:
         if target.is_dir():
-            files.extend(sorted(target.glob("*.yaml")))
+            files.extend(_scan_dir(target))
         elif target.is_file():
             files.append(target)
         else:

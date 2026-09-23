@@ -14,7 +14,9 @@ CI runs on every committed set.
 
 A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
 the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
-base set to inherit from.
+base set to inherit from — resolved only among **siblings in the same directory**, so
+sets in different scanned roots (e.g. ``operators/`` and ``fixtures/``) form isolated
+namespaces that never inherit from, or collide with, one another.
 
 Backend manifests live in ``backends/<name>.yaml`` and declare the coefficient names a
 backend consumes:
@@ -99,12 +101,13 @@ def _resolve_inherited(
 ) -> tuple[frozenset[str], list[str]]:
     """Collect coefficient names available via the ``extends`` chain.
 
-    ``sets_by_stem`` maps a set's filename stem to its parsed document. ``extends`` names
-    the stem of a base set. Returns (inherited_names, errors). An ``extends`` naming an
-    absent set, a non-string ``extends``, or a cycle is reported as an error and stops the
-    walk. Walked iteratively (not recursively) so an arbitrarily deep acyclic chain cannot
-    overflow the stack and escape as a traceback; ``seen`` bounds the walk to the number
-    of distinct sets.
+    ``sets_by_stem`` is the index for the current file's OWN namespace, mapping a filename
+    stem to its parsed document; ``extends`` names the stem of a base set in that same
+    namespace. Returns (inherited_names, errors). An ``extends`` naming an absent set (not
+    a sibling in this namespace), a non-string ``extends``, or a cycle is reported as an
+    error and stops the walk. Walked iteratively (not recursively) so an arbitrarily deep
+    acyclic chain cannot overflow the stack and escape as a traceback; ``seen`` bounds the
+    walk to the number of distinct sets.
     """
     names: set[str] = set()
     seen: set[str] = set()
@@ -122,8 +125,8 @@ def _resolve_inherited(
         parent = sets_by_stem.get(parent_stem)
         if parent is None:
             return frozenset(names), [
-                f"'extends' names {parent_stem!r}, which is not a known coefficient set "
-                f"(expected a file operators/{parent_stem}.yaml)"
+                f"'extends' names {parent_stem!r}, which is not a coefficient set in the "
+                f"same directory (extends resolves only among sibling sets)"
             ]
         seen.add(parent_stem)
         parent_coeffs = parent.get("coefficients")
@@ -150,43 +153,55 @@ def _scan_dir(directory: Path) -> list[Path]:
     )
 
 
-def _discover(paths: list[str]) -> list[Path]:
-    files: list[Path] = []
+def _discover(paths: list[str]) -> list[tuple[Path, Path]]:
+    """Discover files as ``(namespace, path)`` pairs.
+
+    The NAMESPACE is the scanned root a file belongs to — a target directory (e.g.
+    ``operators/`` vs ``fixtures/``), or the file's own parent for an explicitly-named
+    file. It bounds `extends` resolution and duplicate-stem detection so those never leak
+    across directories: a fixture never inherits from (or collides with) a production set.
+    """
+    found: list[tuple[Path, Path]] = []
     targets = [Path(p) for p in paths] if paths else DEFAULT_TARGETS
     for target in targets:
         if target.is_dir():
-            files.extend(_scan_dir(target))
+            found.extend((target, p) for p in _scan_dir(target))
         elif target.is_file():
-            files.append(target)
+            found.append((target.parent, target))
         else:
             # A missing DEFAULT target (e.g. an as-yet-uncreated operators/) is not an
             # error — there may simply be no real sets yet. An explicitly-named missing
             # path IS reported, as a load error, so a bad argument fails loudly.
             if paths:
-                files.append(target)
-    return files
+                found.append((target.parent, target))
+    return found
 
 
-def _index_sets(files: list[Path]) -> tuple[dict[str, dict], list[str]]:
-    """Load every set once and index by filename STEM so ``extends`` can resolve siblings.
+def _index_sets(
+    found: list[tuple[Path, Path]]
+) -> tuple[dict[Path, dict[str, dict]], list[str]]:
+    """Index sets by stem WITHIN each namespace so ``extends`` resolves only among siblings.
 
-    A set's identity is its stem, so two files with the same stem in different scanned
-    directories collide — reported here so the ambiguity fails loudly rather than one
-    silently shadowing the other in the index.
+    Returns ``(indexes, errors)`` where ``indexes[namespace]`` maps a filename stem to its
+    parsed document. Indexing per namespace keeps production sets (``operators/``) and
+    fixtures (``fixtures/``) isolated: neither can inherit from nor collide with the other.
+    A duplicate stem is only a collision WITHIN one namespace — reported so the ambiguity
+    fails loudly rather than one file silently shadowing the other.
     """
-    sets_by_stem: dict[str, dict] = {}
+    indexes: dict[Path, dict[str, dict]] = {}
     errors: list[str] = []
-    for path in files:
+    for namespace, path in found:
         try:
             data = _load_file(path)
         except LOAD_ERRORS:
             continue  # per-file errors are reported in the main validation pass
         if isinstance(data, dict):
+            by_stem = indexes.setdefault(namespace, {})
             stem = path.stem
-            if stem in sets_by_stem:
-                errors.append(f"duplicate coefficient-set stem {stem!r}")
-            sets_by_stem[stem] = data
-    return sets_by_stem, errors
+            if stem in by_stem:
+                errors.append(f"duplicate coefficient-set stem {stem!r} in {namespace}")
+            by_stem[stem] = data
+    return indexes, errors
 
 
 def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
@@ -200,13 +215,13 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
             return 1, ["no coefficient sets found to validate"]
         return 0, ["no coefficient sets to validate (registry is empty)"]
 
-    sets_by_stem, index_errors = _index_sets(files)
+    indexes, index_errors = _index_sets(files)
     lines: list[str] = []
     ok = not index_errors
     for err in index_errors:
         lines.append(f"registry: {err}")
 
-    for path in files:
+    for namespace, path in files:
         rel = path
         try:
             data = _load_file(path)
@@ -238,7 +253,9 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
             if backend_reason is not None:
                 file_errors.append(backend_reason)
 
-        inherited, extend_errors = _resolve_inherited(data, sets_by_stem)
+        # Resolve extends ONLY within this file's own namespace, so a fixture cannot
+        # inherit from a production set (or vice versa).
+        inherited, extend_errors = _resolve_inherited(data, indexes.get(namespace, {}))
         file_errors.extend(extend_errors)
         file_errors.extend(check_set(data, consumed, inherited))
 

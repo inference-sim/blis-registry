@@ -287,26 +287,58 @@ def test_non_mapping_scope_rejected():
     assert any("scope" in e and "mapping" in e for e in errs), errs
 
 
-def test_duplicate_set_stem_reported(tmp_path):
-    # A set's identity is its filename stem; two files with the same stem in different
-    # scanned directories collide and must be reported, not silently shadowed.
-    body = (
-        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n"
-        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n"
-    )
-    d1 = tmp_path / "one"
-    d2 = tmp_path / "two"
-    d1.mkdir()
-    d2.mkdir()
-    (d1 / "dup.yaml").write_text(body)
-    (d2 / "dup.yaml").write_text(body)
-    code, lines = validate_mod.validate_paths([str(d1 / "dup.yaml"),
-                                               str(d2 / "dup.yaml")])
+_SET_BODY = (
+    "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
+    "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+    "fitted: true, scope: {hardware: [H100]}}\n"
+    "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+    "fitted: true, scope: {hardware: [H100]}}\n"
+)
+
+
+def test_duplicate_stem_within_one_namespace_reported(tmp_path):
+    # Same stem twice WITHIN one directory (dup.yaml + dup.yml) collides and must be
+    # reported, not silently shadowed.
+    d = tmp_path / "operators"
+    d.mkdir()
+    (d / "dup.yaml").write_text(_SET_BODY)
+    (d / "dup.yml").write_text(_SET_BODY)
+    code, lines = validate_mod.validate_paths([str(d)])
     assert code == 1
     assert any("duplicate coefficient-set stem" in ln and "dup" in ln for ln in lines), lines
+
+
+def test_same_stem_across_namespaces_is_not_a_collision(tmp_path):
+    # A production set and a fixture may share a stem — different namespaces, no collision.
+    ops = tmp_path / "operators"
+    fix = tmp_path / "fixtures"
+    ops.mkdir()
+    fix.mkdir()
+    (ops / "roofline.yaml").write_text(_SET_BODY)
+    (fix / "roofline.yaml").write_text(_SET_BODY)
+    code, lines = validate_mod.validate_paths([str(ops), str(fix)])
+    assert code == 0, "\n".join(lines)
+    assert not any("duplicate" in ln for ln in lines), lines
+
+
+def test_extends_does_not_leak_across_namespaces(tmp_path):
+    # A set in one namespace must NOT inherit from a set in another: a fixture that
+    # extends a production-set stem is refused, even though that stem exists elsewhere.
+    ops = tmp_path / "operators"
+    fix = tmp_path / "fixtures"
+    ops.mkdir()
+    fix.mkdir()
+    (ops / "base.yaml").write_text(_SET_BODY)
+    (fix / "child.yaml").write_text(
+        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
+        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [A100]}}\n"
+    )
+    code, lines = validate_mod.validate_paths([str(ops), str(fix)])
+    assert code == 1
+    joined = "\n".join(lines)
+    # child is refused: its extends can't see operators/base, and mfu_prefill is unmet.
+    assert "child.yaml" in joined and ("extends" in joined or "mfu_prefill" in joined), joined
 
 
 # --- BC-5: backend consumed-names -----------------------------------------------

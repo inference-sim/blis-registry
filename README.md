@@ -36,9 +36,10 @@ schema so that missing provenance, unrecognized fields, or ill-formed values are
 
 A coefficient set is one YAML file under `operators/`, identified by its filename. It
 declares `kind: CoefficientSet`, the `backend` it feeds, and a map of `coefficients`; it
-may `extends` another set to inherit entries it does not override. Each backend under
-`backends/` declares the coefficient names it consumes, and a set is validated against
-that list — an omitted coefficient is refused by name rather than silently defaulted.
+may `extends` another set — a sibling in the same directory, named by filename stem — to
+inherit entries it does not override. Each backend under `backends/` declares the
+coefficient names it consumes, and a set is validated against that list — an omitted
+coefficient is refused by name rather than silently defaulted.
 
 Every coefficient records `value`, `units`, `method` (how the number was obtained),
 `fitted`, and `scope` (the range it holds over), plus optional provenance

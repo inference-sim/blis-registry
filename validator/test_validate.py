@@ -441,7 +441,8 @@ def test_non_string_name_does_not_bypass_duplicate_guard(tmp_path):
 
 
 def test_committed_trained_physics_set_validates():
-    # Exercises the trained-physics manifest end-to-end over a committed set.
+    # Exercises the trained-physics manifest AND the `extends` chain (BC-8) end-to-end
+    # over a committed set: example-trained-physics extends the roofline `example` set.
     code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
     assert code == 0, "\n".join(lines)
 
@@ -548,12 +549,6 @@ def test_non_string_sources_rejected():
 def test_non_string_rationale_rejected():
     errs = errors_for("c", a_valid_entry(method="assumed", rationale=123))
     assert any("rationale" in e for e in errs), errs
-
-
-def test_committed_extends_set_validates():
-    # BC-8 end-to-end over a COMMITTED set: example-extends inherits mfu_prefill.
-    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "operators")])
-    assert code == 0, "\n".join(lines)
 
 
 def test_cli_subprocess_smoke():

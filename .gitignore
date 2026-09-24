@@ -1,10 +1,9 @@
-# The payload is YAML (coefficient sets and backend manifests), so this file
-# deliberately ignores NOTHING by extension. Before adding a pattern, check that it
-# cannot match:
-#   operators/*.yaml   backends/*.yaml
+# The payload is YAML (coefficient sets), so this file deliberately ignores NOTHING by
+# extension. Before adding a pattern, check that it cannot match:
+#   coefficients/*.yaml
 #
 # Directory patterns are ANCHORED with a leading slash so they match only at the repo
-# root. An unanchored `scratch/` would also match `operators/scratch/` and silently
+# root. An unanchored `scratch/` would also match `coefficients/scratch/` and silently
 # swallow a set — the same silent-drop failure blis-catalog's .gitignore guards against.
 
 # OS and editor cruft

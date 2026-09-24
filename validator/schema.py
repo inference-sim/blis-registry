@@ -1,25 +1,28 @@
 """The CoefficientSet schema and its strict validation rules.
 
-A ``CoefficientSet`` is an immutable set of coefficients that feeds ONE backend and may
-``extend`` another set. It is identified by its **filename** (its stem), not by a field
-in the document — the same way the north-star design and the catalog identify their
-objects. Validation is strict: an unknown key is an error, never a silent default, and
+A ``CoefficientSet`` is a standalone, immutable set of coefficients. It is a
+self-identifying document: its identity is its top-level ``name``, not its filename and
+not an external manifest. There is no inheritance between sets — each set is complete on
+its own. Validation is strict: an unknown key is an error, never a silent default, and
 every rejection names the offending entry or key so a committer can find it without
 guessing.
 
-The shape follows the north-star architecture design (the source both registry issue #1
-and the coefficient-transcription tasks derive from):
+The shape:
 
-  * a document declares ``kind: CoefficientSet``, its ``backend``, its ``coefficients``,
-    and optionally ``extends`` (the stem of a base set it inherits from);
+  * a document declares ``kind: CoefficientSet``, a unique ``name``, and its
+    ``coefficients`` — a LIST of single-key maps, each keyed by the coefficient name;
   * every entry carries ``value``/``units``/``method``/``fitted``/``scope``; a missing
     one is rejected, naming the entry;
   * a method lacking its companion (``rationale`` for all but ``measured``; ``sources``
     for ``literature``/``vendor_spec``; ``copied_from`` for ``copied``) is rejected;
   * a zero ``value`` is rejected unless ``method: not_charged``;
   * ``sources`` is a list of ``{kind, cite, role}`` provenance objects;
-  * ``ci95`` and ``supersedes`` are optional and may be an explicit ``null``;
-  * a set that omits a coefficient its backend consumes is refused, naming it.
+  * ``ci95`` and ``supersedes`` are optional and may be an explicit ``null``.
+
+The registry validator checks SHAPE ONLY. It no longer verifies that a set provides every
+coefficient some backend consumes: with the per-backend manifest (``backends/``) gone,
+per-backend *completeness* ("every coefficient a backend needs is present") moves to the
+simulator-side loader, which is the path that actually knows what each backend consumes.
 
 ``check_set`` returns a sorted list of human-readable error strings — empty means the
 set is valid. It never raises on bad data; malformed input becomes an error string so a
@@ -69,10 +72,11 @@ SOURCE_KINDS = frozenset(
 SOURCE_ROLES = frozenset({"primary", "supporting", "upper_bound"})
 SOURCE_REQUIRED = frozenset({"kind", "cite", "role"})
 
-# Top-level keys of a CoefficientSet document. The set's identity is its filename, so
-# there is no `name` field; `kind` is the type discriminator the design uses.
-TOP_LEVEL_REQUIRED = frozenset({"kind", "backend", "coefficients"})
-TOP_LEVEL_OPTIONAL = frozenset({"extends"})
+# Top-level keys of a CoefficientSet document. The set's identity is its `name`; `kind`
+# is the type discriminator. There is no `backend` (no per-backend manifest anymore) and
+# no `extends` (sets are standalone) — either one is now an unknown key, hence rejected.
+TOP_LEVEL_REQUIRED = frozenset({"kind", "name", "coefficients"})
+TOP_LEVEL_OPTIONAL = frozenset()
 TOP_LEVEL_KEYS = TOP_LEVEL_REQUIRED | TOP_LEVEL_OPTIONAL
 
 # Entry fields. `validated`/`unsupported` carry the honest-asymmetry scoping the design
@@ -311,22 +315,67 @@ def _check_entry(name: str, entry: Any) -> list[str]:
     return errors
 
 
-def check_set(data: Any, consumed: frozenset[str] | None, inherited: frozenset[str]) -> list[str]:
-    """Validate a parsed CoefficientSet.
+def _check_coefficients(coefficients: Any) -> list[str]:
+    """Validate the ``coefficients`` list of single-key maps. Returns error strings.
 
-    ``consumed`` is the set of coefficient names the declared backend consumes (from its
-    manifest), or ``None`` when the backend is unknown — in which case the omitted-by-name
-    check is skipped but a backend error is reported. ``inherited`` is the set of
-    coefficient names available from the resolved ``extends`` chain.
+    Each element is a mapping with EXACTLY ONE key — the coefficient name — whose value is
+    the entry. The list shape (rather than a map) means the strict LOADER can no longer
+    catch a repeated coefficient name — two ``- mfu_prefill:`` items are two distinct
+    dicts, not one duplicated mapping key — so duplicate-name detection lives HERE instead,
+    preserving the "a second definition never silently shadows the first" guarantee.
+    """
+    errors: list[str] = []
+    if not isinstance(coefficients, list):
+        return [
+            f"'coefficients' must be a list, got {type(coefficients).__name__}"
+        ]
+    if not coefficients:
+        return ["'coefficients' must not be empty"]
 
-    Returns a sorted list of error strings; empty means valid.
+    seen: set[str] = set()
+    for i, item in enumerate(coefficients):
+        if not isinstance(item, dict):
+            errors.append(
+                f"coefficients[{i}] must be a single-key {{name: entry}} mapping, "
+                f"got {type(item).__name__}"
+            )
+            continue
+        if len(item) != 1:
+            errors.append(
+                f"coefficients[{i}] must have exactly one key (the coefficient name), "
+                f"got {len(item)}"
+            )
+            continue
+        # The sole key is the coefficient name. A non-string name (e.g. an unquoted
+        # numeric key YAML parsed to int) is a strict error; stringify for the entry
+        # checks so a name typo never crashes downstream formatting.
+        (name, entry), = item.items()
+        if not isinstance(name, str):
+            errors.append(
+                f"coefficients[{i}]: coefficient name {name!r} must be a string, "
+                f"got {type(name).__name__}"
+            )
+        name_str = str(name)
+        if name_str in seen:
+            errors.append(f"duplicate coefficient name {name_str!r}")
+        seen.add(name_str)
+        errors.extend(_check_entry(name_str, entry))
+    return errors
+
+
+def check_set(data: Any) -> list[str]:
+    """Validate a parsed CoefficientSet. Returns a sorted list of error strings.
+
+    Empty means valid. The check is SHAPE ONLY — there is no per-backend completeness
+    check anymore (that moved to the simulator-side loader with ``backends/`` removed).
     """
     errors: list[str] = []
     if not isinstance(data, dict):
         return [f"top level must be a mapping, got {type(data).__name__}"]
 
-    # Strict parse: unknown top-level keys are errors. Sort by str so mixed-type keys
-    # never crash the comparison (a non-string key is itself an "unknown key").
+    # Strict parse: unknown top-level keys are errors. `backend` and `extends`, accepted by
+    # the old format, are now unknown keys and rejected here. Sort by str so mixed-type
+    # keys never crash the comparison (a non-string key is itself an "unknown key").
     for key in sorted(data, key=str):
         if key not in TOP_LEVEL_KEYS:
             errors.append(f"unknown top-level key {key!r}")
@@ -339,45 +388,13 @@ def check_set(data: Any, consumed: frozenset[str] | None, inherited: frozenset[s
     if "kind" in data and data["kind"] != "CoefficientSet":
         errors.append(f"'kind' must be 'CoefficientSet', got {data['kind']!r}")
 
-    # backend must be a non-empty string (it names the manifest this set is checked
-    # against). The CLI reports the missing-manifest / malformed-manifest detail.
-    if "backend" in data and (
-        not isinstance(data["backend"], str) or not data["backend"].strip()
+    # name is the set's identity; it must be a non-empty string.
+    if "name" in data and (
+        not isinstance(data["name"], str) or not data["name"].strip()
     ):
-        errors.append(f"'backend' must be a non-empty string, got {data['backend']!r}")
+        errors.append(f"'name' must be a non-empty string, got {data['name']!r}")
 
-    coefficients = data.get("coefficients")
-    own_names: frozenset[str] = frozenset()
     if "coefficients" in data:
-        if not isinstance(coefficients, dict):
-            errors.append(
-                f"'coefficients' must be a mapping, got {type(coefficients).__name__}"
-            )
-        elif not coefficients:
-            errors.append("'coefficients' must not be empty")
-        else:
-            own_names = frozenset(coefficients)
-            # Sort by str so a mixed-type key set never crashes the comparison.
-            for name in sorted(coefficients, key=str):
-                # Coefficient names are matched against a backend's consumed-names list,
-                # which is strings; a non-string name (e.g. an unquoted numeric key YAML
-                # parsed to int) can never match and is a strict error.
-                if not isinstance(name, str):
-                    errors.append(
-                        f"coefficient name {name!r} must be a string, got {type(name).__name__}"
-                    )
-                errors.extend(_check_entry(str(name), coefficients[name]))
-
-    # Backend consumed-names check: a coefficient the backend consumes but the set
-    # (after resolving extends) does not provide is refused by name. A coefficient
-    # present but NOT consumed is allowed — the ABSENT case and the shared-base "drop".
-    if consumed is not None:
-        available = own_names | inherited
-        for wanted in sorted(consumed):
-            if wanted not in available:
-                errors.append(
-                    f"backend consumes {wanted!r} but the set does not provide it "
-                    f"(add the entry or extend a set that defines it)"
-                )
+        errors.extend(_check_coefficients(data["coefficients"]))
 
     return sorted(errors)

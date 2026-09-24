@@ -58,8 +58,10 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
-Real sets live in `operators/` — the roofline MFU sets (one per supported GPU) are
-transcribed there, with more added by later tasks.
+Real sets live in `operators/` — the roofline MFU sets and the trained-physics
+correction/overhead sets (one of each per supported GPU) are transcribed there, with more
+added by later tasks. A trained-physics set `extends` its GPU's roofline set to inherit the
+MFU pair: the correction/overhead coefficients are one global vector, while MFU is per-GPU.
 A committed, clearly-labelled **synthetic** set in `fixtures/` gives CI a committed
 artifact to validate on every run; it is a schema fixture, never real data, and forms a
 separate namespace — a set under one scanned root cannot `extends` or collide with a set

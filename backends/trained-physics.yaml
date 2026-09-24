@@ -10,10 +10,12 @@
 # those two names are consumed here as well.
 #
 # The eleven beta / three alpha NAMES below enumerate the coefficients of the
-# trained-physics form; a later coefficient-set task transcribes their VALUES and may
-# refine these to semantic names as it does so. The count (11 beta + 3 alpha) and the
+# trained-physics form. Their VALUES are transcribed (value-preserving, R2G3) into the
+# per-GPU sets operators/trained-physics-<gpu>.yaml, each of which extends its GPU's
+# roofline set for the inherited MFU pair; a later task (R2G4) may refine these positional
+# names to semantic ones without changing any value. The count (11 beta + 3 alpha) and the
 # inherited MFU pair are fixed by the design; this manifest is the contract those values
-# are written against. This repository ships no trained-physics values (value-preserving).
+# are written against.
 consumes:
   # Inherited from the roofline set via `extends`.
   - mfu_prefill

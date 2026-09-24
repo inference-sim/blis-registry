@@ -659,9 +659,10 @@ def test_non_string_or_empty_backend_rejected(bad_backend):
 
 
 def test_declared_backend_manifest_omitted_coefficient_refused_by_name():
-    # Against the real trained-physics manifest (a shipped contract with no committed set
-    # in this PR), a set that omits a consumed coefficient is refused BY NAME — the
-    # guarantee the manifest exists to provide. Uses check_set directly; commits no set.
+    # Against the real trained-physics manifest, a set that omits a consumed coefficient is
+    # refused BY NAME — the guarantee the manifest exists to provide. Uses check_set directly
+    # on a synthetic in-test set (independent of the committed operators/ sets), so it isolates
+    # the omitted-by-name behaviour rather than re-checking the real transcribed sets.
     consumed, reason = validate_mod._backend_consumes("trained-physics")
     assert reason is None and consumed is not None
     missing = sorted(consumed)[0]

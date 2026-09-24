@@ -1,0 +1,195 @@
+# Trained-physics correction/overhead coefficients — L40S (R2G3).
+#
+# The trained-physics backend prices latency from a regression over the operator basis:
+# eleven step-time coefficients (the betas) and three per-request overheads outside the
+# step loop (the alphas). Today those ship as two positional arrays in inference-sim's
+# defaults.yaml (`alpha_coeffs` L168, `beta_coeffs` L186), with each position's meaning
+# carried only in comments. This set transcribes them into named, addressable entries.
+#
+# Value-preserving (R2): every value below equals the shipped defaults.yaml number to full
+# precision — transcribed, NOT regenerated (Phase 1 has no pipeline that can re-derive it).
+# The frozen-snapshot check in validator/test_transcription_trained_physics.py is the gate.
+#
+# Provenance of the values: the iter29 fit (sequential golden-section search, loss 34.5675%).
+# Every experiment behind iter29 is H100, so the fitted numbers are H100-lineage; they are
+# carried to the other GPUs' trained-physics sets unvalidated, the same carry-over the
+# roofline H200 MFU pair already ships under. The value under test is byte-identity, not
+# calibration, so each set states its own hardware scope regardless.
+#
+# The MFU pair (mfu_prefill/mfu_decode) is inherited from the per-GPU roofline set via
+# `extends`: the beta/alpha vector is global (one vector for every model, GPU and TP degree —
+# inference-sim sim/cluster/resolve.go), while MFU is per-GPU, so one trained-physics set per
+# GPU carries the shared vector and inherits that GPU's MFU.
+#
+# Names are POSITIONAL (beta_1..beta_11, alpha_1..alpha_3) — the names the trained-physics
+# backend manifest consumes. Semantic names (splitting the shared communication coefficient,
+# renaming to prefill_compute / decode_kv_read / …) are R2G4's job and change no value; each
+# entry's rationale records the defaults.yaml comment label it corresponds to.
+kind: CoefficientSet
+backend: trained-physics
+extends: roofline-l40s
+
+coefficients:
+  # --- Step-time regression coefficients (11 betas) ---
+
+  beta_1:
+    # β₁ₐ: prefill compute correction.
+    value: 0.152128
+    units: dimensionless
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_2:
+    # β₂ₐ: decode compute correction. Ships at 0.0 and MUST be declared, not omitted:
+    # array length selects the formula (omitting a position selects the MAX form, declaring
+    # it 0.0 selects the ADDITIVE form, ~1.67x apart on memory-bound traffic — north-star
+    # Problem 4 / INV-6). Production ships 11 values (additive-with-zero), so declaring this
+    # absent would change output, which R2 forbids.
+    value: 0.0
+    units: dimensionless
+    method: not_charged
+    fitted: false
+    rationale: >
+      Decode compute correction, priced at zero. Not independently identifiable: on a decode
+      step it co-occurs with the decode kv-read term (beta_10), which absorbs the fit, so a
+      separate decode-compute slope cannot be distinguished. Declared at 0.0 (not omitted) to
+      keep the additive-with-zero step-time form production runs (north-star Problem 4 / N8b).
+    scope: {hardware: [L40S]}
+
+  beta_3:
+    # β₃: weight-loading correction.
+    value: 1.36252915
+    units: dimensionless
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_4:
+    # β₄: tensor-parallel all-reduce (attention) communication correction. R2G4 splits the
+    # shared communication coefficient into its own semantic name without changing this value.
+    value: 0.752037
+    units: dimensionless
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_5:
+    # β₅: per-layer overhead.
+    value: 32.09546717
+    units: us_per_layer
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_6:
+    # β₆: per-request scheduling overhead.
+    value: 4.41684444
+    units: us_per_request
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_7:
+    # β₇: per-step constant overhead.
+    value: 126.024825
+    units: us_per_step
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_8:
+    # β₈: per-MoE-layer overhead (architecture-aware; interleaved MoE only).
+    value: 481.8613888
+    units: us_per_layer
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_9:
+    # β₁ᵦ: prefill memory (kv-read) correction. Ships at 0.0 and MUST be declared, not
+    # omitted — this is the sharpest case of Problem 4: omitting prefill_kv_read selects the
+    # MAX prefill form, declaring it 0.0 selects the ADDITIVE form, and the two differ ~1.67x
+    # on memory-bound traffic (45.64us vs 76.06us at the shipped prefill_compute).
+    value: 0.0
+    units: dimensionless
+    method: not_charged
+    fitted: false
+    rationale: >
+      Prefill memory (kv-read) correction, priced at zero. Not independently identifiable: on
+      a prefill step it co-occurs with the prefill compute term (beta_1), which absorbs the
+      fit. Declared at 0.0 (not omitted) so the prefill step time keeps the additive form
+      production runs; omitting it would select the max form and change output (Problem 4).
+    scope: {hardware: [L40S]}
+
+  beta_10:
+    # β₂ᵦ: decode memory (kv-read) correction.
+    value: 1.94710771
+    units: dimensionless
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  beta_11:
+    # β_EP: MoE dispatch/combine all-to-all communication correction (#1419). Seeded equal
+    # to beta_4 rather than independently fitted, so it is recorded as copied, not measured.
+    value: 0.752037
+    units: dimensionless
+    method: copied
+    copied_from: beta_4
+    fitted: false
+    rationale: >
+      MoE expert-parallel dispatch/combine all-to-all correction, seeded to beta_4 (0.752037).
+      Both comm families run over the same NVLink fabric beta_4 calibrates, and NCCL's
+      bus-bandwidth model gives all-gather/reduce-scatter and all-to-all the same (n-1)/n
+      per-phase efficiency as the ring all-reduce beta_4 corrects; the comm-family volume
+      difference lives in the dispatch basis, not this coefficient. Per-family efficiency
+      refit is deferred (#1568); until then this is a copy of beta_4, not a measurement.
+    scope: {hardware: [L40S]}
+
+  # --- Per-request overheads outside the step loop (3 alphas) ---
+
+  alpha_1:
+    # α₀: queueing time (HTTP parsing, request validation, queue insertion).
+    value: 15563.199579
+    units: us_per_request
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  alpha_2:
+    # α₁: post-decode fixed overhead (per-request, at completion).
+    value: 777.3455
+    units: us_per_request
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  alpha_3:
+    # α₂: output-token processing (streaming detokenization). A per-request overhead in this
+    # transcription's units (the issue fixes all three alphas as us_per_request); the
+    # per-output-token reading is a separate backend interpretation tracked under N7.
+    value: 45.907545
+    units: us_per_request
+    method: measured
+    fitted: true
+    scope: {hardware: [L40S]}
+
+  # --- Cross-node hop latency (α_hop) ---
+
+  alpha_hop:
+    # cross_node_hop_latency: per-hop serialization latency for cross-node collective traffic.
+    # Zero on every GPU (#1694 ships it uncalibrated deliberately). Present as a priced-at-zero
+    # entry so the term is addressable and its status is auditable; it is not in the backend's
+    # consumed-names list (the manifest fixes 11 beta + 3 alpha), which the schema allows for a
+    # declared-but-not-consumed coefficient. Wiring it into a backend read path is deferred (H1).
+    value: 0.0
+    units: us_per_hop
+    method: not_charged
+    fitted: false
+    rationale: >
+      Cross-node per-hop serialization latency, priced at zero on every supported GPU: the
+      per-hop term ships uncalibrated (#1694), so it is deliberately not charged rather than
+      assigned an unmeasured value. Declared here so the term carries an addressable name and
+      an honest zero-cost status ahead of the hardware→registry move (H1).
+    scope: {hardware: [L40S], nodes_spanned: [1, 8]}

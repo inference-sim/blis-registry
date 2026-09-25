@@ -22,11 +22,11 @@ can say not just *what* it computed but *on what evidence*.
 
 ## What this repository holds
 
-A **coefficient set** is an immutable collection of coefficients that feeds one latency
-model. Each coefficient records its value alongside the provenance and scope that make it
-auditable, so a reader can tell a measured number from an assumed one and know the range
-it was established over. Sets are organized so that related numbers can be shared and
-built upon rather than duplicated.
+A **coefficient set** is a standalone, immutable collection of coefficients that feeds one
+latency model. Each coefficient records its value alongside the provenance and scope that
+make it auditable, so a reader can tell a measured number from an assumed one and know the
+range it was established over. Each set is a self-identifying document, complete on its own
+— there is no inheritance between sets.
 
 The repository validates its own contents: the committed data is checked against the
 schema so that missing provenance, unrecognized fields, or ill-formed values are rejected
@@ -34,18 +34,37 @@ schema so that missing provenance, unrecognized fields, or ill-formed values are
 
 ## Authoring and validating a set
 
-A coefficient set is one YAML file under `operators/`, identified by its filename. It
-declares `kind: CoefficientSet`, the `backend` it feeds, and a map of `coefficients`; it
-may `extends` another set — one in the same scanned root (namespace), named by filename
-stem — to inherit entries it does not override. Each backend under `backends/` declares the
-coefficient names it consumes, and a set is validated against that list — an omitted
-coefficient is refused by name rather than silently defaulted.
+A coefficient set is one YAML file under `coefficients/`. It declares `kind:
+CoefficientSet`, a unique `name` (the set's identity — e.g. `roofline-h100`), and a
+`coefficients` list. Each list entry is a single-key map keyed by the coefficient name.
+Sets are standalone: there is no `backend` field and no inheritance between sets.
 
 Every coefficient records `value`, `units`, `method` (how the number was obtained),
 `fitted`, and `scope` (the range it holds over), plus optional provenance
 (`sources`, `rationale`, `ci95`, …). The strict rules — which fields are required, the
 allowed enums, and the required-by-method provenance — are defined and enforced by the
-validator in `validator/`, which is the authoritative, maintained specification.
+validator in `validator/`, which is the authoritative, maintained specification. The
+validator checks **shape only**; per-backend completeness (that a set carries every
+coefficient a given backend consumes) is enforced by the simulator-side loader, which
+knows what each backend reads.
+
+A minimal set looks like:
+
+```yaml
+kind: CoefficientSet
+name: roofline-l40s
+coefficients:
+  - mfu_prefill:
+      value: 0.32
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: discussion, cite: "inference-sim#589", role: primary}
+      rationale: >
+        L40S prefill MFU discount; see #589.
+      scope: {hardware: [L40S]}
+```
 
 To validate the registry (the same check CI runs on every pull request):
 
@@ -58,12 +77,9 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
-Real sets live in `operators/` — the roofline MFU sets (one per supported GPU) are
-transcribed there, with more added by later tasks.
-A committed, clearly-labelled **synthetic** set in `fixtures/` gives CI a committed
-artifact to validate on every run; it is a schema fixture, never real data, and forms a
-separate namespace — a set under one scanned root cannot `extends` or collide with a set
-under another.
+Real sets live in `coefficients/` — the roofline MFU sets (one per supported GPU) are
+transcribed there, with more added by later tasks. These committed sets are what CI
+validates on every run.
 
 ## Usage
 

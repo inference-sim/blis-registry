@@ -6,27 +6,16 @@ Usage:
 
 Each PATH is a coefficient-set YAML file or a directory scanned recursively for YAML
 files (``*.yaml``/``*.yml``, case-insensitive). With no PATH, the real sets in
-``operators/`` and the committed schema fixtures in ``fixtures/`` are validated;
-``operators/`` may be empty until real sets are transcribed. The tool loads each set,
-resolves its ``extends`` chain and its backend manifest, runs the strict schema checks,
-and prints one line per problem. Exit code is 0 iff every set is valid — this is the gate
-CI runs on every committed set.
+``coefficients/`` are validated; that directory may be empty until real sets are
+transcribed. The tool loads each set, runs the strict schema checks, and prints one line
+per problem. Exit code is 0 iff every set is valid — this is the gate CI runs on every
+committed set.
 
-A coefficient set is identified by its **filename stem** (``operators/roofline.yaml`` is
-the set ``roofline``), not by a field in the document. ``extends:`` names the stem of a
-base set to inherit from — resolved only within the **same scanned root (namespace)**, so
-sets in different roots (e.g. ``operators/`` and ``fixtures/``) form isolated namespaces
-that never inherit from, or collide with, one another. A root is scanned recursively, so
-subdirectories under one root share its namespace.
-
-Backend manifests live in ``backends/<name>.yaml`` and declare the coefficient names a
-backend consumes:
-
-    consumes: [mfu_prefill, mfu_decode]
-
-A set names its backend with ``backend:`` and may inherit entries with ``extends:``. The
-manifest is what lets the validator refuse an omitted coefficient BY NAME rather than let
-it default silently.
+A coefficient set is a standalone, self-identifying document: its identity is its
+top-level ``name``, not its filename and not an external manifest. There is no inheritance
+between sets and no per-backend manifest — the validator checks SHAPE ONLY. Per-backend
+completeness ("every coefficient a backend needs is present") is enforced by the
+simulator-side loader, which knows what each backend consumes.
 """
 
 from __future__ import annotations
@@ -47,16 +36,12 @@ else:
     from .schema import check_set
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BACKENDS_DIR = REPO_ROOT / "backends"
-OPERATORS_DIR = REPO_ROOT / "operators"   # the real coefficient sets
-FIXTURES_DIR = REPO_ROOT / "fixtures"     # committed synthetic schema fixtures (not data)
+COEFFICIENTS_DIR = REPO_ROOT / "coefficients"   # the real coefficient sets
 
-# With no explicit path, validate the real sets in operators/ AND the committed schema
-# fixtures in fixtures/. operators/ holds the real sets (e.g. the per-GPU roofline MFU
-# sets) and may be sparse before a given task transcribes its numbers; the fixtures give
-# CI a committed artifact to validate on every run (issue #1's deliverable).
-# A missing default dir is not an error — either directory may legitimately be absent.
-DEFAULT_TARGETS = [OPERATORS_DIR, FIXTURES_DIR]
+# With no explicit path, validate the real sets in coefficients/. That directory may be
+# sparse before a given task transcribes its numbers; a missing default dir is not an
+# error.
+DEFAULT_TARGETS = [COEFFICIENTS_DIR]
 
 
 # Every way a YAML file can fail to load into usable data. UnicodeDecodeError (a
@@ -70,71 +55,6 @@ LOAD_ERRORS = (yaml.YAMLError, DuplicateKeyError, OSError, ValueError, TypeError
 def _load_file(path: Path):
     """Load and strictly parse one YAML file. Raises a LOAD_ERRORS member on bad input."""
     return load_strict(path.read_text(encoding="utf-8"))
-
-
-def _backend_consumes(backend: str) -> tuple[frozenset[str] | None, str | None]:
-    """Resolve a backend's consumed-names list.
-
-    Returns ``(names, None)`` on success, or ``(None, reason)`` where ``reason``
-    distinguishes a *missing* manifest from a *malformed* one — so the caller can refuse
-    a set naming the real problem instead of misreporting a present-but-broken manifest
-    as absent (which would also silently skip the omitted-by-name check).
-    """
-    manifest = BACKENDS_DIR / f"{backend}.yaml"
-    if not manifest.is_file():
-        return None, f"backend {backend!r} has no manifest (add backends/{backend}.yaml)"
-    try:
-        data = _load_file(manifest)
-    except LOAD_ERRORS as exc:
-        return None, f"backend manifest backends/{backend}.yaml could not be parsed: {exc}"
-    if not isinstance(data, dict):
-        return None, f"backend manifest backends/{backend}.yaml must be a mapping"
-    consumes = data.get("consumes")
-    if not isinstance(consumes, list) or not all(isinstance(c, str) for c in consumes):
-        return None, (
-            f"backend manifest backends/{backend}.yaml must have a 'consumes' list of "
-            f"coefficient-name strings"
-        )
-    return frozenset(consumes), None
-
-
-def _resolve_inherited(
-    data: dict, sets_by_stem: dict[str, dict]
-) -> tuple[frozenset[str], list[str]]:
-    """Collect coefficient names available via the ``extends`` chain.
-
-    ``sets_by_stem`` is the index for the current file's OWN namespace (its scanned root),
-    mapping a filename stem to its parsed document; ``extends`` names the stem of a base
-    set in that same namespace. Returns (inherited_names, errors). An ``extends`` naming an
-    absent set (not present in this namespace), a non-string ``extends``, or a cycle is
-    reported as an error and stops the walk. Walked iteratively (not recursively) so an
-    arbitrarily deep acyclic chain cannot overflow the stack and escape as a traceback;
-    ``seen`` bounds the walk to the number of distinct sets.
-    """
-    names: set[str] = set()
-    seen: set[str] = set()
-    current = data
-    while True:
-        parent_stem = current.get("extends")
-        if parent_stem is None:
-            return frozenset(names), []
-        if not isinstance(parent_stem, str):
-            return frozenset(names), [f"'extends' must be a string, got {parent_stem!r}"]
-        if parent_stem in seen:
-            return frozenset(names), [
-                f"'extends' cycle detected involving {parent_stem!r}"
-            ]
-        parent = sets_by_stem.get(parent_stem)
-        if parent is None:
-            return frozenset(names), [
-                f"'extends' names {parent_stem!r}, which is not a coefficient set in the "
-                f"same namespace (extends resolves only within the same scanned root)"
-            ]
-        seen.add(parent_stem)
-        parent_coeffs = parent.get("coefficients")
-        if isinstance(parent_coeffs, dict):
-            names.update(parent_coeffs)
-        current = parent
 
 
 # YAML extensions a coefficient set may use. Matched case-insensitively so a set named
@@ -155,55 +75,44 @@ def _scan_dir(directory: Path) -> list[Path]:
     )
 
 
-def _discover(paths: list[str]) -> list[tuple[Path, Path]]:
-    """Discover files as ``(namespace, path)`` pairs.
+def _discover(paths: list[str]) -> list[Path]:
+    """Discover the coefficient-set files to validate.
 
-    The NAMESPACE is the scanned root a file belongs to — a target directory (e.g.
-    ``operators/`` vs ``fixtures/``), or the file's own parent for an explicitly-named
-    file. It bounds `extends` resolution and duplicate-stem detection so those never leak
-    across directories: a fixture never inherits from (or collides with) a production set.
+    A directory is scanned recursively; an explicitly-named file is taken as-is. A missing
+    DEFAULT target (e.g. an as-yet-uncreated coefficients/) is not an error — there may
+    simply be no real sets yet. An explicitly-named missing path IS reported (as a load
+    error) so a bad argument fails loudly.
+
+    Overlapping targets (e.g. ``coefficients/`` AND ``coefficients/roofline-h100.yaml``, or
+    the same file named twice) would otherwise surface one physical file more than once —
+    validating it repeatedly and, worse, tripping the cross-file ``name``-uniqueness check
+    into reporting a file as a duplicate of ITSELF. De-duplicate by resolved path so each
+    physical file is discovered exactly once, keeping first-seen order (which preserves the
+    sorted-within-dir, argument-order determinism the callers rely on).
     """
-    found: list[tuple[Path, Path]] = []
+    found: list[Path] = []
     targets = [Path(p) for p in paths] if paths else DEFAULT_TARGETS
     for target in targets:
         if target.is_dir():
-            found.extend((target, p) for p in _scan_dir(target))
+            found.extend(_scan_dir(target))
         elif target.is_file():
-            found.append((target.parent, target))
-        else:
-            # A missing DEFAULT target (e.g. an as-yet-uncreated operators/) is not an
-            # error — there may simply be no real sets yet. An explicitly-named missing
-            # path IS reported, as a load error, so a bad argument fails loudly.
-            if paths:
-                found.append((target.parent, target))
-    return found
-
-
-def _index_sets(
-    found: list[tuple[Path, Path]]
-) -> tuple[dict[Path, dict[str, dict]], list[str]]:
-    """Index sets by stem WITHIN each namespace so ``extends`` resolves only in that root.
-
-    Returns ``(indexes, errors)`` where ``indexes[namespace]`` maps a filename stem to its
-    parsed document. Indexing per namespace keeps production sets (``operators/``) and
-    fixtures (``fixtures/``) isolated: neither can inherit from nor collide with the other.
-    A duplicate stem is only a collision WITHIN one namespace — reported so the ambiguity
-    fails loudly rather than one file silently shadowing the other.
-    """
-    indexes: dict[Path, dict[str, dict]] = {}
-    errors: list[str] = []
-    for namespace, path in found:
+            found.append(target)
+        elif paths:
+            found.append(target)
+    # Collapse duplicates by resolved path while preserving first-seen order. A missing
+    # explicit path (not resolvable to a real file) still resolves to a distinct key, so it
+    # is retained and reported as a load error downstream.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in found:
         try:
-            data = _load_file(path)
-        except LOAD_ERRORS:
-            continue  # per-file errors are reported in the main validation pass
-        if isinstance(data, dict):
-            by_stem = indexes.setdefault(namespace, {})
-            stem = path.stem
-            if stem in by_stem:
-                errors.append(f"duplicate coefficient-set stem {stem!r} in {namespace}")
-            by_stem[stem] = data
-    return indexes, errors
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
 
 
 def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
@@ -217,56 +126,58 @@ def validate_paths(paths: list[str]) -> tuple[int, list[str]]:
             return 1, ["no coefficient sets found to validate"]
         return 0, ["no coefficient sets to validate (registry is empty)"]
 
-    indexes, index_errors = _index_sets(files)
     lines: list[str] = []
-    ok = not index_errors
-    for err in index_errors:
-        lines.append(f"registry: {err}")
+    ok = True
 
-    for namespace, path in files:
-        rel = path
+    # A set's identity is its `name` (schema.py enforces it is a non-empty string within a
+    # file). Since identity moved from the filesystem-unique filename stem to a free-form
+    # document field, uniqueness is no longer automatic — two files could declare the same
+    # `name` and each pass its own shape check. This registry-level pass refuses that
+    # collision by name, the successor to the old duplicate-stem check.
+    name_to_path: dict[str, Path] = {}
+
+    for path in files:
         try:
             data = _load_file(path)
         except FileNotFoundError:
             ok = False
-            lines.append(f"{rel}: file not found")
+            lines.append(f"{path}: file not found")
             continue
         except LOAD_ERRORS as exc:
             ok = False
-            lines.append(f"{rel}: could not parse: {exc}")
+            lines.append(f"{path}: could not parse: {exc}")
             continue
 
         if data is None:
             ok = False
-            lines.append(f"{rel}: empty file")
+            lines.append(f"{path}: empty file")
             continue
         if not isinstance(data, dict):
             ok = False
-            lines.append(f"{rel}: top level must be a mapping, got {type(data).__name__}")
+            lines.append(f"{path}: top level must be a mapping, got {type(data).__name__}")
             continue
 
-        backend = data.get("backend")
-        file_errors: list[str] = []
-        consumed: frozenset[str] | None = None
-        # The schema (check_set) reports a missing/non-string backend; here we additionally
-        # resolve the manifest when the backend is a usable string.
-        if isinstance(backend, str) and backend.strip():
-            consumed, backend_reason = _backend_consumes(backend)
-            if backend_reason is not None:
-                file_errors.append(backend_reason)
-
-        # Resolve extends ONLY within this file's own namespace, so a fixture cannot
-        # inherit from a production set (or vice versa).
-        inherited, extend_errors = _resolve_inherited(data, indexes.get(namespace, {}))
-        file_errors.extend(extend_errors)
-        file_errors.extend(check_set(data, consumed, inherited))
-
+        file_errors = check_set(data)
         if file_errors:
             ok = False
             for err in sorted(file_errors):
-                lines.append(f"{rel}: {err}")
+                lines.append(f"{path}: {err}")
         else:
-            lines.append(f"{rel}: OK")
+            lines.append(f"{path}: OK")
+
+        # Track `name` for the cross-file uniqueness check. Only a usable (non-empty
+        # string) name participates — a missing/malformed name is already reported by
+        # check_set above, so it need not also be reported here as a collision.
+        name = data.get("name")
+        if isinstance(name, str) and name.strip():
+            prior = name_to_path.get(name)
+            if prior is not None:
+                ok = False
+                lines.append(
+                    f"{path}: duplicate set name {name!r} (already declared by {prior})"
+                )
+            else:
+                name_to_path[name] = path
 
     return (0 if ok else 1), lines
 

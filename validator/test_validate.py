@@ -1,9 +1,12 @@
 """Behavioral tests for the CoefficientSet validator.
 
-Each test maps to an acceptance criterion of registry issue #1 (the BC-n behavioral
-contracts). Tests assert on BEHAVIOR (is it rejected, and does the message name the
-offending entry/key), not on internal structure, so they survive a refactor of the
-validator.
+Tests assert on BEHAVIOR (is it rejected, and does the message name the offending
+entry/key), not on internal structure, so they survive a refactor of the validator.
+
+The format under test: a standalone, self-identifying document declaring
+``kind: CoefficientSet``, a unique ``name``, and ``coefficients`` as a LIST of single-key
+maps. There is no ``backend`` and no ``extends`` — either is now an unknown key. The
+validator checks SHAPE ONLY; per-backend completeness moved to the simulator-side loader.
 """
 
 from __future__ import annotations
@@ -21,10 +24,6 @@ from validator.schema import check_set
 from validator import validate as validate_mod
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# roofline consumes exactly these; used for most single-entry tests.
-ROOFLINE = frozenset({"mfu_prefill", "mfu_decode"})
-NO_INHERIT = frozenset()
 
 
 def a_source(**overrides):
@@ -50,23 +49,23 @@ def a_valid_entry(**overrides):
 
 
 def a_valid_set(coeffs=None, **top):
+    """A minimal valid set. ``coeffs`` is the coefficients LIST of single-key maps."""
     data = {
         "kind": "CoefficientSet",
-        "backend": "roofline",
+        "name": "roofline-test",
         "coefficients": coeffs
         if coeffs is not None
-        else {"mfu_prefill": a_valid_entry(), "mfu_decode": a_valid_entry()},
+        else [{"mfu_prefill": a_valid_entry()}, {"mfu_decode": a_valid_entry()}],
     }
     data.update(top)
     return data
 
 
-def errors_for(entry_name="c", entry=None, consumed=None, inherited=NO_INHERIT, **top):
+def errors_for(entry_name="c", entry=None, **top):
     """Validate a set containing one named entry; return the error list."""
-    coeffs = {entry_name: entry if entry is not None else a_valid_entry()}
-    # Ensure the consumed check doesn't fire unless a test asks for it.
+    coeffs = [{entry_name: entry if entry is not None else a_valid_entry()}]
     data = a_valid_set(coeffs=coeffs, **top)
-    return check_set(data, consumed, inherited)
+    return check_set(data)
 
 
 # --- BC-4: strict loader (duplicate keys) ---------------------------------------
@@ -92,7 +91,7 @@ def test_loader_rejects_multi_document_yaml():
 
 def test_multi_document_file_is_named_error(tmp_path):
     f = tmp_path / "multi.yaml"
-    f.write_text("kind: CoefficientSet\nbackend: roofline\n---\nkind: CoefficientSet\n")
+    f.write_text("kind: CoefficientSet\nname: s\n---\nkind: CoefficientSet\n")
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     assert any("could not parse" in ln for ln in lines), lines
@@ -146,18 +145,18 @@ def test_non_string_method_rejected_without_crash(bad):
 
 def test_unhashable_enum_values_do_not_crash_end_to_end(tmp_path):
     # CLI-level regression: units:[] and method:{} in a committed file must be reported,
-    # never a traceback. (Reproduces the maintainer's blocking finding.)
-    ops = tmp_path / "operators"
-    ops.mkdir()
+    # never a traceback.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
     _write_set(
-        ops, "s.yaml",
-        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.4, units: [], method: {}, fitted: false, "
+        coeffs, "s.yaml",
+        "kind: CoefficientSet\nname: s\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: [], method: {}, fitted: false, "
         "scope: {hardware: [X]}}\n"
-        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+        "  - mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
         "fitted: true, scope: {hardware: [X]}}\n",
     )
-    code, lines = validate_mod.validate_paths([str(ops)])
+    code, lines = validate_mod.validate_paths([str(coeffs)])
     assert code == 1
     joined = "\n".join(lines)
     assert "Traceback" not in joined, joined
@@ -245,8 +244,20 @@ def test_measured_needs_no_companion():
 
 
 def test_unknown_top_level_key_rejected():
-    errs = check_set(a_valid_set(surprise=1), ROOFLINE, NO_INHERIT)
+    errs = check_set(a_valid_set(surprise=1))
     assert any("surprise" in e for e in errs), errs
+
+
+def test_backend_key_now_rejected():
+    # `backend` was accepted by the old format; it is now an unknown top-level key.
+    errs = check_set(a_valid_set(backend="roofline"))
+    assert any("backend" in e and "unknown" in e for e in errs), errs
+
+
+def test_extends_key_now_rejected():
+    # `extends` was accepted by the old format; it is now an unknown top-level key.
+    errs = check_set(a_valid_set(extends="base"))
+    assert any("extends" in e and "unknown" in e for e in errs), errs
 
 
 def test_unknown_entry_field_rejected():
@@ -264,21 +275,82 @@ def test_empty_scope_rejected():
     assert any("scope" in e for e in errs), errs
 
 
-def test_empty_coefficients_rejected():
-    data = a_valid_set(coeffs={})
-    errs = check_set(data, ROOFLINE, NO_INHERIT)
-    assert any("coefficients" in e for e in errs), errs
+# --- name (set identity) --------------------------------------------------------
 
 
-def test_non_mapping_coefficients_rejected():
+def test_missing_name_rejected():
     data = a_valid_set()
-    data["coefficients"] = [1, 2, 3]
-    errs = check_set(data, ROOFLINE, NO_INHERIT)
-    assert any("coefficients" in e for e in errs), errs
+    del data["name"]
+    errs = check_set(data)
+    assert any("name" in e and "missing" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("bad_name", [123, "", "   ", None, [], {}])
+def test_non_string_or_empty_name_rejected(bad_name):
+    data = a_valid_set()
+    data["name"] = bad_name
+    errs = check_set(data)
+    assert any("name" in e for e in errs), (bad_name, errs)
+
+
+def test_valid_name_accepted():
+    errs = check_set(a_valid_set(name="roofline-h100"))
+    assert errs == [], errs
+
+
+# --- coefficients: list of single-key maps --------------------------------------
+
+
+def test_coefficients_map_form_rejected():
+    # The old map form is no longer valid; coefficients must be a list.
+    data = a_valid_set()
+    data["coefficients"] = {"mfu_prefill": a_valid_entry()}
+    errs = check_set(data)
+    assert any("coefficients" in e and "list" in e for e in errs), errs
+
+
+def test_empty_coefficients_rejected():
+    data = a_valid_set(coeffs=[])
+    errs = check_set(data)
+    assert any("coefficients" in e and "empty" in e for e in errs), errs
+
+
+def test_coefficients_list_form_accepted():
+    errs = check_set(a_valid_set())  # default is the list form
+    assert errs == [], errs
+
+
+@pytest.mark.parametrize("item", ["not-a-mapping", 123, [1, 2], None])
+def test_coefficient_item_must_be_a_mapping(item):
+    data = a_valid_set(coeffs=[item])
+    errs = check_set(data)
+    assert any("coefficients[0]" in e and "mapping" in e for e in errs), (item, errs)
+
+
+@pytest.mark.parametrize("bad", [{}, {"a": 1, "b": 2}])
+def test_coefficient_item_must_be_single_key(bad):
+    # A coefficient item is a {name: entry} map with EXACTLY one key.
+    data = a_valid_set(coeffs=[bad])
+    errs = check_set(data)
+    assert any("coefficients[0]" in e and "one key" in e for e in errs), (bad, errs)
+
+
+def test_duplicate_coefficient_name_rejected():
+    # Two list items with the same name: the loader can't catch this (distinct dicts), so
+    # the schema must — a second definition never silently shadows the first.
+    coeffs = [{"mfu_prefill": a_valid_entry()}, {"mfu_prefill": a_valid_entry()}]
+    errs = check_set(a_valid_set(coeffs=coeffs))
+    assert any("duplicate" in e and "mfu_prefill" in e for e in errs), errs
+
+
+def test_non_string_coefficient_name_rejected():
+    coeffs = [{123: a_valid_entry()}]
+    errs = check_set(a_valid_set(coeffs=coeffs))
+    assert any("must be a string" in e for e in errs), errs
 
 
 def test_non_mapping_entry_rejected():
-    errs = check_set(a_valid_set(coeffs={"c": "not-a-mapping"}), ROOFLINE, NO_INHERIT)
+    errs = check_set(a_valid_set(coeffs=[{"c": "not-a-mapping"}]))
     assert any("c" in e and "mapping" in e for e in errs), errs
 
 
@@ -287,106 +359,98 @@ def test_non_mapping_scope_rejected():
     assert any("scope" in e and "mapping" in e for e in errs), errs
 
 
+# --- CLI-level list-format regressions ------------------------------------------
+
+
 _SET_BODY = (
-    "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-    "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+    "kind: CoefficientSet\nname: roofline-test\ncoefficients:\n"
+    "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
     "fitted: true, scope: {hardware: [H100]}}\n"
-    "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
+    "  - mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
     "fitted: true, scope: {hardware: [H100]}}\n"
 )
 
 
-def test_duplicate_stem_within_one_namespace_reported(tmp_path):
-    # Same stem twice WITHIN one directory (dup.yaml + dup.yml) collides and must be
-    # reported, not silently shadowed.
-    d = tmp_path / "operators"
-    d.mkdir()
-    (d / "dup.yaml").write_text(_SET_BODY)
-    (d / "dup.yml").write_text(_SET_BODY)
-    code, lines = validate_mod.validate_paths([str(d)])
-    assert code == 1
-    assert any("duplicate coefficient-set stem" in ln and "dup" in ln for ln in lines), lines
-
-
-def test_same_stem_across_namespaces_is_not_a_collision(tmp_path):
-    # A production set and a fixture may share a stem — different namespaces, no collision.
-    ops = tmp_path / "operators"
-    fix = tmp_path / "fixtures"
-    ops.mkdir()
-    fix.mkdir()
-    (ops / "roofline.yaml").write_text(_SET_BODY)
-    (fix / "roofline.yaml").write_text(_SET_BODY)
-    code, lines = validate_mod.validate_paths([str(ops), str(fix)])
-    assert code == 0, "\n".join(lines)
-    assert not any("duplicate" in ln for ln in lines), lines
-
-
-def test_extends_does_not_leak_across_namespaces(tmp_path):
-    # A set in one namespace must NOT inherit from a set in another: a fixture that
-    # extends a production-set stem is refused, even though that stem exists elsewhere.
-    ops = tmp_path / "operators"
-    fix = tmp_path / "fixtures"
-    ops.mkdir()
-    fix.mkdir()
-    (ops / "base.yaml").write_text(_SET_BODY)
-    (fix / "child.yaml").write_text(
-        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
-        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [A100]}}\n"
+def test_duplicate_set_name_across_files_rejected(tmp_path):
+    # A set's identity is its `name`. Since identity is a document field (not the unique
+    # filename), two files declaring the same `name` must be refused by name — the
+    # successor to the old duplicate-stem check.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
+    body = (
+        "kind: CoefficientSet\nname: roofline-dup\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
     )
-    code, lines = validate_mod.validate_paths([str(ops), str(fix)])
+    _write_set(coeffs, "one.yaml", body)
+    _write_set(coeffs, "two.yaml", body)
+    code, lines = validate_mod.validate_paths([str(coeffs)])
     assert code == 1
-    joined = "\n".join(lines)
-    # child is refused: its extends can't see operators/base, and mfu_prefill is unmet.
-    assert "child.yaml" in joined and ("extends" in joined or "mfu_prefill" in joined), joined
+    assert any("duplicate set name" in ln and "roofline-dup" in ln for ln in lines), lines
 
 
-def test_extends_resolves_across_subdirs_of_same_root(tmp_path):
-    # A namespace is a SCANNED ROOT, not a single directory: a set in one subdirectory may
-    # extend a set in another subdirectory of the same root (the root is scanned
-    # recursively). This locks in the documented "same scanned root" wording.
-    ops = tmp_path / "operators"
-    (ops / "a").mkdir(parents=True)
-    (ops / "b").mkdir(parents=True)
-    (ops / "a" / "base.yaml").write_text(_SET_BODY)
-    (ops / "b" / "child.yaml").write_text(
-        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
-        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [A100]}}\n"
+def test_distinct_set_names_across_files_accepted(tmp_path):
+    # Two files with DISTINCT names are fine — uniqueness is per name, not a blanket cap.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
+    tmpl = (
+        "kind: CoefficientSet\nname: {name}\ncoefficients:\n"
+        "  - mfu_prefill: {{value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {{hardware: [H100]}}}}\n"
     )
-    code, lines = validate_mod.validate_paths([str(ops)])
+    _write_set(coeffs, "a.yaml", tmpl.format(name="roofline-a"))
+    _write_set(coeffs, "b.yaml", tmpl.format(name="roofline-b"))
+    code, lines = validate_mod.validate_paths([str(coeffs)])
     assert code == 0, "\n".join(lines)
 
 
-# --- BC-5: backend consumed-names -----------------------------------------------
-
-
-def test_backend_omitted_coefficient_refused_by_name():
-    # roofline consumes mfu_prefill + mfu_decode; provide only one.
-    coeffs = {"mfu_prefill": a_valid_entry()}
-    errs = check_set(a_valid_set(coeffs=coeffs), ROOFLINE, NO_INHERIT)
-    assert any("mfu_decode" in e for e in errs), errs
-
-
-def test_present_but_not_consumed_is_allowed():
-    coeffs = {
-        "mfu_prefill": a_valid_entry(),
-        "mfu_decode": a_valid_entry(),
-        "extra_term": a_valid_entry(),  # not in ROOFLINE consumes
-    }
-    errs = check_set(a_valid_set(coeffs=coeffs), ROOFLINE, NO_INHERIT)
-    assert errs == [], errs
-
-
-def test_inherited_coefficient_satisfies_consumed():
-    # Child provides only mfu_decode; mfu_prefill comes from the extends chain.
-    coeffs = {"mfu_decode": a_valid_entry()}
-    errs = check_set(
-        a_valid_set(coeffs=coeffs, extends="base"),
-        ROOFLINE,
-        inherited=frozenset({"mfu_prefill"}),
+def test_same_file_passed_twice_is_not_a_duplicate(tmp_path):
+    # Overlapping CLI targets (the same physical file reached twice — here a directory AND
+    # a file inside it) must NOT trip the name-uniqueness check into reporting a file as a
+    # duplicate of itself. _discover de-dups by resolved path, so the file is validated once.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
+    f = _write_set(
+        coeffs, "roofline-h100.yaml",
+        "kind: CoefficientSet\nname: roofline-h100\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
     )
-    assert errs == [], errs
+    code, lines = validate_mod.validate_paths([str(coeffs), str(f)])
+    assert code == 0, "\n".join(lines)
+    assert not any("duplicate set name" in ln for ln in lines), lines
+    # Validated exactly once, not twice.
+    assert sum(1 for ln in lines if ln.endswith(": OK")) == 1, lines
+
+
+def test_same_file_named_twice_is_not_a_duplicate(tmp_path):
+    # The same file listed twice as explicit arguments is also de-duplicated.
+    f = _write_set(
+        tmp_path, "s.yaml",
+        "kind: CoefficientSet\nname: solo\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(f), str(f)])
+    assert code == 0, "\n".join(lines)
+    assert not any("duplicate set name" in ln for ln in lines), lines
+
+
+def test_duplicate_coefficient_name_reported_end_to_end(tmp_path):
+    # A repeated coefficient name in a committed file is reported, not silently shadowed.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
+    _write_set(
+        coeffs, "dup.yaml",
+        "kind: CoefficientSet\nname: dup\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n"
+        "  - mfu_prefill: {value: 0.3, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(coeffs)])
+    assert code == 1
+    assert any("duplicate coefficient name" in ln and "mfu_prefill" in ln for ln in lines), lines
 
 
 # --- BC-6: ci95 optional --------------------------------------------------------
@@ -477,7 +541,7 @@ def test_scope_list_with_empty_or_nonscalar_element_rejected(bad_list):
     assert any("scope" in e and "hardware" in e for e in errs), (bad_list, errs)
 
 
-# --- BC-8: extends resolution (CLI-level) ---------------------------------------
+# --- committed set + CLI --------------------------------------------------------
 
 
 def _write_set(dirpath, filename, text):
@@ -486,205 +550,74 @@ def _write_set(dirpath, filename, text):
     return p
 
 
-def test_unknown_extends_rejected():
-    data = a_valid_set(extends="nope")
-    inherited, errs = validate_mod._resolve_inherited(data, {})
-    assert any("nope" in e for e in errs), errs
-    assert inherited == frozenset()
-
-
-def test_extends_cycle_rejected():
-    # `extends` names a filename stem; the map is keyed by stem.
-    a = {"kind": "CoefficientSet", "backend": "roofline", "extends": "b", "coefficients": {}}
-    b = {"kind": "CoefficientSet", "backend": "roofline", "extends": "a", "coefficients": {}}
-    _, errs = validate_mod._resolve_inherited(a, {"a": a, "b": b})
-    assert any("cycle" in e for e in errs), errs
-
-
-def test_non_string_extends_rejected():
-    data = {"kind": "CoefficientSet", "backend": "roofline", "extends": 123, "coefficients": {}}
-    _, errs = validate_mod._resolve_inherited(data, {})
-    assert any("extends" in e for e in errs), errs
-
-
-def test_multilevel_extends_chain_accumulates_names():
-    # grandparent -> parent -> child; child sees names from BOTH ancestors.
-    gp = {"kind": "CoefficientSet", "backend": "roofline",
-          "coefficients": {"mfu_prefill": a_valid_entry()}}
-    parent = {"kind": "CoefficientSet", "backend": "roofline", "extends": "gp",
-              "coefficients": {"mfu_decode": a_valid_entry()}}
-    child = {"kind": "CoefficientSet", "backend": "roofline", "extends": "p",
-             "coefficients": {}}
-    inherited, errs = validate_mod._resolve_inherited(
-        child, {"gp": gp, "p": parent, "c": child}
-    )
-    assert errs == [], errs
-    assert "mfu_prefill" in inherited and "mfu_decode" in inherited
-
-
-def test_extends_satisfies_consumed_end_to_end(tmp_path):
-    # Exercises the REAL wiring validate_paths -> _resolve_inherited -> check_set: a child
-    # that omits a consumed coefficient PASSES because the parent (resolved by stem)
-    # provides it. Guards against a regression in how inherited names reach check_set.
-    ops = tmp_path / "operators"
-    ops.mkdir()
-    _write_set(
-        ops, "base.yaml",
-        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n"
-        "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [H100]}}\n",
-    )
-    # Child provides only mfu_decode; mfu_prefill must be inherited from base to satisfy
-    # the roofline backend's consumed-names check.
-    _write_set(
-        ops, "child.yaml",
-        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
-        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [A100]}}\n",
-    )
-    code, lines = validate_mod.validate_paths([str(ops)])
-    assert code == 0, "\n".join(lines)
-
-
-def test_extends_missing_inherited_coefficient_refused_end_to_end(tmp_path):
-    # The same wiring, negative: with no parent providing mfu_prefill, the child is
-    # refused by name — proving the pass above is real, not vacuous.
-    ops = tmp_path / "operators"
-    ops.mkdir()
-    _write_set(
-        ops, "child.yaml",
-        "kind: CoefficientSet\nbackend: roofline\nextends: base\ncoefficients:\n"
-        "  mfu_decode: {value: 0.28, units: dimensionless, method: measured, "
-        "fitted: true, scope: {hardware: [A100]}}\n",
-    )
-    code, lines = validate_mod.validate_paths([str(ops)])
-    assert code == 1
-    joined = "\n".join(lines)
-    assert "mfu_prefill" in joined, joined
-
-
-def test_deep_acyclic_extends_chain_does_not_crash(tmp_path):
-    # A very deep acyclic chain must produce a named result, never a RecursionError
-    # traceback escaping to CI. 2000 > default recursion limit if this were recursive.
-    ops = tmp_path / "operators"
-    ops.mkdir()
-    n = 2000
-    for i in range(n):
-        ext = f"extends: s{i - 1}\n" if i > 0 else ""
-        _write_set(
-            ops, f"s{i}.yaml",
-            f"kind: CoefficientSet\nbackend: roofline\n{ext}"
-            "coefficients:\n"
-            "  mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
-            "fitted: true, scope: {hardware: [H100]}}\n"
-            "  mfu_decode: {value: 0.3, units: dimensionless, method: measured, "
-            "fitted: true, scope: {hardware: [H100]}}\n",
-        )
-    code, lines = validate_mod.validate_paths([str(ops)])
-    # Whatever the verdict, it must not have crashed — every file gets a verdict line.
-    assert code in (0, 1)
-    assert not any("Traceback" in ln for ln in lines)
-
-
-# --- BC-9 / BC-10: committed set + CLI ------------------------------------------
-
-
 def test_valid_set_validates_end_to_end(tmp_path):
-    # BC-9: a well-formed set on a real backend, validated through the CLI over a
-    # directory, passes cleanly. (The committed fixtures/roofline-example.yaml is such a
-    # set; this exercises the happy path over a temp dir independent of the fixture.)
-    ops = tmp_path / "operators"
-    ops.mkdir()
+    # A well-formed set, validated through the CLI over a directory, passes cleanly.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
     _write_set(
-        ops, "roofline.yaml",
-        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.45, units: dimensionless, method: measured, "
+        coeffs, "roofline-x.yaml",
+        "kind: CoefficientSet\nname: roofline-x\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.45, units: dimensionless, method: measured, "
         "fitted: true, scope: {hardware: [H100]}}\n"
-        "  mfu_decode: {value: 0.30, units: dimensionless, method: measured, "
+        "  - mfu_decode: {value: 0.30, units: dimensionless, method: measured, "
         "fitted: true, scope: {hardware: [H100]}}\n",
     )
-    code, lines = validate_mod.validate_paths([str(ops)])
+    code, lines = validate_mod.validate_paths([str(coeffs)])
     assert code == 0, "\n".join(lines)
 
 
-def test_no_arg_default_validates_committed_artifacts():
-    # No-arg run scans operators/ + fixtures/; the committed schema fixture(s) make this a
-    # real validation of a committed artifact, and it must pass on the current tree.
+def test_no_arg_default_validates_committed_sets():
+    # No-arg run scans coefficients/; the committed roofline sets make this a real
+    # validation of committed artifacts, and it must pass on the current tree.
     code, lines = validate_mod.validate_paths([])
     assert code == 0, "\n".join(lines)
 
 
-def test_committed_fixtures_validate():
-    # The committed schema fixture(s) in fixtures/ validate against their real backend.
-    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "fixtures")])
+def test_committed_coefficients_validate():
+    # The committed sets in coefficients/ validate.
+    code, lines = validate_mod.validate_paths([str(REPO_ROOT / "coefficients")])
     assert code == 0, "\n".join(lines)
 
 
 def test_empty_registry_dir_is_a_clean_pass(monkeypatch, tmp_path):
     # An empty default registry (no committed sets) is a clean pass, not a failure —
     # verified by pointing DEFAULT_TARGETS at an empty dir so the check is real.
-    empty = tmp_path / "operators"
+    empty = tmp_path / "coefficients"
     empty.mkdir()
     monkeypatch.setattr(validate_mod, "DEFAULT_TARGETS", [empty])
     code, lines = validate_mod.validate_paths([])
     assert code == 0, "\n".join(lines)
 
 
-# --- kind / backend top-level validation ----------------------------------------
+# --- kind top-level validation --------------------------------------------------
 
 
 @pytest.mark.parametrize("bad_kind", ["Coefficient", "coefficientset", 123, ""])
 def test_wrong_kind_rejected(bad_kind):
     data = a_valid_set()
     data["kind"] = bad_kind
-    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    errs = check_set(data)
     assert any("kind" in e for e in errs), (bad_kind, errs)
 
 
 def test_missing_kind_rejected():
     data = a_valid_set()
     del data["kind"]
-    errs = check_set(data, ROOFLINE, NO_INHERIT)
+    errs = check_set(data)
     assert any("kind" in e for e in errs), errs
-
-
-@pytest.mark.parametrize("bad_backend", [123, "", "   ", None])
-def test_non_string_or_empty_backend_rejected(bad_backend):
-    data = a_valid_set()
-    data["backend"] = bad_backend
-    errs = check_set(data, None, NO_INHERIT)
-    assert any("backend" in e for e in errs), (bad_backend, errs)
-
-
-def test_declared_backend_manifest_omitted_coefficient_refused_by_name():
-    # Against the real trained-physics manifest (a shipped contract with no committed set
-    # in this PR), a set that omits a consumed coefficient is refused BY NAME — the
-    # guarantee the manifest exists to provide. Uses check_set directly; commits no set.
-    consumed, reason = validate_mod._backend_consumes("trained-physics")
-    assert reason is None and consumed is not None
-    missing = sorted(consumed)[0]
-    coeffs = {n: a_valid_entry(method="measured", fitted=True) for n in consumed
-              if n != missing}
-    for c in coeffs.values():
-        c.pop("sources", None)
-    data = {"kind": "CoefficientSet", "backend": "trained-physics", "coefficients": coeffs}
-    errs = check_set(data, consumed, NO_INHERIT)
-    assert any(missing in e for e in errs), (missing, errs)
 
 
 def test_cli_exits_nonzero_on_bad_set(tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text(
-        "kind: CoefficientSet\nbackend: roofline\ncoefficients:\n"
-        "  mfu_prefill: {value: 0.4, units: dimensionless, method: assumed, "
-        "fitted: false, scope: {hardware: [H100]}}\n"  # assumed w/o rationale + missing mfu_decode
+        "kind: CoefficientSet\nname: bad\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: assumed, "
+        "fitted: false, scope: {hardware: [H100]}}\n"  # assumed w/o rationale
     )
     code, lines = validate_mod.validate_paths([str(bad)])
     assert code == 1
     joined = "\n".join(lines)
-    assert "rationale" in joined and "mfu_decode" in joined, joined
+    assert "rationale" in joined, joined
 
 
 def test_cli_rejects_empty_file(tmp_path):
@@ -698,19 +631,24 @@ def test_cli_rejects_empty_file(tmp_path):
 
 
 def test_mixed_type_coefficient_keys_do_not_crash(tmp_path):
-    # An unquoted numeric key parses to int; sorting str+int must not raise.
+    # An unquoted numeric key parses to int; a non-string coefficient name is a NAMED
+    # error, and sorting str+int must not raise.
     f = tmp_path / "mixed.yaml"
-    f.write_text("kind: CoefficientSet\nbackend: roofline\ncoefficients:\n  1: {}\n  a: {}\n")
+    f.write_text(
+        "kind: CoefficientSet\nname: mixed\ncoefficients:\n"
+        "  - 1: {value: 0.4, units: dimensionless, method: measured, fitted: true, "
+        "scope: {hardware: [X]}}\n"
+    )
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     joined = "\n".join(lines)
-    assert "could not parse" not in joined or "Traceback" not in joined
+    assert "Traceback" not in joined, joined
     assert any("must be a string" in ln for ln in lines), lines
 
 
 def test_non_utf8_file_is_named_error(tmp_path):
     f = tmp_path / "nonutf8.yaml"
-    f.write_bytes(b"kind: CoefficientSet\nbackend: roofline\n\xff\n")
+    f.write_bytes(b"kind: CoefficientSet\nname: s\n\xff\n")
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     assert any("could not parse" in ln for ln in lines), lines
@@ -730,27 +668,6 @@ def test_non_mapping_root_is_named_error(tmp_path):
     code, lines = validate_mod.validate_paths([str(f)])
     assert code == 1
     assert any("mapping" in ln for ln in lines), lines
-
-
-def test_malformed_manifest_is_reported_not_treated_as_missing(tmp_path, monkeypatch):
-    # A present-but-malformed manifest must be named as malformed and must NOT silently
-    # skip the consumed-names check by looking "missing".
-    backends = tmp_path / "backends"
-    backends.mkdir()
-    (backends / "roofline.yaml").write_text("consumes: not-a-list\n")
-    monkeypatch.setattr(validate_mod, "BACKENDS_DIR", backends)
-    names, reason = validate_mod._backend_consumes("roofline")
-    assert names is None
-    assert reason is not None and "consumes" in reason and "roofline.yaml" in reason
-
-
-def test_missing_manifest_distinguished_from_malformed(tmp_path, monkeypatch):
-    backends = tmp_path / "backends"
-    backends.mkdir()
-    monkeypatch.setattr(validate_mod, "BACKENDS_DIR", backends)
-    names, reason = validate_mod._backend_consumes("ghost")
-    assert names is None
-    assert reason is not None and "no manifest" in reason
 
 
 # --- Structured sources ({kind, cite, role} objects) ---------------------------

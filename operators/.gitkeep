@@ -1,5 +1,0 @@
-# The real coefficient sets live here (one file per set, <stem>.yaml). This repository
-# ships none yet — they are transcribed by later tasks, so this directory is empty for
-# now and an empty registry is a clean pass. CI still validates a committed artifact on
-# every run via the synthetic schema fixtures in fixtures/ (kept out of this real-data
-# directory), and the validator's own test suite exercises the full schema.

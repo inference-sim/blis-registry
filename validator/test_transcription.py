@@ -2,7 +2,7 @@
 
 R2 is *value-preserving*: transcribing the MFU discounts into the registry must not change
 a single number. This test is the frozen-snapshot gate that proves it — each committed
-``operators/roofline-<gpu>.yaml`` set is checked to reproduce the currently-shipped MFU
+``coefficients/roofline-<gpu>.yaml`` set is checked to reproduce the currently-shipped MFU
 values to full precision, so the guarantee is enforced by a test rather than by eye.
 
 ``SHIPPED_MFU`` below is a frozen snapshot of the values as they ship TODAY, taken from the
@@ -31,7 +31,7 @@ import pytest
 from validator.loader import load_strict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OPERATORS_DIR = REPO_ROOT / "operators"
+COEFFICIENTS_DIR = REPO_ROOT / "coefficients"
 
 # Frozen snapshot: the shipped MFU pair and the hardware scope for every GPU BLIS supports
 # today. Keyed by coefficient-set filename stem (the set's identity). H200's pair is the
@@ -47,17 +47,32 @@ SHIPPED_MFU = {
 
 
 def _load_set(stem: str) -> dict:
-    path = OPERATORS_DIR / f"{stem}.yaml"
+    path = COEFFICIENTS_DIR / f"{stem}.yaml"
     assert path.is_file(), f"missing roofline set: {path}"
     return load_strict(path.read_text(encoding="utf-8"))
+
+
+def _coeffs_by_name(data: dict) -> dict:
+    """Index a set's ``coefficients`` list (single-key maps) by coefficient name.
+
+    The new format stores coefficients as a LIST of ``{name: entry}`` maps; these tests
+    look entries up by name, so collapse the list into a name->entry dict here. A duplicate
+    name would silently overwrite, but the schema rejects duplicates, so a set that reaches
+    these value checks has unique names.
+    """
+    by_name: dict = {}
+    for item in data["coefficients"]:
+        (name, entry), = item.items()
+        by_name[name] = entry
+    return by_name
 
 
 def test_every_covered_gpu_has_a_set():
     # Coverage spans every GPU BLIS ships MFU for today — not H100 alone. A missing set is a
     # coverage gap; an unexpected set means the snapshot and the tree have drifted apart.
     # rglob to match validate.py's recursive scan, so the two tools agree on what "the
-    # tree" is: a set dropped in an operators/ subdirectory is caught here too.
-    present = {p.stem for p in OPERATORS_DIR.rglob("roofline-*.yaml")}
+    # tree" is: a set dropped in a coefficients/ subdirectory is caught here too.
+    present = {p.stem for p in COEFFICIENTS_DIR.rglob("roofline-*.yaml")}
     assert present == set(SHIPPED_MFU), (present, set(SHIPPED_MFU))
 
 
@@ -65,7 +80,7 @@ def test_every_covered_gpu_has_a_set():
 def test_mfu_values_match_shipped_to_full_precision(stem):
     # The core R2 invariant: the transcribed values equal the shipped values exactly.
     expected = SHIPPED_MFU[stem]
-    coeffs = _load_set(stem)["coefficients"]
+    coeffs = _coeffs_by_name(_load_set(stem))
     for name in ("mfu_prefill", "mfu_decode"):
         got = coeffs[name]["value"]
         want = expected[name]
@@ -79,7 +94,7 @@ def test_each_entry_scoped_to_its_gpu_with_literature_provenance(stem):
     # Acceptance criteria: every mfu_* entry carries method: literature, its #589 sources,
     # a rationale, fitted: false, and a hardware scope naming exactly its GPU.
     expected = SHIPPED_MFU[stem]
-    coeffs = _load_set(stem)["coefficients"]
+    coeffs = _coeffs_by_name(_load_set(stem))
     # Exactly the two MFU discounts are entries — no more, no less. This is also the
     # vendor-spec-exclusion guard: a TFlopsPeak/TFlopsFP8/BwPeakTBs key leaking in as an
     # entry (they are catalog references, cited not copied) fails here by name.

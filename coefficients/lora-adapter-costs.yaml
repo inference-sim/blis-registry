@@ -1,0 +1,214 @@
+# LoRA adapter cost coefficients — the Digital-Twin set (R2G3b, family #1).
+#
+# TRANSCRIBED, not regenerated. These are the numbers inference-sim ships today in
+# defaults.yaml `lora:` (load_base_latency_us, load_bandwidth_bytes_us,
+# footprint_bytes_per_rank, and the three step_overhead_tiers k6/k7 pairs at ranks
+# 8/16/32). Value-preserving (R2): every number is relocated with its provenance, never
+# revised. The transcription test (validator/test_transcription_estimated.py) proves
+# byte-identity against a frozen snapshot of the shipped values.
+#
+# STANDALONE (blis-registry#12 removed `backend:`/`extends`): this is a name-identified set
+# with no per-backend tag. Selecting it only when a run declares adapters — via the
+# --lora-* flags / a per-run adapter registry — is the simulator-side loader's decision, not
+# a tag here. A run WITHOUT adapters loads none of these and is byte-identical to a
+# pre-feature build (INV-6).
+#
+# PROVENANCE. These are the only BLIS numbers derived from an external Digital Twin: the
+# Agullo et al. DT (arXiv:2508.08343), whose compute-overhead form is its Eq. 1. The
+# provenance and calibration status are documented in full in inference-sim discussion #1508.
+# The 2026-09-25 follow-up on #1508 (and inference-sim#1826/#1827) sharpens three points,
+# reflected below with NO value changes:
+#   1. Rank tiering is UNFITTABLE from the DT as shipped (`rank = x[1]  # not used`): all
+#      three k6/k7 tiers carry the DT's single coefficient pair, so `fitted: false` holds and
+#      the tiers are NOT presented as independently fitted per rank.
+#   2. `load_bandwidth_bytes_us` is a MODELLING CHOICE, not a measurement — the DT measures
+#      an activation time, never a rate — so it is `method: assumed`, not `literature`.
+#   3. `Lat_load` is a FIXED cost, not a rank-scaled transfer: with load_bandwidth_bytes_us
+#      == footprint_bytes_per_rank, the byte term LoadLatency = base + ceil(rank) degenerates
+#      to base + rank µs, so the scope claims no rank-scaling for the load term.
+#
+# SCOPE — the honest asymmetry (SC-007, per #1508): the compute-overhead factor validates at
+# ≤20% MAPE on per-adapter THROUGHPUT, while absolute TTFT is bounded but ~97–98% error and
+# asserted-UNSUPPORTED. This is recorded as two fields per entry (validated: throughput,
+# unsupported: absolute_ttft) rather than a design-doc paragraph. Validation covers the two
+# DT pre-fitted configs (Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct) over rank set {8,16,32};
+# other model/GPU configs need profiling not automated in-repo.
+#
+# UNITS. The schema's units enum has no bytes/bytes-per-µs/µs member, so the byte-valued and
+# rate-valued numbers are recorded as `dimensionless` and the load-latency base as
+# `us_per_request`, each with a rationale naming the true unit — the same reuse-enum
+# discipline R2G3 applied to output_token_processing (µs/token → us_per_request). Values are
+# preserved; only the unit label is approximated, and the rationale states so.
+kind: CoefficientSet
+name: lora-adapter-costs
+
+coefficients:
+  # load_base_latency_us — the fixed base of the one-time cold-load latency (µs). The full
+  # cold-load form is LoadLatency = load_base_latency_us + ceil(footprint / load_bandwidth);
+  # with load_bandwidth == footprint_bytes_per_rank the byte term degenerates to `rank` µs,
+  # so Lat_load is a FIXED 1500 µs base plus a per-rank µs, not a rank-scaled transfer.
+  - load_base_latency_us:
+      value: 1500.0
+      units: us_per_request
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343 (LoRA-serving Digital Twin)", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Cold-load latency base from the Agullo Digital Twin (arXiv:2508.08343). True unit is
+        microseconds; recorded as us_per_request (the schema units enum has no plain-µs
+        member). A FIXED cost: LoadLatency degenerates to 1500 + rank µs since
+        load_bandwidth_bytes_us equals footprint_bytes_per_rank, so the base does not scale
+        with rank (#1826). Charged once by the pre-admission cold-load gate.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  # load_bandwidth_bytes_us — cold-load transfer rate (bytes/µs). A MODELLING CHOICE, not a
+  # DT measurement: the DT measures an activation time, never a rate (#1826 item 2), hence
+  # method: assumed. Numerically equal to footprint_bytes_per_rank, which is what makes the
+  # load-latency byte term degenerate to `rank` µs.
+  - load_bandwidth_bytes_us:
+      value: 2.0e+6
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Cold-load transfer rate; true unit is bytes per microsecond, recorded as dimensionless
+        (the schema units enum has no bytes-per-µs member). A modelling choice, not a
+        measurement — the Agullo DT measures an activation time, never a rate (#1826) — so
+        assumed rather than literature. Equals footprint_bytes_per_rank, so the byte term of
+        LoadLatency reduces to `rank` µs.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  # footprint_bytes_per_rank — per-rank HBM footprint (bytes/rank), sizing both the adapter
+  # footprint and the static capacity reservation. Uncalibrated: covered only by internal
+  # invariant tests, no external/hardware validation (#1508), hence assumed.
+  - footprint_bytes_per_rank:
+      value: 2.0e+6
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-rank HBM footprint; true unit is bytes per rank, recorded as dimensionless (the
+        schema units enum has no bytes-per-rank member). Static HBM reservation is
+        uncalibrated — covered only by internal invariant tests, with no external/hardware
+        validation (#1508) — so assumed rather than measured.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  # step_overhead_k6_rank{8,16,32} — the numerator of the per-step compute-overhead factor
+  # 1 + (k6/k7)·A_B (A_B = distinct adapters in the batch), from the Agullo DT Eq. 1. The
+  # three tiers carry the DT's per-rank k6; the DT does NOT independently fit per rank
+  # (`rank = x[1]  # not used`, #1826), so these are literature (DT), not fitted.
+  - step_overhead_k6_rank8:
+      value: 0.02
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead numerator (k6) for rank tier 8, from the Agullo DT Eq. 1
+        (arXiv:2508.08343). Not independently fitted per rank — the DT's rank input is unused
+        (#1826) — so literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  - step_overhead_k6_rank16:
+      value: 0.035
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead numerator (k6) for rank tier 16, from the Agullo DT Eq. 1
+        (arXiv:2508.08343). Not independently fitted per rank — the DT's rank input is unused
+        (#1826) — so literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  - step_overhead_k6_rank32:
+      value: 0.06
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead numerator (k6) for rank tier 32, from the Agullo DT Eq. 1
+        (arXiv:2508.08343). Not independently fitted per rank — the DT's rank input is unused
+        (#1826) — so literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  # step_overhead_k7_rank{8,16,32} — the normalization denominator of the same factor. 1.0
+  # across all tiers (the DT's shipped value); the factor is exactly 1.0 when A_B==0, so a
+  # no-adapter step is a byte-identical no-op (INV-6).
+  - step_overhead_k7_rank8:
+      value: 1.0
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead normalization denominator (k7) for rank tier 8, from the
+        Agullo DT Eq. 1 (arXiv:2508.08343). Not independently fitted per rank (#1826), so
+        literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  - step_overhead_k7_rank16:
+      value: 1.0
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead normalization denominator (k7) for rank tier 16, from the
+        Agullo DT Eq. 1 (arXiv:2508.08343). Not independently fitted per rank (#1826), so
+        literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft
+
+  - step_overhead_k7_rank32:
+      value: 1.0
+      units: dimensionless
+      method: literature
+      fitted: false
+      sources:
+        - {kind: publication, cite: "Agullo et al., arXiv:2508.08343, Eq. 1", role: primary}
+        - {kind: discussion, cite: "inference-sim#1508", role: supporting}
+      rationale: >
+        Per-step compute-overhead normalization denominator (k7) for rank tier 32, from the
+        Agullo DT Eq. 1 (arXiv:2508.08343). Not independently fitted per rank (#1826), so
+        literature, fitted: false.
+      scope:
+        model: [Llama-3.1-8B-Instruct, Qwen-2.5-7B-Instruct]
+      validated: throughput
+      unsupported: absolute_ttft

@@ -404,6 +404,38 @@ def test_distinct_set_names_across_files_accepted(tmp_path):
     assert code == 0, "\n".join(lines)
 
 
+def test_same_file_passed_twice_is_not_a_duplicate(tmp_path):
+    # Overlapping CLI targets (the same physical file reached twice — here a directory AND
+    # a file inside it) must NOT trip the name-uniqueness check into reporting a file as a
+    # duplicate of itself. _discover de-dups by resolved path, so the file is validated once.
+    coeffs = tmp_path / "coefficients"
+    coeffs.mkdir()
+    f = _write_set(
+        coeffs, "roofline-h100.yaml",
+        "kind: CoefficientSet\nname: roofline-h100\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(coeffs), str(f)])
+    assert code == 0, "\n".join(lines)
+    assert not any("duplicate set name" in ln for ln in lines), lines
+    # Validated exactly once, not twice.
+    assert sum(1 for ln in lines if ln.endswith(": OK")) == 1, lines
+
+
+def test_same_file_named_twice_is_not_a_duplicate(tmp_path):
+    # The same file listed twice as explicit arguments is also de-duplicated.
+    f = _write_set(
+        tmp_path, "s.yaml",
+        "kind: CoefficientSet\nname: solo\ncoefficients:\n"
+        "  - mfu_prefill: {value: 0.4, units: dimensionless, method: measured, "
+        "fitted: true, scope: {hardware: [H100]}}\n",
+    )
+    code, lines = validate_mod.validate_paths([str(f), str(f)])
+    assert code == 0, "\n".join(lines)
+    assert not any("duplicate set name" in ln for ln in lines), lines
+
+
 def test_duplicate_coefficient_name_reported_end_to_end(tmp_path):
     # A repeated coefficient name in a committed file is reported, not silently shadowed.
     coeffs = tmp_path / "coefficients"

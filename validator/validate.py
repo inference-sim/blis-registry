@@ -82,6 +82,13 @@ def _discover(paths: list[str]) -> list[Path]:
     DEFAULT target (e.g. an as-yet-uncreated coefficients/) is not an error — there may
     simply be no real sets yet. An explicitly-named missing path IS reported (as a load
     error) so a bad argument fails loudly.
+
+    Overlapping targets (e.g. ``coefficients/`` AND ``coefficients/roofline-h100.yaml``, or
+    the same file named twice) would otherwise surface one physical file more than once —
+    validating it repeatedly and, worse, tripping the cross-file ``name``-uniqueness check
+    into reporting a file as a duplicate of ITSELF. De-duplicate by resolved path so each
+    physical file is discovered exactly once, keeping first-seen order (which preserves the
+    sorted-within-dir, argument-order determinism the callers rely on).
     """
     found: list[Path] = []
     targets = [Path(p) for p in paths] if paths else DEFAULT_TARGETS
@@ -92,7 +99,20 @@ def _discover(paths: list[str]) -> list[Path]:
             found.append(target)
         elif paths:
             found.append(target)
-    return found
+    # Collapse duplicates by resolved path while preserving first-seen order. A missing
+    # explicit path (not resolvable to a real file) still resolves to a distinct key, so it
+    # is retained and reported as a load error downstream.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in found:
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key not in seen:
+            seen.add(key)
+            unique.append(path)
+    return unique
 
 
 def validate_paths(paths: list[str]) -> tuple[int, list[str]]:

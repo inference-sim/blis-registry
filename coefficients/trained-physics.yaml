@@ -1,0 +1,200 @@
+# Trained-physics latency corrections — the iter29 fit (11 β + 3 α).
+#
+# The trained-physics backend adds learned corrections and overheads ON TOP of the
+# roofline bases. This set is STANDALONE (blis-registry#12 removed `extends`): it carries
+# only the corrections; composing them with the roofline base (coefficients/roofline-*.yaml)
+# is the simulator-side loader's job, not this file's.
+#
+# TRANSCRIBED, not regenerated. These are the numbers inference-sim ships today, in
+# defaults.yaml `trained_physics_coefficients` (alpha_coeffs, 3 values; beta_coeffs, 11
+# values). Phase 1 has no pipeline on `main` that can re-derive them — the fit lived on the
+# `training` branch under the backend name `evolved`, renamed `trained-physics` on `main`.
+# Value-preserving (R2): every number is relocated with its provenance, never revised. The
+# transcription test (validator/test_transcription_trained_physics.py) proves byte-identity
+# against a frozen snapshot of the shipped arrays.
+#
+# ABSENT is not ZERO (R2G1, north-star G3). In the backend, len(beta_coeffs) selects the
+# formula: 8 betas pick β·max(compute, kv); 9+ pick the ADDITIVE split βₐ·compute + βᵦ·kv,
+# which differ ~1.67x on memory-bound traffic. Production ships 11 values, so decode_compute
+# (β₂ₐ) and prefill_kv_read (β₁ᵦ) ship PRESENT and priced at 0.0 (method: not_charged) —
+# declaring them absent would select the MAX form and change output (INV-6). Each names the
+# co-occurring term that makes it unidentifiable in the fit (N8b).
+#
+# NAMES: the communication betas keep the array's descriptive names here (R2G3 transcribes
+# the array). R2G4 refines how the shared comm coefficient is split, without changing values.
+kind: CoefficientSet
+name: trained-physics
+
+coefficients:
+  # β₁ₐ — prefill compute correction. Corrects analytic FlashAttention + MLP FLOPs for
+  # kernel efficiency, memory-access patterns, and instruction-level parallelism.
+  - prefill_compute:
+      value: 0.152128
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₂ₐ — decode compute correction. PRESENT and priced at 0.0 (not absent): decode is
+  # memory-bound, so its compute term co-occurs with — and is dominated by — decode_kv_read
+  # in the fit, leaving β₂ₐ unidentifiable. Shipping it as 0.0 selects the additive decode
+  # split (β₂ₐ·compute + β₂ᵦ·kv); omitting it would select β₂·max(...) and change output.
+  - decode_compute:
+      value: 0.0
+      units: dimensionless
+      method: not_charged
+      fitted: false
+      rationale: >
+        Decode is memory-bound; the single-token decode-compute term is dominated by, and
+        co-occurs with, decode_kv_read, so it is unidentifiable and priced at zero (N8b).
+        Shipped PRESENT at 0.0 — not absent — so the backend selects the additive decode
+        split (β₂ₐ·T_dc_compute + β₂ᵦ·T_dc_kv); an absent entry would select β₂·max(...) and
+        change output (INV-6).
+      scope: {hardware: [H100]}
+
+  # β₃ — weight-loading correction. Corrects model-weight bandwidth (loaded once per step)
+  # for cache effects, prefetching, and HBM contention with KV-cache traffic.
+  - weight_load:
+      value: 1.36252915
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₄ — tensor-parallel all-reduce correction (attention + dense-FFN + MoE-reduce). Absorbs
+  # NVLink/HBM bandwidth ratio and collective-communication efficiency (ring/tree).
+  - tp_allreduce_attention:
+      value: 0.752037
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₅ — per-transformer-layer overhead: kernel-launch latency, CUDA-graph overhead,
+  # residual connections, layer normalization.
+  - per_layer_overhead:
+      value: 32.09546717
+      units: us_per_layer
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₆ — per-request-in-batch scheduling/dispatch overhead: queue management, attention-mask
+  # construction, token-ID lookup.
+  - per_request_overhead:
+      value: 4.41684444
+      units: us_per_request
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₇ — per-step constant overhead independent of batch/model size: CUDA synchronization,
+  # sampler invocation, logging.
+  - per_step_overhead:
+      value: 126.024825
+      units: us_per_step
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₈ — per-MoE-layer overhead (architecture-aware): router gating, token permutation,
+  # expert-parallel communication. Applies to interleaved MoE layers only.
+  - per_moe_layer_overhead:
+      value: 481.8613888
+      units: us_per_layer
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β₁ᵦ — prefill KV-cache-write correction. PRESENT and priced at 0.0 (not absent): prefill
+  # is compute-bound, so its KV-write term co-occurs with — and is dominated by —
+  # prefill_compute in the fit, leaving β₁ᵦ unidentifiable. Shipping it as 0.0 selects the
+  # additive prefill split (β₁ₐ·compute + β₁ᵦ·kv); omitting it would select β₁·max(...).
+  - prefill_kv_read:
+      value: 0.0
+      units: dimensionless
+      method: not_charged
+      fitted: false
+      rationale: >
+        Prefill is compute-bound; the KV-write term is dominated by, and co-occurs with,
+        prefill_compute, so it is unidentifiable and priced at zero (N8b). Shipped PRESENT at
+        0.0 — not absent — so the backend selects the additive prefill split
+        (β₁ₐ·T_pf_compute + β₁ᵦ·T_pf_kv); an absent entry would select β₁·max(...) and change
+        output (INV-6).
+      scope: {hardware: [H100]}
+
+  # β₂ᵦ — decode KV-cache-read correction. The primary decode bottleneck.
+  - decode_kv_read:
+      value: 1.94710771
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # β_EP — MoE dispatch/combine all-to-all correction (#1419). Seeded to β₄
+  # (tp_allreduce_attention), hence copied: both comm families run over the same NVLink
+  # fabric β₄ calibrates, and NCCL's bus-bandwidth model gives all-gather/reduce-scatter and
+  # all-to-all the same (n-1)/n per-phase efficiency as the ring all-reduce β₄ corrects. The
+  # comm-family VOLUME difference lives in the dispatch basis, not this coefficient. A
+  # per-family efficiency refit is deferred; until then β_EP tracks β₄.
+  - moe_dispatch_alltoall:
+      value: 0.752037
+      units: dimensionless
+      method: copied
+      fitted: false
+      copied_from: tp_allreduce_attention
+      rationale: >
+        Seeded to tp_allreduce_attention (β₄): both comm families run over the same NVLink
+        fabric β₄ calibrates, and NCCL's bus-bandwidth model gives all-gather/reduce-scatter
+        and all-to-all the same (n-1)/n per-phase efficiency as the ring all-reduce β₄
+        corrects. The comm-family volume difference lives in the dispatch basis, not this
+        coefficient; a per-family efficiency refit is deferred.
+      scope: {hardware: [H100]}
+
+  # α₀ — QueueingTime: fixed per-request API processing (HTTP parsing, request validation,
+  # queue insertion), independent of model/batch size. Applied once per request, outside the
+  # step loop.
+  - queueing:
+      value: 15563.199579
+      units: us_per_request
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # α₁ — PostDecodeFixedOverhead: fixed per-request post-decode work (detokenization setup,
+  # finish-reason determination, response serialization).
+  - post_decode_fixed:
+      value: 777.3455
+      units: us_per_request
+      method: measured
+      fitted: true
+      scope: {hardware: [H100]}
+
+  # α₂ — OutputTokenProcessingTime: per-output-token streaming/detokenization overhead.
+  # Semantically µs/token, but the schema has no us_per_token unit; recorded as a per-request
+  # overhead (the alpha family) per R2G3, value unchanged.
+  - output_token_processing:
+      value: 45.907545
+      units: us_per_request
+      method: measured
+      fitted: true
+      rationale: >
+        Per-output-token streaming/detokenization overhead (α₂, semantically µs/token).
+        Recorded under the per-request alpha family with its value preserved; the schema's
+        units enum has no us_per_token member.
+      scope: {hardware: [H100]}
+
+  # α_hop — cross-node collective per-hop latency (HardwareCalib.InterNodeHopLatencyUs).
+  # Zero on every supported GPU today (hardware_config.json declares no value → 0), so no
+  # cross-node hop cost is charged. Not a member of the alpha_coeffs array; listed here per
+  # the R2G3 acceptance criteria.
+  - cross_node_hop_latency:
+      value: 0.0
+      units: us_per_hop
+      method: not_charged
+      fitted: false
+      rationale: >
+        Per-cross-node-hop collective latency (α_hop). Zero on every supported GPU today —
+        hardware_config.json declares no InterNodeHopLatencyUs, so the backend charges no
+        cross-node hop cost. Priced at zero rather than absent to state the choice explicitly.
+      scope: {hardware: [H100]}

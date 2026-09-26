@@ -45,6 +45,14 @@ UNITS = frozenset(
         "us_per_request",
         "us_per_step",
         "us_per_hop",
+        # Adapter/transfer cost families (R2G3b): genuinely dimensioned quantities that
+        # must NOT ship as `dimensionless` (a member reserved for true fractions — MFU,
+        # the k6/k7 factors). Adding a member is a deliberate schema addition, not a
+        # redesign.
+        "bytes_per_us",     # a transfer rate (e.g. LoRA cold-load bandwidth)
+        "bytes_per_rank",   # a per-rank memory footprint (LoRA HBM reservation)
+        "us_per_load",      # a one-time per-cold-load-event latency (LoRA load base)
+        "us_per_transfer",  # a fixed per-transfer latency (legacy CPU↔GPU KV transfer)
     }
 )
 

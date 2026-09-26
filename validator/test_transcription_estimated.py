@@ -49,11 +49,13 @@ SHIPPED_LORA = {
     "step_overhead_k7_rank32": 1.0,         # step_overhead_tiers[32].k7
 }
 
-# Frozen snapshot of the shipped legacy-transfer flag defaults (cmd/root.go). Bandwidth is a
-# float default (100.0); base-latency is an int64 default (0), preserved as int here so a
-# silent int→float slip fails the type check below.
+# Frozen snapshot of the shipped legacy-transfer number that belongs in the registry. Only the
+# base-latency is transcribed: the bandwidth default (100.0 blocks/tick) is NOT authored — its
+# physical value is the cpu_dram catalog fact and the per-block tick cost is derived by the
+# simulator (inference-sim#1819); only a future dimensionless residual could live here (PR #14
+# review, issue #4 family-#2 spec). base-latency is an int64 default (0), preserved as int here
+# so a silent int→float slip fails the type check below.
 SHIPPED_TRANSFER = {
-    "kv_transfer_bandwidth":    100.0,  # --kv-transfer-bandwidth default (float)
     "kv_transfer_base_latency": 0,      # --kv-transfer-base-latency default (int)
 }
 
@@ -151,11 +153,25 @@ def test_lora_scope_and_honest_asymmetry():
 
 
 def test_transfer_methods_and_scope():
-    # The bandwidth default is assumed (a round default, no source); the zero base-latency is
-    # not_charged (the zero-value rule). Neither is fitted. Both scope to the cpu_dram bus.
+    # The zero base-latency is not_charged (the zero-value rule), not fitted, scoped to the
+    # cpu_dram bus. The bandwidth is deliberately ABSENT (catalog fact + future residual).
     coeffs = _coeffs_by_name(TRANSFER_PATH)
-    assert coeffs["kv_transfer_bandwidth"]["method"] == "assumed"
-    assert coeffs["kv_transfer_base_latency"]["method"] == "not_charged"
-    for name, entry in coeffs.items():
-        assert entry["fitted"] is False, (name, entry["fitted"])
-        assert entry["scope"] == {"hardware": ["cpu_dram"]}, (name, entry["scope"])
+    assert "kv_transfer_bandwidth" not in coeffs, "bandwidth must not be transcribed (§1)"
+    entry = coeffs["kv_transfer_base_latency"]
+    assert entry["method"] == "not_charged"
+    assert entry["fitted"] is False
+    assert entry["scope"] == {"hardware": ["cpu_dram"]}
+
+
+def test_units_are_honestly_dimensioned():
+    # PR #14 review §3: dimensioned quantities carry honest unit labels, never `dimensionless`
+    # (reserved for true fractions). Locks the relabel so a regression to dimensionless fails.
+    lora = _coeffs_by_name(LORA_PATH)
+    assert lora["load_base_latency_us"]["units"] == "us_per_load"
+    assert lora["load_bandwidth_bytes_us"]["units"] == "bytes_per_us"
+    assert lora["footprint_bytes_per_rank"]["units"] == "bytes_per_rank"
+    # The six k6/k7 factors are true fractions — dimensionless is correct for them.
+    for name in ("step_overhead_k6_rank8", "step_overhead_k7_rank32"):
+        assert lora[name]["units"] == "dimensionless", (name, lora[name]["units"])
+    transfer = _coeffs_by_name(TRANSFER_PATH)
+    assert transfer["kv_transfer_base_latency"]["units"] == "us_per_transfer"

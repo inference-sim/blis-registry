@@ -124,6 +124,16 @@ def test_bad_units_rejected():
     assert any("units" in e and "c" in e for e in errs), errs
 
 
+@pytest.mark.parametrize(
+    "unit",
+    ["bytes_per_us", "bytes_per_rank", "us_per_load", "us_per_transfer"],
+)
+def test_dimensioned_units_accepted(unit):
+    # R2G3b added these members for the adapter/transfer cost families; each must validate.
+    errs = errors_for("c", a_valid_entry(units=unit))
+    assert errs == [], (unit, errs)
+
+
 def test_bad_method_rejected():
     errs = errors_for("c", a_valid_entry(method="guessed"))
     assert any("method" in e and "c" in e for e in errs), errs

@@ -1,61 +1,50 @@
 # Legacy CPU↔GPU KV-transfer coefficients (R2G3b, family #2).
 #
-# TRANSCRIBED, not regenerated. These are the two legacy single-CPU-tier transfer defaults
-# inference-sim ships today as Go flag defaults (cmd/root.go: --kv-transfer-bandwidth = 100.0
-# blocks/tick, --kv-transfer-base-latency = 0 ticks). They are INERT unless --kv-cpu-blocks
-# > 0 (the pre-#1590 single-CPU-tier path, mutually exclusive with --kv-offload-config), so a
-# committed run that does not enable that path is byte-identical (INV-6). Value-preserving
-# (R2): both numbers are relocated with their provenance, never revised. The transcription
-# test (validator/test_transcription_estimated.py) proves byte-identity.
+# TRANSCRIBED, not regenerated. This set carries the ONE legacy single-CPU-tier transfer
+# number that belongs in the registry: the fixed per-transfer base latency (cmd/root.go
+# --kv-transfer-base-latency, default 0 ticks). It is INERT unless --kv-cpu-blocks > 0 (the
+# pre-#1590 single-CPU-tier path, mutually exclusive with --kv-offload-config), so a committed
+# run that does not enable that path is byte-identical (INV-6). Value-preserving (R2): the
+# number is relocated with its provenance, never revised.
+#
+# WHY BANDWIDTH IS NOT HERE (issue #4 family-#2 spec + PR #14 review). The legacy
+# --kv-transfer-bandwidth default (100.0 blocks/tick) is NOT transcribed: blocks/tick folds in
+# a model-dependent block size, so it describes neither a bus nor a correction. The physical
+# CPU↔GPU bandwidth is a CATALOG fact — blis-catalog devices/storage.yaml `cpu_dram`
+# (read/write 2.0e4 MB/s, base_latency 1.0 µs) — and the model-dependent per-block tick cost
+# (ticks = per_block_bytes / bandwidth + base_latency) is DERIVED by the simulator (companion
+# inference-sim#1819). The only bandwidth-side number that could live here is the dimensionless
+# efficiency RESIDUAL (achieved rate ÷ rated rate), and only once #1819's derive-from-catalog
+# conversion exists to define it against cpu_dram — so it is deferred, not authored blind.
 #
 # STANDALONE, name-identified (blis-registry#12): no `backend:`/`extends`.
-#
-# DEVIATION FROM THE ISSUE BODY (logged as a CORRECTION in the PR body). The issue body says
-# "Do NOT transcribe blocks/tick into the registry" — its intended shape is: the physical
-# DRAM bus fact lives in the catalog (blis-catalog devices/storage.yaml `cpu_dram`, in MB/s
-# and µs), the per-block tick cost is DERIVED by the simulator (companion inference-sim#1819),
-# and the registry entry — "if any" — is only the dimensionless residual efficiency factor.
-# Per maintainer direction in the delivery session, this PR instead transcribes the two
-# shipped flag defaults AS-IS, with the rationale recording their true simulator units, so the
-# numbers have a provenance home now rather than waiting on the companion derivation. The
-# 100.0 was a round default with no source behind it, hence method: assumed.
 kind: CoefficientSet
 name: legacy-kv-transfer
 
 coefficients:
-  # --kv-transfer-bandwidth default (cmd/root.go). True unit is blocks/tick (with ticks == µs
-  # in the simulator clock); recorded as dimensionless since the schema units enum has no
-  # blocks-per-tick member. A round default with no source behind it (assumed). Model-
-  # dependent (block size folds in), which is exactly why the issue keeps the physical bus
-  # fact in the catalog and derives the tick cost in the simulator; see the CORRECTION note.
-  - kv_transfer_bandwidth:
-      value: 100.0
-      units: dimensionless
-      method: assumed
-      fitted: false
-      rationale: >
-        Legacy CPU↔GPU transfer rate; true unit is blocks per tick (ticks == microseconds in
-        the simulator clock), recorded as dimensionless (the schema units enum has no
-        blocks-per-tick member). A round default with no source behind it, so assumed. Inert
-        unless --kv-cpu-blocks > 0 (the pre-#1590 single-CPU-tier path). The physical DRAM bus
-        fact lives in the catalog (cpu_dram) and the per-block tick cost is derived by the
-        simulator (companion inference-sim#1819); this entry is the shipped flag default,
-        transcribed as-is (see the CORRECTION note in the set header).
-      scope:
-        hardware: [cpu_dram]
-
-  # --kv-transfer-base-latency default (cmd/root.go), 0 ticks (int). Shipped as a priced-at-
-  # zero fixed per-transfer cost; the schema requires method not_charged for a zero value.
-  # Kept as int 0 to preserve the shipped type exactly.
+  # --kv-transfer-base-latency default (cmd/root.go), 0 ticks (int64). This is the MODELLING
+  # per-transfer latency (priced at zero today), NOT the device's physical latency: cpu_dram
+  # already carries a physical base_latency of 1.0 µs in the catalog. The two are distinct
+  # quantities — this one is an added, currently-uncharged per-transfer cost on the legacy
+  # path — and must not be read as the same number. Mirrors how the PD split kept the
+  # modelling --pd-transfer-base-latency placeholder in the registry while the fabric's
+  # inherent latency stayed in the catalog (blis-catalog#10). Kept as int 0 to preserve the
+  # shipped type. method not_charged is forced by the zero-value rule.
+  #
+  # SCOPE NOTE: `hardware: [cpu_dram]` reuses the `hardware` scope key for a storage device
+  # class (elsewhere it names GPUs, e.g. [H100]). There is no `device` scope key today, so
+  # this is a mild stretch — flagged, not blocking; a `device` key is a later schema addition.
   - kv_transfer_base_latency:
       value: 0
-      units: us_per_request
+      units: us_per_transfer
       method: not_charged
       fitted: false
       rationale: >
-        Legacy fixed per-transfer latency; true unit is ticks (ticks == microseconds),
-        recorded as us_per_request (the schema units enum has no plain-tick member). Ships at
-        0 (no fixed cost charged), so method not_charged per the zero-value rule. Inert unless
+        Legacy fixed per-transfer latency on the pre-#1590 single-CPU-tier path, in
+        microseconds per transfer (ticks == microseconds in the simulator clock). This is the
+        MODELLING per-transfer cost, priced at zero today — DISTINCT from the physical
+        cpu_dram base_latency (1.0 µs) held in the catalog, which describes the device itself.
+        Ships at 0, so method not_charged per the zero-value rule. Inert unless
         --kv-cpu-blocks > 0.
       scope:
         hardware: [cpu_dram]

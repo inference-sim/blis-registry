@@ -26,10 +26,11 @@ coefficients:
   # per-transfer latency (priced at zero today), NOT the device's physical latency: cpu_dram
   # already carries a physical base_latency of 1.0 µs in the catalog. The two are distinct
   # quantities — this one is an added, currently-uncharged per-transfer cost on the legacy
-  # path — and must not be read as the same number. Mirrors how the PD split kept the
-  # modelling --pd-transfer-base-latency placeholder in the registry while the fabric's
-  # inherent latency stayed in the catalog (blis-catalog#10). Kept as int 0 to preserve the
-  # shipped type. method not_charged is forced by the zero-value rule.
+  # path — and must not be read as the same number. Mirrors the PD split: the modelling
+  # --pd-transfer-base-latency placeholder is a registry coefficient (pd_transfer_base_latency,
+  # pd-transfer-estimates.yaml), while the fabric carries no inherent base-latency fact at all —
+  # blis-catalog#12 removed PDTransferBaseLatencyMs from the fabric classes (blis-registry#10).
+  # Kept as int 0 to preserve the shipped type. method not_charged is forced by the zero-value rule.
   #
   # SCOPE NOTE: `hardware: [cpu_dram]` reuses the `hardware` scope key for a storage device
   # class (elsewhere it names GPUs, e.g. [H100]). There is no `device` scope key today, so

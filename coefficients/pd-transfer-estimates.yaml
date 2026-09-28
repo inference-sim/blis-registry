@@ -1,0 +1,66 @@
+# PD-transfer estimates (blis-registry#10, R2 follow-up).
+#
+# `inference-sim` prices prefill/decode (PD) KV-cache transfer with two flags (cmd/root.go):
+# --pd-transfer-bandwidth (25.0 GB/s) and --pd-transfer-base-latency (0.05 ms). blis-catalog#10
+# (R2H2) established that the bandwidth is not a distinct quantity — it is the fabric's nominal
+# InterNodeBwGBps — while the base latency is a made-up modeling placeholder, not a datasheet
+# fact. The two ESTIMATES below are what the registry owns; the nominal bandwidth stays a catalog
+# fact (networks/*.yaml `InterNodeBwGBps`).
+#
+# STANDALONE, name-identified (blis-registry#12): no `backend:`/`extends`. Value-preserving
+# relocation of the CLI defaults, each recorded with its provenance and scope.
+kind: CoefficientSet
+name: pd-transfer-estimates
+
+coefficients:
+  # --pd-transfer-base-latency default (cmd/root.go), 0.05 ms. An order-of-magnitude modeling
+  # placeholder — a minute too long, a nanosecond too short — NOT a measurement, so method:
+  # assumed. Recorded in us_per_transfer (the schema's per-transfer-latency unit; UNITS has no
+  # `ms` member), so the physical 0.05 ms is preserved as 50.0 µs — the same in-schema-unit
+  # substitution output_token_processing uses in trained-physics.yaml for an absent unit.
+  #
+  # SOLE OWNER — no catalog term to compose with. blis-catalog#12 (R2H3) REMOVES
+  # PDTransferBaseLatencyMs from the networks/*.yaml fabric classes entirely (a fabric has no
+  # inherent per-transfer base latency to state; the nominal is always 0, and the catalog's
+  # closed fabric schema now rejects the key). So the effective PD base latency is THIS value
+  # alone, not catalog `0` + registry. This is the direct analogue of kv_transfer_base_latency
+  # (legacy-kv-transfer.yaml) — also a per-transfer latency in us_per_transfer — except that
+  # sibling still has a catalog counterpart (cpu_dram's physical base_latency) to distinguish
+  # itself from, whereas after #12 this coefficient has none. Moves to method: measured if a
+  # measurement ever replaces the placeholder.
+  - pd_transfer_base_latency:
+      value: 50.0
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      rationale: >
+        PD KV-transfer base latency — the --pd-transfer-base-latency default (0.05 ms), recorded
+        as 50.0 µs under us_per_transfer because the schema's UNITS enum has no `ms` member (the
+        value is preserved: 0.05 ms == 50.0 µs). An order-of-magnitude modeling placeholder, not
+        a measurement, hence method: assumed. This is the sole owner of the PD base latency:
+        blis-catalog#12 removes PDTransferBaseLatencyMs from the fabric classes (nominal is always
+        0, no inherent fabric base latency), so the effective base latency is this registry value
+        alone — there is no catalog term to add. Distinct from the fabric's nominal bandwidth
+        (InterNodeBwGBps), which stays a catalog fact.
+      scope: {hardware: [H100]}
+
+  # PD-transfer overhead / correction factor — effective ÷ nominal for KV transfer over a fabric.
+  # The catalog holds only the nominal line-rate bandwidth (InterNodeBwGBps); real effective RDMA
+  # payload throughput runs BELOW nominal (inference-sim#1632 collects the references). Ships at
+  # the multiplicative identity 1.0 — a SHARED PLACEHOLDER (effective == nominal until measured),
+  # not a measurement — so it does not perturb any product it multiplies (INV-6). method: assumed;
+  # moves to method: measured once a campaign measures effective/nominal per cluster.
+  - pd_transfer_overhead:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        PD KV-transfer bandwidth overhead — the effective ÷ nominal correction for KV transfer
+        over a fabric. Composes with the catalog nominal InterNodeBwGBps as
+        effective_bw = InterNodeBwGBps × pd_transfer_overhead. Real effective RDMA payload
+        throughput runs below nominal line rate (inference-sim#1632), but the correction is not
+        measured yet, so it ships at the multiplicative identity 1.0 — a placeholder, not a
+        measurement — leaving the effective bandwidth bit-for-bit the nominal until calibration.
+        method: assumed; moves to measured once a campaign measures effective/nominal per cluster.
+      scope: {hardware: [H100]}

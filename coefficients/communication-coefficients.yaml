@@ -16,8 +16,9 @@
 #     were one array slot, not independently measured.
 #   - cross_node_hop_latency (α_hop) already has its final name in trained-physics.yaml
 #     (us_per_hop, not_charged, 0.0). R2H1/R2H2 places no competing hop-latency fact in the
-#     catalog (networks/*.yaml carry only InterNodeBwGBps + PDTransferBaseLatencyMs, deferring
-#     latency estimates to the registry), so its registry home is correct and unchanged here.
+#     catalog (networks/*.yaml carry only InterNodeBwGBps — blis-catalog#12 removed the
+#     PDTransferBaseLatencyMs field, deferring every fabric-latency estimate to the registry),
+#     so its registry home is correct and unchanged here.
 #
 # SUPERSEDES. The one genuine rename — moe_dispatch (was moe_dispatch_alltoall in R2G3) — carries
 # `supersedes: moe_dispatch_alltoall` so the lineage is machine-readable, not prose-only (issue

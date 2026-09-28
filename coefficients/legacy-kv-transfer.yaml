@@ -91,11 +91,19 @@ coefficients:
   # faithful CPU-offload cost should use --kv-offload-config, whose tiers price the catalog device
   # directly with no residual.
   #
-  # SCOPE — one named anchor. The retired default was model-INDEPENDENT, but a residual measured
-  # against cpu_dram is not: it folds in the reference KVBytesPerToken, so it is only meaningful at
-  # the deployment #1819 anchors it to — qwen/qwen3-14b, H100, TP=1, block_size 16, bf16. There is
-  # no `block_size` scope key today (SCOPE_KEYS = hardware/tp/ep/nodes_spanned/model), so the
-  # block_size 16 part of the anchor is stated here in prose; model/hardware/tp carry the rest.
+  # SCOPE — the axes the value actually DEPENDS ON, not the deployment description. 819.2 is fixed
+  # by cpu_dram's rated bandwidth (2.0e4 bytes/µs) and the model's reference KVBytesPerToken at
+  # TP=1 (163840 ÷ TP); the GPU enters the derivation nowhere (H100 -> H200 does not change it). So:
+  #   hardware: [cpu_dram] — the device whose bandwidth this residual corrects, matching the sibling
+  #     kv_transfer_base_latency above and inference-sim#1840. NOT [H100]: that would falsely imply
+  #     GPU dependence and wrongly narrow the entry off H100, when it holds on any GPU.
+  #   model: [qwen3-14b] — KVBytesPerToken is a model-architecture fact. The BARE catalog identity
+  #     (blis-catalog models/qwen3-14b, model.yaml `name: qwen3-14b`), not the HF slash form
+  #     `qwen/qwen3-14b`, so a loader matching scope against catalog identity resolves it.
+  #   tp: [1] — KVBytesPerToken is taken at TP=1 (the reference divides by TP; #1840's table).
+  # The H100 / block_size 16 / bf16 of #1819's anchor are the deployment CONTEXT the reference was
+  # described against (and there is no `block_size` scope key anyway; SCOPE_KEYS = hardware/tp/ep/
+  # nodes_spanned/model) — kept in this prose, not asserted as scope axes.
   - kv_transfer_bandwidth_residual:
       value: 819.2
       units: dimensionless
@@ -108,7 +116,10 @@ coefficients:
         preservation, not a measurement (method: assumed): inference-sim#1819 / PR #1840 defines
         it as whatever reproduces the retired --kv-transfer-bandwidth default (100.0 tokens/tick)
         bit-for-bit — i.e. 100.0 ÷ (2.0e4 / 163840) = 819.2, where 163840 bytes/token is the
-        reference KVBytesPerToken (qwen/qwen3-14b, H100, TP=1, block_size 16, bf16). Read it
+        reference KVBytesPerToken for model qwen3-14b at TP=1 (bf16). Scoped to hardware
+        [cpu_dram] (the device whose bandwidth is corrected, like the sibling base-latency entry),
+        model [qwen3-14b] (the bare catalog identity), and tp [1] — the GPU is NOT an axis (H100
+        was only #1819's anchor deployment context; the value is identical on any GPU). Read it
         honestly: 819.2 is NOT an efficiency ≤ 1 — it records that the retired default asserted
         ≈819× cpu_dram's rated bandwidth, which is why a blocks/tick default was refused as
         physics; it is preserved, not corrected, because R2 is value-preserving. Operators wanting
@@ -118,6 +129,6 @@ coefficients:
         not yet on inference-sim main; making that constant cite this concrete entry is #1840's
         half of issue #17, so this entry does not close #17 by itself.
       scope:
-        model: [qwen/qwen3-14b]
-        hardware: [H100]
+        hardware: [cpu_dram]
+        model: [qwen3-14b]
         tp: [1]

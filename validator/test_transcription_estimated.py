@@ -185,10 +185,12 @@ def test_transfer_methods_and_scope():
     # not fitted against any term of its own.
     assert residual["method"] == "assumed"
     assert residual["fitted"] is False
-    # Anchored to the single named reference deployment #1819 defines it against — a residual is
-    # only meaningful against one anchor. (block_size 16 has no scope key, so it lives in prose.)
+    # Scope is the axes the value DEPENDS ON: cpu_dram (the device whose bandwidth it corrects,
+    # matching the sibling entry — not the GPU, which enters nowhere), the model's KVBytesPerToken
+    # (bare catalog identity qwen3-14b), and tp=1. H100/block_size are anchor context, kept in
+    # prose (PR #18 review, susiejojo Finding 1/2).
     assert residual["scope"] == {
-        "model": ["qwen/qwen3-14b"], "hardware": ["H100"], "tp": [1]
+        "hardware": ["cpu_dram"], "model": ["qwen3-14b"], "tp": [1]
     }, residual["scope"]
 
 

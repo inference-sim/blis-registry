@@ -7,8 +7,23 @@
 # fact. The two ESTIMATES below are what the registry owns; the nominal bandwidth stays a catalog
 # fact (networks/*.yaml `InterNodeBwGBps`).
 #
-# STANDALONE, name-identified (blis-registry#12): no `backend:`/`extends`. Value-preserving
-# relocation of the CLI defaults, each recorded with its provenance and scope.
+# STANDALONE, name-identified (blis-registry#12): no `backend:`/`extends`. Each entry records
+# its value with provenance and scope.
+#
+# ON "VALUE-PRESERVING": pd_transfer_base_latency IS a value-preserving relocation — 0.05 ms ==
+# 50.0 µs, the same number the --pd-transfer-base-latency flag defaults to. pd_transfer_overhead
+# is NOT: 1.0 is a NEWLY INTRODUCED identity factor (issue #10), not a transcription of any CLI
+# default. It reproduces the shipped --pd-transfer-bandwidth 25 GB/s only for a 25 GB/s nominal
+# fabric; over a 50 GB/s fabric, effective = 50 × 1.0 = 50 GB/s. So this set does not claim
+# runtime step-time parity — that gate is the N-track's (R2 tracker), not proven here.
+#
+# SCOPE: both terms derive from GLOBAL CLI flags (cmd/root.go), not from a per-GPU fit, so they
+# hold across every supported GPU — hence the full hardware list, NOT H100-only (which would
+# falsely narrow a global default; H100-only sets like trained-physics are H100 because they were
+# FITTED on H100, whereas these are unfitted placeholders). There is no `fabric`/`network` scope
+# key today (SCOPE_KEYS = hardware/tp/ep/nodes_spanned/model), so the per-fabric variation the
+# eventual measured overhead will carry (issue #10) cannot yet be expressed; listing all hardware
+# states "holds wherever we run" until a `fabric` key and per-cluster measurements exist.
 kind: CoefficientSet
 name: pd-transfer-estimates
 
@@ -41,8 +56,9 @@ coefficients:
         blis-catalog#12 removes PDTransferBaseLatencyMs from the fabric classes (nominal is always
         0, no inherent fabric base latency), so the effective base latency is this registry value
         alone — there is no catalog term to add. Distinct from the fabric's nominal bandwidth
-        (InterNodeBwGBps), which stays a catalog fact.
-      scope: {hardware: [H100]}
+        (InterNodeBwGBps), which stays a catalog fact. Scoped to all supported GPUs: it derives
+        from a global CLI flag, not a per-GPU fit, so it holds wherever the simulator runs.
+      scope: {hardware: [H100, H200, A100-80, A100-SXM, L40S]}
 
   # PD-transfer overhead / correction factor — effective ÷ nominal for KV transfer over a fabric.
   # The catalog holds only the nominal line-rate bandwidth (InterNodeBwGBps); real effective RDMA
@@ -63,4 +79,8 @@ coefficients:
         measured yet, so it ships at the multiplicative identity 1.0 — a placeholder, not a
         measurement — leaving the effective bandwidth bit-for-bit the nominal until calibration.
         method: assumed; moves to measured once a campaign measures effective/nominal per cluster.
-      scope: {hardware: [H100]}
+        Scoped to all supported GPUs: the 1.0 placeholder is fabric-agnostic and holds wherever
+        the simulator runs. The eventual measured overhead varies per cluster/fabric (issue #10),
+        but there is no `fabric` scope key today to express that, so the per-fabric split waits on
+        both that key and the measurements.
+      scope: {hardware: [H100, H200, A100-80, A100-SXM, L40S]}

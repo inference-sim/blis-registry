@@ -95,7 +95,12 @@ def test_both_are_assumed_not_measured():
         assert entry["fitted"] is False, (name, entry["fitted"])
 
 
-def test_scope_is_h100_throughout():
-    # Consistent with every other committed set: H100 is the only calibrated target.
+def test_scope_is_all_supported_hardware():
+    # Both terms derive from GLOBAL CLI flags, not a per-GPU fit, so they hold across every
+    # supported GPU — NOT H100-only. (H100-only sets like trained-physics are H100 because they
+    # were fitted on H100; these are unfitted placeholders that apply wherever the simulator
+    # runs.) There is no `fabric`/`network` scope key today to express the per-fabric variation
+    # the eventual measured overhead will carry (issue #10), so all-hardware is the honest scope.
+    all_hw = {"hardware": ["H100", "H200", "A100-80", "A100-SXM", "L40S"]}
     for name, entry in _coeffs_by_name().items():
-        assert entry["scope"] == {"hardware": ["H100"]}, (name, entry["scope"])
+        assert entry["scope"] == all_hw, (name, entry["scope"])

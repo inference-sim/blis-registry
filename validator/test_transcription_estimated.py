@@ -3,16 +3,21 @@
 R2 is *value-preserving*: transcribing the estimated numbers into the registry must not change
 a single number. This test is the frozen-snapshot gate that proves it for the two sets R2G3b
 authors — the LoRA adapter-cost set (family #1) and the legacy CPU↔GPU transfer set (family
-#2) — checked to reproduce the currently-shipped values to full precision, so the guarantee is
-enforced by a test rather than by eye.
+#2) — checked to reproduce each authored number's frozen decimal literal to full precision (the
+shipped default, or for the pending #17 residual the value its open companion PR introduces), so
+the guarantee is enforced by a test rather than by eye.
 
-``SHIPPED_LORA``/``SHIPPED_TRANSFER`` below are a frozen snapshot of the values as they ship
-TODAY in inference-sim: the ``lora:`` block of ``defaults.yaml`` (family #1), and for family #2
-the ``--kv-transfer-base-latency`` flag default in ``cmd/root.go`` plus the
-``legacyKVTransferResidual`` constant in ``cmd/kv_transfer_derive.go`` — the dimensionless
-bandwidth residual that inference-sim#1819 / PR #1840 defines and that this registry now authors
-(blis-registry#17). The raw ``--kv-transfer-bandwidth`` default (100.0 blocks/tick) is itself NOT
-transcribed; only its value-preserving residual (819.2) is. The registry cannot reach that repo
+``SHIPPED_LORA`` is a frozen snapshot of values that ship TODAY in inference-sim: the ``lora:``
+block of ``defaults.yaml`` (family #1). ``SHIPPED_TRANSFER`` (family #2) holds two entries at
+different stages — the name is a slight misnomer for the second. ``kv_transfer_base_latency`` is
+the ``--kv-transfer-base-latency`` flag default that ships today (``cmd/root.go``), whereas
+``kv_transfer_bandwidth_residual`` (819.2) is a PENDING COMPANION value — the dimensionless
+residual inference-sim#1819 defines and its still-OPEN PR #1840 introduces as the
+``legacyKVTransferResidual`` constant (``cmd/kv_transfer_derive.go``), which is NOT on
+inference-sim main yet. So the residual row is not "shipped today"; it pins the single agreed
+decimal literal (819.2) both sides derive from, so the registry entry and the companion constant
+cannot drift once #1840 lands. The raw ``--kv-transfer-bandwidth`` default (100.0 blocks/tick) is
+itself NOT transcribed; only its value-preserving residual is. The registry cannot reach that repo
 at test time, so the snapshot is embedded here as literals — that embedding *is* the frozen
 snapshot. Values are compared with exact ``==`` and matching numeric TYPE (guarding a silent
 int/float slip, e.g. 0 vs 0.0), because both the YAML and the snapshot originate from the same
@@ -53,19 +58,22 @@ SHIPPED_LORA = {
     "step_overhead_k7_rank32": 1.0,         # step_overhead_tiers[32].k7
 }
 
-# Frozen snapshot of the shipped legacy-transfer numbers that belong in the registry. Two now:
-#   - kv_transfer_base_latency — the --kv-transfer-base-latency default, an int64 0 preserved as
-#     int here so a silent int→float slip fails the type check below.
+# Frozen literals for the two legacy-transfer numbers that belong in the registry. Two now, at
+# different stages (so "SHIPPED_" is a slight misnomer for the second):
+#   - kv_transfer_base_latency — the --kv-transfer-base-latency default that SHIPS today, an int64
+#     0 preserved as int here so a silent int→float slip fails the type check below.
 #   - kv_transfer_bandwidth_residual — the dimensionless efficiency residual (achieved ÷ rated)
-#     that inference-sim#1819 / PR #1840 defines and that the registry now authors (issue #17).
-#     Its shipped source is the Go constant legacyKVTransferResidual == 819.2 (float). The raw
-#     --kv-transfer-bandwidth default (100.0 blocks/tick) is STILL not transcribed — a blocks/
-#     tick rate is neither a bus fact nor a correction (PR #14 review, issue #4 family-#2 spec).
-#     819.2 is value-preserving too: it is whatever reproduces the retired 100.0 bit-for-bit
-#     against cpu_dram's rated bandwidth (100.0 ÷ (2.0e4 / 163840 tokens/tick)) at the anchor.
+#     inference-sim#1819 defines. It does NOT ship today: its open companion PR #1840 introduces
+#     it as the Go constant legacyKVTransferResidual == 819.2 (float, cmd/kv_transfer_derive.go),
+#     which is not on inference-sim main yet. Pinned here as the single agreed decimal literal so
+#     the registry entry and the companion constant cannot drift once #1840 lands. The raw
+#     --kv-transfer-bandwidth default (100.0 blocks/tick) is STILL not transcribed — a blocks/tick
+#     rate is neither a bus fact nor a correction (PR #14 review, issue #4 family-#2 spec). 819.2
+#     is value-preserving: it reproduces the retired 100.0 bit-for-bit against cpu_dram's rated
+#     bandwidth (100.0 ÷ (2.0e4 / 163840 tokens/tick)) at the reference anchor.
 SHIPPED_TRANSFER = {
-    "kv_transfer_base_latency": 0,            # --kv-transfer-base-latency default (int)
-    "kv_transfer_bandwidth_residual": 819.2,  # legacyKVTransferResidual (float), issue #17
+    "kv_transfer_base_latency": 0,            # --kv-transfer-base-latency default (int), ships today
+    "kv_transfer_bandwidth_residual": 819.2,  # legacyKVTransferResidual (float); pending #1840, issue #17
 }
 
 # The LoRA numbers derived from the Agullo Digital Twin (method: literature); the two byte/

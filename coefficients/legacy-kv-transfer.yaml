@@ -3,13 +3,13 @@
 # TRANSCRIBED, not regenerated. This set carries the legacy single-CPU-tier transfer numbers
 # that belong in the registry: the fixed per-transfer base latency (cmd/root.go
 # --kv-transfer-base-latency, default 0 ticks) and — added by blis-registry#17 — the
-# dimensionless bandwidth residual that inference-sim#1819 defines (see WHY BANDWIDTH IS NOT
-# HERE below, and the entry itself). Both are INERT unless --kv-cpu-blocks > 0 (the pre-#1590
+# dimensionless bandwidth residual that inference-sim#1819 defines (see WHY THE RAW BANDWIDTH IS
+# NOT HERE below, and the entry itself). Both are INERT unless --kv-cpu-blocks > 0 (the pre-#1590
 # single-CPU-tier path, mutually exclusive with --kv-offload-config), so a committed run that
 # does not enable that path is byte-identical (INV-6). Value-preserving (R2): each number is
 # relocated with its provenance, never revised.
 #
-# WHY BANDWIDTH IS NOT HERE (issue #4 family-#2 spec + PR #14 review). The legacy
+# WHY THE RAW BANDWIDTH IS NOT HERE (issue #4 family-#2 spec + PR #14 review). The legacy
 # --kv-transfer-bandwidth default (100.0 blocks/tick) is NOT transcribed: blocks/tick folds in
 # a model-dependent block size, so it describes neither a bus nor a correction. The physical
 # CPU↔GPU bandwidth is a CATALOG fact — blis-catalog devices/storage.yaml `cpu_dram`
@@ -75,9 +75,14 @@ coefficients:
   #     nominal rate               = 2.0e4/163840  = 0.1220703125 tokens/tick  (derived)
   #     residual                   = 100.0/0.1220703125 = 819.2   (derived)
   # So method: assumed (a preserved modelling value — not measured, literature, vendor_spec, or
-  # copied), fitted: false. It currently lives only as the Go constant legacyKVTransferResidual in
-  # inference-sim cmd/kv_transfer_derive.go; per issue #17 that constant cites THIS entry as its
-  # registry home, and its value-preservation test still pins 100.0 exactly.
+  # copied), fitted: false. STATUS OF THE COMPANION: the value is introduced on the still-OPEN PR
+  # inference-sim#1840 (branch deliver/issue-1819) as the Go constant legacyKVTransferResidual
+  # (cmd/kv_transfer_derive.go); it is NOT on inference-sim main yet, and that constant's comment
+  # today cites the blis-registry#17 tracker, not this concrete entry. Issue #17's second "Done
+  # when" — make the constant cite this entry (coefficients/legacy-kv-transfer.yaml ->
+  # kv_transfer_bandwidth_residual) while its value-preservation test still pins 100.0 — is #1840's
+  # half and a cross-repository change this registry PR cannot make. So this entry does NOT close
+  # #17 on its own; #17 stays open until #1840 lands that citation (see the PR description).
   #
   # READ IT HONESTLY. 819.2 is NOT an efficiency ≤ 1. It records that the retired default asserted
   # ≈819× cpu_dram's rated bandwidth — which is exactly why the raw blocks/tick default was refused
@@ -108,8 +113,10 @@ coefficients:
         ≈819× cpu_dram's rated bandwidth, which is why a blocks/tick default was refused as
         physics; it is preserved, not corrected, because R2 is value-preserving. Operators wanting
         a faithful CPU-offload cost should use --kv-offload-config, whose tiers price the catalog
-        device directly with no residual. Currently mirrored by the Go constant
-        legacyKVTransferResidual (inference-sim cmd/kv_transfer_derive.go), which cites this entry.
+        device directly with no residual. The value is introduced by the still-open companion PR
+        inference-sim#1840 as the Go constant legacyKVTransferResidual (cmd/kv_transfer_derive.go),
+        not yet on inference-sim main; making that constant cite this concrete entry is #1840's
+        half of issue #17, so this entry does not close #17 by itself.
       scope:
         model: [qwen/qwen3-14b]
         hardware: [H100]

@@ -1,0 +1,169 @@
+# Communication coefficients — the named collectives (R2G4).
+#
+# WHY THIS SET. The trained-physics fit (R2G3, coefficients/trained-physics.yaml) folded three
+# distinct tensor-parallel collectives into ONE array slot — β₄ (beta_coeffs[3] = 0.752037) —
+# purely because they were adjacent positions, not because any measurement showed them equal.
+# R2G4 gives each communication coefficient its OWN NAME while keeping the value it holds today,
+# so the collectives can be refit independently later. Value-preserving (R2): renaming/splitting
+# only, no value changes, step time byte-identical.
+#
+# STANDALONE, name-identified (blis-registry#12: no `extends`/`backend`, no inheritance between
+# sets). This set holds only what R2G4 ADDS or RENAMES; it does not restate entries that already
+# carry their final name elsewhere:
+#   - tp_allreduce_attention (β₄, the ONE measured/fitted value) already has its final R2G4 name
+#     in trained-physics.yaml — not re-declared here. The two split siblings below `copied_from`
+#     it, recording honestly that only one number was fit and the others share it because they
+#     were one array slot, not independently measured.
+#   - cross_node_hop_latency (α_hop) already has its final name in trained-physics.yaml
+#     (us_per_hop, not_charged, 0.0). R2H1/R2H2 places no competing hop-latency fact in the
+#     catalog (networks/*.yaml carry only InterNodeBwGBps + PDTransferBaseLatencyMs, deferring
+#     latency estimates to the registry), so its registry home is correct and unchanged here.
+#
+# SUPERSEDES. The one genuine rename — moe_dispatch (was moe_dispatch_alltoall in R2G3) — carries
+# `supersedes: moe_dispatch_alltoall` so the lineage is machine-readable, not prose-only (issue
+# #5). The two β₄ split siblings supersede nothing (they are new names for a slot that had none),
+# and the moe_comm_scale_* dials are new; none of those carries the field.
+kind: CoefficientSet
+name: communication-coefficients
+
+coefficients:
+  # β₄ split (1 of 2) — dense-FFN tensor-parallel all-reduce. Shared β₄'s single slot with the
+  # attention all-reduce and the MoE-FFN all-reduce; named separately now so it can be refit
+  # independently. Holds β₄'s value (tp_allreduce_attention, 0.752037) until then.
+  - tp_allreduce_dense_ffn:
+      value: 0.752037
+      units: dimensionless
+      method: copied
+      fitted: false
+      copied_from: tp_allreduce_attention
+      rationale: >
+        Dense-FFN tensor-parallel all-reduce correction, split from the shared β₄
+        (beta_coeffs[3]) that the trained-physics fit folded three collectives into by legacy
+        array position — NOT because any measurement established the three are equal. Copied from
+        tp_allreduce_attention (the one member carrying the fitted value) solely to preserve the
+        current value (R2), pending an independent per-collective refit. No value change.
+      scope: {hardware: [H100]}
+
+  # β₄ split (2 of 2) — MoE-FFN tensor-parallel all-reduce (the DP=1 MoE-reduce). Same shared-β₄
+  # provenance as the dense-FFN all-reduce above.
+  - tp_allreduce_moe_ffn:
+      value: 0.752037
+      units: dimensionless
+      method: copied
+      fitted: false
+      copied_from: tp_allreduce_attention
+      rationale: >
+        MoE-FFN tensor-parallel all-reduce correction (the DP=1 MoE-reduce), split from the
+        shared β₄ (beta_coeffs[3]) that the fit folded three collectives into by legacy array
+        position, NOT by a measurement of equality. Copied from tp_allreduce_attention solely to
+        preserve the current value (R2), pending an independent per-collective refit. No value
+        change.
+      scope: {hardware: [H100]}
+
+  # β_EP rename — MoE dispatch/combine all-to-all correction. This IS the coefficient R2G3
+  # transcribed as `moe_dispatch_alltoall` (beta_coeffs[10], seeded to β₄); R2G4 gives it its
+  # final name `moe_dispatch`, unchanged value and provenance (copied from tp_allreduce_attention).
+  - moe_dispatch:
+      value: 0.752037
+      units: dimensionless
+      method: copied
+      fitted: false
+      copied_from: tp_allreduce_attention
+      supersedes: moe_dispatch_alltoall
+      rationale: >
+        MoE dispatch/combine all-to-all correction (β_EP). Final R2G4 name for the coefficient
+        trained-physics transcribes as moe_dispatch_alltoall (beta_coeffs[10]); renamed here with
+        its value and provenance unchanged — `supersedes: moe_dispatch_alltoall` records the
+        rename machine-readably (issue #5). Seeded to β₄ (tp_allreduce_attention): both comm
+        families run over the same NVLink fabric, and NCCL's bus-bandwidth model gives all-gather/
+        reduce-scatter and all-to-all the same (n-1)/n per-phase efficiency, so the volume
+        difference lives in the dispatch basis, not this coefficient. A per-family refit is
+        deferred. No value change (R2).
+      scope: {hardware: [H100]}
+
+  # moe_comm_scale_<backend> — the per-all-to-all-backend efficiency dial. This is the ONE
+  # communication coefficient with no array position: a dimensionless per-backend multiplier that
+  # lives today as a Go literal (commScale in sim/latency/moe_comm_backend.go), where all seven
+  # vLLM backends share 1.0 as a documented SHARED PLACEHOLDER (not a measurement). Transcribed as
+  # one entry per backend under a distinct name (the validator rejects duplicate coefficient
+  # names within a set), method: assumed, so calibration (inference-sim#1568) later edits DATA
+  # rather than Go code. 1.0 is an exact IEEE-754 multiplicative identity, so every step time is
+  # bit-for-bit unchanged (INV-6). The backend is identified by the entry NAME.
+  - moe_comm_scale_naive:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `naive` backend (an all-gather-family
+        collective). Shared placeholder 1.0 (= exactly the family's nominal volume ÷ effective
+        bandwidth), an IEEE-754 identity, not a measurement; per-backend calibration is deferred
+        to inference-sim#1568, which then edits this data rather than Go code.
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_allgather_reducescatter:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `allgather_reducescatter` backend
+        (vLLM's default, an all-gather-family collective). Shared placeholder 1.0, an IEEE-754
+        multiplicative identity, not a measurement; calibration deferred to inference-sim#1568.
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_pplx:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `pplx` backend (a top_k-routing
+        all-to-all collective). Shared placeholder 1.0, an IEEE-754 multiplicative identity, not a
+        measurement; calibration deferred to inference-sim#1568.
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_deepep_high_throughput:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `deepep_high_throughput` backend (a
+        top_k-routing all-to-all collective). Shared placeholder 1.0, an IEEE-754 multiplicative
+        identity, not a measurement; calibration deferred to inference-sim#1568 (which also
+        differentiates the DeepEP high-throughput vs low-latency modes).
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_deepep_low_latency:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `deepep_low_latency` backend (a
+        top_k-routing all-to-all collective). Shared placeholder 1.0, an IEEE-754 multiplicative
+        identity, not a measurement; calibration deferred to inference-sim#1568.
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_mori:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `mori` backend (a top_k-routing
+        all-to-all collective). Shared placeholder 1.0, an IEEE-754 multiplicative identity, not a
+        measurement; calibration deferred to inference-sim#1568.
+      scope: {hardware: [H100]}
+
+  - moe_comm_scale_flashinfer_all2allv:
+      value: 1.0
+      units: dimensionless
+      method: assumed
+      fitted: false
+      rationale: >
+        Per-backend MoE all-to-all efficiency dial for the `flashinfer_all2allv` backend (a
+        top_k-routing all-to-all collective). Shared placeholder 1.0, an IEEE-754 multiplicative
+        identity, not a measurement; calibration deferred to inference-sim#1568.
+      scope: {hardware: [H100]}

@@ -7,12 +7,16 @@ authors — the LoRA adapter-cost set (family #1) and the legacy CPU↔GPU trans
 enforced by a test rather than by eye.
 
 ``SHIPPED_LORA``/``SHIPPED_TRANSFER`` below are a frozen snapshot of the values as they ship
-TODAY in inference-sim: the ``lora:`` block of ``defaults.yaml`` (family #1) and the
-``--kv-transfer-bandwidth``/``--kv-transfer-base-latency`` flag defaults in ``cmd/root.go``
-(family #2). The registry cannot reach that repo at test time, so the snapshot is embedded here
-as literals — that embedding *is* the frozen snapshot. Values are compared with exact ``==``
-and matching numeric TYPE (guarding a silent int/float slip, e.g. 0 vs 0.0), because both the
-YAML and the snapshot originate from the same decimal literals.
+TODAY in inference-sim: the ``lora:`` block of ``defaults.yaml`` (family #1), and for family #2
+the ``--kv-transfer-base-latency`` flag default in ``cmd/root.go`` plus the
+``legacyKVTransferResidual`` constant in ``cmd/kv_transfer_derive.go`` — the dimensionless
+bandwidth residual that inference-sim#1819 / PR #1840 defines and that this registry now authors
+(blis-registry#17). The raw ``--kv-transfer-bandwidth`` default (100.0 blocks/tick) is itself NOT
+transcribed; only its value-preserving residual (819.2) is. The registry cannot reach that repo
+at test time, so the snapshot is embedded here as literals — that embedding *is* the frozen
+snapshot. Values are compared with exact ``==`` and matching numeric TYPE (guarding a silent
+int/float slip, e.g. 0 vs 0.0), because both the YAML and the snapshot originate from the same
+decimal literals.
 
 Family #3 (tier-deviation factors) authors NO set: no committed config — in inference-sim or
 the catalog — ships a value for saturation_queue_depth / single_transfer_fraction /
@@ -49,14 +53,19 @@ SHIPPED_LORA = {
     "step_overhead_k7_rank32": 1.0,         # step_overhead_tiers[32].k7
 }
 
-# Frozen snapshot of the shipped legacy-transfer number that belongs in the registry. Only the
-# base-latency is transcribed: the bandwidth default (100.0 blocks/tick) is NOT authored — its
-# physical value is the cpu_dram catalog fact and the per-block tick cost is derived by the
-# simulator (inference-sim#1819); only a future dimensionless residual could live here (PR #14
-# review, issue #4 family-#2 spec). base-latency is an int64 default (0), preserved as int here
-# so a silent int→float slip fails the type check below.
+# Frozen snapshot of the shipped legacy-transfer numbers that belong in the registry. Two now:
+#   - kv_transfer_base_latency — the --kv-transfer-base-latency default, an int64 0 preserved as
+#     int here so a silent int→float slip fails the type check below.
+#   - kv_transfer_bandwidth_residual — the dimensionless efficiency residual (achieved ÷ rated)
+#     that inference-sim#1819 / PR #1840 defines and that the registry now authors (issue #17).
+#     Its shipped source is the Go constant legacyKVTransferResidual == 819.2 (float). The raw
+#     --kv-transfer-bandwidth default (100.0 blocks/tick) is STILL not transcribed — a blocks/
+#     tick rate is neither a bus fact nor a correction (PR #14 review, issue #4 family-#2 spec).
+#     819.2 is value-preserving too: it is whatever reproduces the retired 100.0 bit-for-bit
+#     against cpu_dram's rated bandwidth (100.0 ÷ (2.0e4 / 163840 tokens/tick)) at the anchor.
 SHIPPED_TRANSFER = {
-    "kv_transfer_base_latency": 0,      # --kv-transfer-base-latency default (int)
+    "kv_transfer_base_latency": 0,            # --kv-transfer-base-latency default (int)
+    "kv_transfer_bandwidth_residual": 819.2,  # legacyKVTransferResidual (float), issue #17
 }
 
 # The LoRA numbers derived from the Agullo Digital Twin (method: literature); the two byte/
@@ -154,13 +163,25 @@ def test_lora_scope_and_honest_asymmetry():
 
 def test_transfer_methods_and_scope():
     # The zero base-latency is not_charged (the zero-value rule), not fitted, scoped to the
-    # cpu_dram bus. The bandwidth is deliberately ABSENT (catalog fact + future residual).
+    # cpu_dram bus. The RAW blocks/tick bandwidth stays deliberately ABSENT (catalog fact); what
+    # IS authored (issue #17) is the dimensionless residual, anchored to ONE named deployment
+    # because the retired default was model-independent and a residual against cpu_dram is not.
     coeffs = _coeffs_by_name(TRANSFER_PATH)
-    assert "kv_transfer_bandwidth" not in coeffs, "bandwidth must not be transcribed (§1)"
+    assert "kv_transfer_bandwidth" not in coeffs, "raw bandwidth must not be transcribed (§1)"
     entry = coeffs["kv_transfer_base_latency"]
     assert entry["method"] == "not_charged"
     assert entry["fitted"] is False
     assert entry["scope"] == {"hardware": ["cpu_dram"]}
+    residual = coeffs["kv_transfer_bandwidth_residual"]
+    # Value preservation, not a measurement (inference-sim#1819) — so method: assumed, and it is
+    # not fitted against any term of its own.
+    assert residual["method"] == "assumed"
+    assert residual["fitted"] is False
+    # Anchored to the single named reference deployment #1819 defines it against — a residual is
+    # only meaningful against one anchor. (block_size 16 has no scope key, so it lives in prose.)
+    assert residual["scope"] == {
+        "model": ["qwen/qwen3-14b"], "hardware": ["H100"], "tp": [1]
+    }, residual["scope"]
 
 
 def test_units_are_honestly_dimensioned():
@@ -175,3 +196,19 @@ def test_units_are_honestly_dimensioned():
         assert lora[name]["units"] == "dimensionless", (name, lora[name]["units"])
     transfer = _coeffs_by_name(TRANSFER_PATH)
     assert transfer["kv_transfer_base_latency"]["units"] == "us_per_transfer"
+    # The residual is a true fraction (achieved ÷ rated), so dimensionless is correct — and it
+    # must NOT wear a bandwidth label (bytes_per_us): nothing may read it as a rate (issue #17).
+    assert transfer["kv_transfer_bandwidth_residual"]["units"] == "dimensionless"
+
+
+def test_transfer_residual_reads_honestly():
+    # "Read it honestly" (issue #17): 819.2 is NOT an efficiency ≤ 1. It records that the retired
+    # --kv-transfer-bandwidth default asserted ≈819× cpu_dram's rated bandwidth — which is exactly
+    # why the raw default was refused as physics. It is PRESERVED, not corrected (R2 is
+    # value-preserving); a physics correction is a separate change. This pins the reading so the
+    # number can't later pass as a measured bus efficiency, and pins the exact arithmetic that
+    # defines it: retired 100.0 tokens/tick ÷ nominal (2.0e4 rated bytes/µs ÷ 163840 bytes/token).
+    residual = _coeffs_by_name(TRANSFER_PATH)["kv_transfer_bandwidth_residual"]
+    assert residual["value"] > 1.0, "a residual ≫ 1 is not an efficiency ≤ 1"
+    nominal_rate = 2.0e4 / 163840
+    assert residual["value"] == 100.0 / nominal_rate == 819.2

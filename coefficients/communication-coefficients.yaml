@@ -19,11 +19,10 @@
 #     catalog (networks/*.yaml carry only InterNodeBwGBps + PDTransferBaseLatencyMs, deferring
 #     latency estimates to the registry), so its registry home is correct and unchanged here.
 #
-# NO `supersedes`. In this schema `supersedes` is a shape-only provenance string the validator
-# neither cross-references nor enforces, and a standalone set is not auto-merged into what a
-# backend reads — so it would imply a linkage the schema does not provide. Rename lineage is
-# recorded in the entry rationale instead; `method: copied` + `copied_from` carries the shared-
-# value provenance.
+# SUPERSEDES. The one genuine rename — moe_dispatch (was moe_dispatch_alltoall in R2G3) — carries
+# `supersedes: moe_dispatch_alltoall` so the lineage is machine-readable, not prose-only (issue
+# #5). The two β₄ split siblings supersede nothing (they are new names for a slot that had none),
+# and the moe_comm_scale_* dials are new; none of those carries the field.
 kind: CoefficientSet
 name: communication-coefficients
 
@@ -39,10 +38,10 @@ coefficients:
       copied_from: tp_allreduce_attention
       rationale: >
         Dense-FFN tensor-parallel all-reduce correction, split from the shared β₄
-        (beta_coeffs[3]) that the trained-physics fit folded three collectives into. Copied from
-        tp_allreduce_attention (the one member of the split that carries the fitted value); the
-        three ran over the same NVLink fabric at the same collective efficiency, so they share
-        β₄'s value until a per-collective refit separates them. No value change (R2).
+        (beta_coeffs[3]) that the trained-physics fit folded three collectives into by legacy
+        array position — NOT because any measurement established the three are equal. Copied from
+        tp_allreduce_attention (the one member carrying the fitted value) solely to preserve the
+        current value (R2), pending an independent per-collective refit. No value change.
       scope: {hardware: [H100]}
 
   # β₄ split (2 of 2) — MoE-FFN tensor-parallel all-reduce (the DP=1 MoE-reduce). Same shared-β₄
@@ -55,9 +54,10 @@ coefficients:
       copied_from: tp_allreduce_attention
       rationale: >
         MoE-FFN tensor-parallel all-reduce correction (the DP=1 MoE-reduce), split from the
-        shared β₄ (beta_coeffs[3]). Copied from tp_allreduce_attention for the same reason as
-        tp_allreduce_dense_ffn: one fabric, one collective efficiency, one fitted number shared
-        across the three until a per-collective refit. No value change (R2).
+        shared β₄ (beta_coeffs[3]) that the fit folded three collectives into by legacy array
+        position, NOT by a measurement of equality. Copied from tp_allreduce_attention solely to
+        preserve the current value (R2), pending an independent per-collective refit. No value
+        change.
       scope: {hardware: [H100]}
 
   # β_EP rename — MoE dispatch/combine all-to-all correction. This IS the coefficient R2G3
@@ -69,10 +69,12 @@ coefficients:
       method: copied
       fitted: false
       copied_from: tp_allreduce_attention
+      supersedes: moe_dispatch_alltoall
       rationale: >
         MoE dispatch/combine all-to-all correction (β_EP). Final R2G4 name for the coefficient
         trained-physics transcribes as moe_dispatch_alltoall (beta_coeffs[10]); renamed here with
-        its value and provenance unchanged. Seeded to β₄ (tp_allreduce_attention): both comm
+        its value and provenance unchanged — `supersedes: moe_dispatch_alltoall` records the
+        rename machine-readably (issue #5). Seeded to β₄ (tp_allreduce_attention): both comm
         families run over the same NVLink fabric, and NCCL's bus-bandwidth model gives all-gather/
         reduce-scatter and all-to-all the same (n-1)/n per-phase efficiency, so the volume
         difference lives in the dispatch basis, not this coefficient. A per-family refit is

@@ -75,14 +75,13 @@ coefficients:
   #     nominal rate               = 2.0e4/163840  = 0.1220703125 tokens/tick  (derived)
   #     residual                   = 100.0/0.1220703125 = 819.2   (derived)
   # So method: assumed (a preserved modelling value — not measured, literature, vendor_spec, or
-  # copied), fitted: false. STATUS OF THE COMPANION: the value is introduced on the still-OPEN PR
-  # inference-sim#1840 (branch deliver/issue-1819) as the Go constant legacyKVTransferResidual
-  # (cmd/kv_transfer_derive.go); it is NOT on inference-sim main yet, and that constant's comment
-  # today cites the blis-registry#17 tracker, not this concrete entry. Issue #17's second "Done
-  # when" — make the constant cite this entry (coefficients/legacy-kv-transfer.yaml ->
-  # kv_transfer_bandwidth_residual) while its value-preservation test still pins 100.0 — is #1840's
-  # half and a cross-repository change this registry PR cannot make. So this entry does NOT close
-  # #17 on its own; #17 stays open until #1840 lands that citation (see the PR description).
+  # copied), fitted: false. STATUS OF THE COMPANION: the value ships on inference-sim main as the
+  # Go constant legacyKVTransferResidual (cmd/kv_transfer_derive.go, merged in inference-sim#1840).
+  # Issue #17's second "Done when" is to make that constant cite THIS concrete entry
+  # (coefficients/legacy-kv-transfer.yaml -> kv_transfer_bandwidth_residual) rather than the
+  # blis-registry#17 tracker, while its value-preservation test still pins 100.0 — a
+  # cross-repository change tracked in inference-sim#1845. So this registry entry does NOT close
+  # #17 on its own; #17 closes when #1845 lands that citation (see the PR description).
   #
   # READ IT HONESTLY. 819.2 is NOT an efficiency ≤ 1. It records that the retired default asserted
   # ≈819× cpu_dram's rated bandwidth — which is exactly why the raw blocks/tick default was refused
@@ -124,10 +123,10 @@ coefficients:
         ≈819× cpu_dram's rated bandwidth, which is why a blocks/tick default was refused as
         physics; it is preserved, not corrected, because R2 is value-preserving. Operators wanting
         a faithful CPU-offload cost should use --kv-offload-config, whose tiers price the catalog
-        device directly with no residual. The value is introduced by the still-open companion PR
-        inference-sim#1840 as the Go constant legacyKVTransferResidual (cmd/kv_transfer_derive.go),
-        not yet on inference-sim main; making that constant cite this concrete entry is #1840's
-        half of issue #17, so this entry does not close #17 by itself.
+        device directly with no residual. The value ships on inference-sim main as the Go constant
+        legacyKVTransferResidual (cmd/kv_transfer_derive.go, merged in inference-sim#1840); making
+        that constant cite this concrete entry (inference-sim#1845) is issue #17's second half, so
+        this registry entry does not close #17 by itself.
       scope:
         hardware: [cpu_dram]
         model: [qwen3-14b]

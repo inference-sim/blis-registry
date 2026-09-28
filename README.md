@@ -78,10 +78,11 @@ The validator prints one line per problem, each naming the file and the offendin
 or key, and exits non-zero if any set is rejected.
 
 Real sets live in `coefficients/` — the roofline MFU sets (one per supported GPU), the
-`trained-physics` correction set, the `lora-adapter-costs` set (Digital-Twin adapter cost
-terms), and the `legacy-kv-transfer` set (the pre-#1590 CPU↔GPU transfer defaults) are
-transcribed there, with more added by later tasks. These committed sets are what CI
-validates on every run.
+`trained-physics` correction set, the `communication-coefficients` set (the named
+tensor-parallel/MoE collectives, split from the trained-physics comm slot), the
+`lora-adapter-costs` set (Digital-Twin adapter cost terms), and the `legacy-kv-transfer`
+set (the pre-#1590 CPU↔GPU transfer defaults) are transcribed there, with more added by
+later tasks. These committed sets are what CI validates on every run.
 
 ## Usage
 

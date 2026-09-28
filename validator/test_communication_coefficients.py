@@ -1,8 +1,10 @@
 """Transcription test for the communication-coefficients set (R2G4).
 
 R2G4 is *value-preserving*: naming/splitting the communication coefficients must not change a
-single number, and step time must stay byte-identical. This test is the frozen-snapshot gate
-that proves it.
+single number. This test proves exact registry value/type preservation against the pinned
+source snapshot embedded below — it is the frozen-snapshot gate for the DATA. It does NOT
+exercise the simulator, so it does not prove runtime step-time parity; that byte-identity gate
+remains the N-track's (R2 tracker).
 
 Two invariants are pinned, both against a PINNED SOURCE SNAPSHOT embedded in this file (not
 against the live other-repo source, and not against the running simulator):

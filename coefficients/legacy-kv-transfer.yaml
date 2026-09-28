@@ -57,8 +57,9 @@ coefficients:
 
   # kv_transfer_bandwidth_residual — the dimensionless efficiency RESIDUAL (achieved rate ÷ rated
   # rate) for the legacy single-CPU-tier CPU↔GPU transfer. This is the bandwidth-side number the
-  # header defers to; it exists only now that inference-sim#1819 / PR #1840 supplies the
-  # derive-from-catalog conversion that defines it against cpu_dram. It is NOT a bandwidth (not a
+  # header previously deferred (it is now authored here); it exists only now that
+  # inference-sim#1819 / PR #1840 supplies the derive-from-catalog conversion that defines it
+  # against cpu_dram. It is NOT a bandwidth (not a
   # blocks/tick or bytes/µs rate) — it is a bare multiplier on the catalog's rated cpu_dram
   # bandwidth, so nothing may read it as a rate. Hence units: dimensionless, the same shape as the
   # pd_transfer_overhead effective÷nominal correction (pd-transfer-estimates.yaml).

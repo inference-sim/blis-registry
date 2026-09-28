@@ -80,9 +80,11 @@ or key, and exits non-zero if any set is rejected.
 Real sets live in `coefficients/` — the roofline MFU sets (one per supported GPU), the
 `trained-physics` correction set, the `communication-coefficients` set (the named
 tensor-parallel/MoE collectives, split from the trained-physics comm slot), the
-`lora-adapter-costs` set (Digital-Twin adapter cost terms), and the `legacy-kv-transfer`
-set (the pre-#1590 CPU↔GPU transfer defaults) are transcribed there, with more added by
-later tasks. These committed sets are what CI validates on every run.
+`lora-adapter-costs` set (Digital-Twin adapter cost terms), the `legacy-kv-transfer`
+set (the pre-#1590 CPU↔GPU transfer defaults), and the `pd-transfer-estimates` set
+(the PD KV-transfer base-latency estimate and the fabric-bandwidth overhead correction)
+are transcribed there, with more added by later tasks. These committed sets are what CI
+validates on every run.
 
 ## Usage
 

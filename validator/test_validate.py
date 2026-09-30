@@ -775,3 +775,67 @@ def test_cli_subprocess_smoke():
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# --------------------------------------------------------------------------- #
+# A coefficient's identity is (name, scope), not name alone. A set covering     #
+# several parts carries one entry per part under one name, and the resolver     #
+# selects by scope.                                                            #
+# --------------------------------------------------------------------------- #
+
+
+def _coefficient(name: str, hardware: list[str] | None, value: float) -> dict:
+    entry: dict = {
+        "value": value,
+        "units": "dimensionless",
+        "method": "measured",
+        "fitted": False,
+    }
+    if hardware is not None:
+        entry["scope"] = {"hardware": hardware}
+    return {name: entry}
+
+
+def _set(*coefficients: dict) -> dict:
+    return {
+        "kind": "CoefficientSet",
+        "name": "identity-test",
+        "coefficients": list(coefficients),
+    }
+
+
+def test_one_name_at_two_scopes_is_not_a_duplicate():
+    """The GEMM asymptote is a different number on each part and one name for all
+    of them, because the resolver picks by scope."""
+    doc = _set(
+        _coefficient("gemm_eps_max_bf16", ["h100"], 0.903),
+        _coefficient("gemm_eps_max_bf16", ["h200"], 0.890),
+    )
+    assert check_set(doc) == []
+
+
+def test_one_name_at_one_scope_is_a_duplicate():
+    """Two entries a resolver cannot choose between: it would keep the last, so
+    the file would mean something other than what it says."""
+    doc = _set(
+        _coefficient("gemm_eps_max_bf16", ["h200"], 0.890),
+        _coefficient("gemm_eps_max_bf16", ["h200"], 0.72),
+    )
+    assert any("duplicate" in e for e in check_set(doc))
+
+
+def test_scope_identity_ignores_the_order_a_list_is_written_in():
+    """`[h100, h200]` and `[h200, h100]` are one scope, so these are duplicates."""
+    doc = _set(
+        _coefficient("hbm_derate", ["h100", "h200"], 0.8),
+        _coefficient("hbm_derate", ["h200", "h100"], 0.85),
+    )
+    assert any("duplicate" in e for e in check_set(doc))
+
+
+def test_two_unscoped_entries_under_one_name_are_a_duplicate():
+    doc = _set(
+        _coefficient("hbm_derate", None, 0.8),
+        _coefficient("hbm_derate", None, 0.85),
+    )
+    assert any("duplicate" in e for e in check_set(doc))

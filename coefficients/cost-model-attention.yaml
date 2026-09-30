@@ -1,0 +1,521 @@
+# Decode-attention primitive — every entry from NVIDIA AISimulate.
+#
+# This set exists because the cost model was wrong about attention by an order of
+# magnitude, and the data to correct it was already on disk and unused.
+#
+# The model priced decode attention as a KV read at derated HBM bandwidth. Measured against
+# AISimulate's generation-attention sweeps — 40,367 full-attention points per part, across
+# batch sizes 1 to 128, context lengths 1 to 65535, 11 KV-head counts, 4 head dimensions and
+# both cache dtypes — that form is wrong by 9.7x on L40S to 35.8x on GB200. Two separate
+# errors, both structural rather than a bad constant:
+#
+#   NO FLOOR. An attention kernel costs 11 to 18.5 microseconds at minimum, whatever the
+#   context. A pure-bandwidth model charges nothing for the launch and setup, so at short
+#   context it predicts a step hundreds of times faster than measured.
+#
+#   WRONG BANDWIDTH. The kernel reaches 0.58 to 0.90 of datasheet HBM bandwidth depending
+#   on the part, not the 0.8 the generic hbm_derate assumes. The spread is wide enough that
+#   one derate cannot serve all five parts, and the ordering is not the one intuition
+#   suggests: H200 achieves the SMALLEST fraction of its own peak (0.58) because that peak
+#   is the largest.
+#
+# The form is the same shape the collectives use, and for the same reason — a fixed setup
+# cost that a large transfer amortizes but a small one does not:
+#
+#     latency = attention_decode_floor + kv_bytes / attention_decode_rate
+#
+# where kv_bytes is batch * context * 2 * kv_heads * head_dim * cache_width. Both parameters
+# are fitted per part by minimising the mean absolute log ratio, which weighs an
+# under-prediction and an over equally rather than letting the long-context tail dominate a
+# fit that must also be right at decode sizes.
+#
+# SCOPE LIMIT, stated because it is easy to miss: only FULL attention is fitted. The sweeps
+# also cover sliding windows at 128, 2048 and 8192, where the bytes read are bounded by the
+# window rather than the context. Those are a different byte count and would need their own
+# entries; a windowed model has none yet, so a sliding-window layer is priced by the full
+# attention entries and will be overstated at long context.
+#
+# Reproduce with scripts/fit_attention.py.
+kind: CoefficientSet
+name: cost-model-attention
+
+coefficients:
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 40367 full-attention points", role: primary}
+      rationale: >
+        The minimum cost of a decode attention kernel, independent of context. Fitted
+        jointly with attention_decode_rate over 40367 points; the pair takes the geometric
+        error from 26.7x under a pure-KV-read model to 1.792x.
+  - attention_decode_rate:
+      value: 2784000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 40367 full-attention points", role: primary}
+      rationale: >
+        2.78 TB/s, which is 0.58 of this part's 4.8 TB/s datasheet bandwidth. The smallest
+        fraction of the five parts fitted, and not because the kernel is worse here: the
+        denominator is the largest.
+
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 40367 full-attention points", role: primary}
+      rationale: >
+        Identical to H200's, which the shared GH100 die predicts: a launch and setup cost is
+        set by the die and the driver rather than by memory bandwidth. Paired rate brings the
+        geometric error from 19.7x to 1.737x.
+  - attention_decode_rate:
+      value: 2412000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 40367 full-attention points", role: primary}
+      rationale: >
+        2.41 TB/s, 0.72 of this part's 3.35 TB/s peak. Against H200's 0.58 of a larger peak
+        the absolute rates differ by only 1.15x where the datasheet figures differ by 1.43x,
+        so an attention kernel does not convert the extra bandwidth fully.
+
+  - attention_decode_floor:
+      value: 18.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-sxm]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/trtllm/1.0.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5026 full-attention points", role: primary}
+      rationale: >
+        The highest floor of the five parts, and the only one fitted on an older collection
+        (TRT-LLM 1.0.0, the newest that covers this part) over 5026 points rather than
+        40367, so it is the least well determined. Geometric error 1.942x against 16.3x.
+  - attention_decode_rate:
+      value: 1713000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-sxm]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/trtllm/1.0.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5026 full-attention points", role: primary}
+      rationale: >
+        1.71 TB/s, 0.84 of this part's 2.039 TB/s peak.
+
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 40920 full-attention points", role: primary}
+      rationale: >
+        Geometric error 1.932x against 9.7x. The smallest improvement of the five, because
+        this part's low bandwidth means the bandwidth term dominates the floor over more of
+        the measured range.
+  - attention_decode_rate:
+      value: 674000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 40920 full-attention points", role: primary}
+      rationale: >
+        0.67 TB/s, 0.78 of this part's 0.864 TB/s peak.
+
+  - attention_decode_floor:
+      value: 13.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 39568 full-attention points", role: primary}
+      rationale: >
+        Geometric error 1.507x, the best fit of the five, against 35.8x under a pure KV read
+        — the largest error the old form made, because this part's bandwidth is highest and
+        a bandwidth-only model is therefore most optimistic here.
+  - attention_decode_rate:
+      value: 7200000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 39568 full-attention points", role: primary}
+      rationale: >
+        7.20 TB/s, 0.90 of this part's 8.0 TB/s peak — the highest fraction of the five, so
+        an attention kernel comes closest to saturating memory on this part.
+
+# 10 entries: a floor and a rate for each of five parts.
+
+  # --- Prefill attention -------------------------------------------------------
+  #
+  # A separate regime from decode: compute-bound and quadratic in prompt length rather than
+  # bandwidth-bound in context. The cost model's FLOPs form is wrong here by 12.9x to 32.4x,
+  # for two reasons it has no term for — a per-kernel floor, and the fact that an attention
+  # kernel reaches under half the efficiency a well-shaped matmul does at the same token
+  # count. The form is
+  #
+  #     latency = floor + causal_flops / (peak * eff(tokens) * work_scale)
+  #
+  # with causal_flops halving the naive count because attention attends only to earlier
+  # positions. Reproduce with scripts/fit_attention_prefill.py.
+  - attention_prefill_floor:
+      value: 26.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA H200), 55096 full-attention points", role: primary}
+      rationale: >
+        Higher than this part's 11 us decode floor, which is the expected direction: a
+        context kernel sets up a causal mask and tiles over a two-dimensional problem where a
+        generation kernel walks one row.
+  - attention_prefill_work_scale:
+      value: 0.48
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA H200), 55096 full-attention points", role: primary}
+      rationale: >
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches.
+        0.48 means it achieves under half what a well-shaped matmul does at the same token
+        count, which is why reusing the ramp unmodified under-predicts. Paired with the floor
+        it takes the geometric error from 22.9x to 1.639x.
+  - attention_prefill_floor:
+      value: 26.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA H100 80GB HBM3), 55099 full-attention points", role: primary}
+      rationale: >
+        Identical to H200's, as the shared GH100 die predicts for a setup cost.
+  - attention_prefill_work_scale:
+      value: 0.46
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA H100 80GB HBM3), 55099 full-attention points", role: primary}
+      rationale: >
+        21.9x to 1.647x.
+  - attention_prefill_floor:
+      value: 15.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA L40S), 55028 full-attention points", role: primary}
+      rationale: >
+        The lowest prefill floor of the four parts, and the only one below its own decode
+        floor of 11 us by less than a factor of two.
+  - attention_prefill_work_scale:
+      value: 0.38
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA L40S), 55028 full-attention points", role: primary}
+      rationale: >
+        12.9x to 1.648x. The lowest scale of the four, so this part converts the least of its
+        matmul efficiency into attention throughput.
+  - attention_prefill_floor:
+      value: 25.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA GB200), 51025 full-attention points", role: primary}
+      rationale: >
+        32.4x to 1.622x — again the largest error the FLOPs-only form made, on the part with
+        the highest compute peak.
+  - attention_prefill_work_scale:
+      value: 0.40
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA GB200), 51025 full-attention points", role: primary}
+      rationale: >
+        0.40 of the dense ramp.
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 39566 full-attention decode points", role: primary}
+      rationale: >
+        Fitted at 12.5us against a 0.90 bandwidth fraction; recorded as 11.0 because the grid
+        is coarser than the difference is meaningful and 11.0 is the value every Hopper-class
+        and Blackwell-class part in this file shares. 34.1x to 1.542x against a pure KV read.
+  - attention_decode_rate:
+      value: 6930000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 39566 full-attention decode points", role: primary}
+      rationale: >
+        0.90 of the 7.7 TB/s datasheet bandwidth. A decode attention kernel reads the KV cache
+        and little else, so it approaches peak more closely than a GEMM does; the fraction is
+        higher than Hopper's 0.72-0.83 because the part's HBM4 sustains more of its rating.
+  - attention_prefill_floor:
+      value: 24.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA B200), 51025 full-attention points", role: primary}
+      rationale: >
+        31.3x to 1.629x. The FLOPs-only form's error is largest on the highest-peak parts,
+        which is the pattern GB200 shows too.
+  - attention_prefill_work_scale:
+      value: 0.40
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA B200), 51025 full-attention points", role: primary}
+      rationale: >
+        0.40 of the dense bf16 ramp, matching GB200 — the same Blackwell attention kernel
+        against a similar compute peak.
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 39566 full-attention decode points", role: primary}
+      rationale: >
+        Fitted at 11.5us, recorded as 11.0 for the reason given on the b200 entry. 33.1x to
+        1.527x against a pure KV read.
+  - attention_decode_rate:
+      value: 6820000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 39566 full-attention decode points", role: primary}
+      rationale: >
+        0.88 of the 7.75 TB/s datasheet bandwidth. Slightly under B200's fraction on slightly
+        more bandwidth, so the achieved rate is within 2 percent of B200's.
+  - attention_prefill_floor:
+      value: 22.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA B300 SXM6 AC), 51024 full-attention points", role: primary}
+      rationale: >
+        29.4x to 1.636x.
+  - attention_prefill_work_scale:
+      value: 0.46
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA B300 SXM6 AC), 51024 full-attention points", role: primary}
+      rationale: >
+        0.46 of the dense bf16 ramp, above B200's 0.40 on the same kernel: this part's bf16
+        envelope peaks higher (0.854 vs 0.787), and attention converts more of it.
+  - attention_decode_floor_swa:
+      value: 10.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 11,666 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        102.7x to 1.714x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 1072000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [h100]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 11,666 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.32 of the 3.35 TB/s datasheet bandwidth, against 0.72 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.
+  - attention_decode_floor_swa:
+      value: 9.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 13,000 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        130.8x to 1.704x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 1248000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 13,000 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.26 of the 4.8 TB/s datasheet bandwidth, against 0.58 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.
+  - attention_decode_floor_swa:
+      value: 11.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        217.1x to 1.429x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 3850000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [b200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.5 of the 7.7 TB/s datasheet bandwidth, against 0.90 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.
+  - attention_decode_floor_swa:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 9,184 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        244.6x to 1.433x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 3565000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [b300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 9,184 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.46 of the 7.75 TB/s datasheet bandwidth, against 0.88 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.
+  - attention_decode_floor_swa:
+      value: 12.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        229.9x to 1.404x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 4960000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb200-nvl72]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.62 of the 8.0 TB/s datasheet bandwidth, against 0.90 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.
+  - attention_decode_floor_swa:
+      value: 10.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 11,794 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        A sliding-window decode kernel reads a bounded slice of the context rather than all of
+        it, so it is a different kernel from full attention and carries its own floor and rate.
+        Fitted on the window-bounded byte count: positions read are min(context, window_size).
+        32.2x to 1.683x against a form with no floor and no derate.
+  - attention_decode_rate_swa:
+      value: 622080.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [l40s]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 11,794 sliding-window decode points, kernel_source torch_flow", role: primary}
+      rationale: >
+        0.72 of the 0.864 TB/s datasheet bandwidth, against 0.78 for full attention
+        on this part -- a windowed kernel sustains materially less effective bandwidth, so
+        pricing it with the full-attention rate makes every windowed layer too cheap. The
+        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
+        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
+        2.00 of peak.

@@ -120,8 +120,8 @@ def naive(points: list[tuple[float, float]], peak: float) -> float:
 
 
 def fit_kind(data: str, sku: str, chip: str, kind: str, catalog: Path,
-             lane: str | None) -> dict | None:
-    rows = atm.rows_for_kind(data, sku, kind)
+             lane: str | None, collection: str | None = None) -> dict | None:
+    rows = atm.rows_for_kind(data, sku, kind, collection=collection)
     if not rows:
         return {"kind": kind, "status": "no rows"}
 
@@ -225,6 +225,9 @@ def main() -> int:
     ap.add_argument("--sku")
     ap.add_argument("--chip")
     ap.add_argument("--lane", default=None, help="kernel_source to fit; default the most populous")
+    ap.add_argument("--collection", default=None,
+                    help="framework/version collection, overriding the family pin in "
+                         "attention_table_map.COLLECTIONS (e.g. vllm/0.25.0)")
     ap.add_argument("--all", action="store_true", help="every SKU with data")
     ap.add_argument("--check-regression", action="store_true",
                     help="assert the gqa fit reproduces the committed unsuffixed coefficients")
@@ -246,7 +249,8 @@ def main() -> int:
     for sku, chip in targets:
         print(f"=== {chip} ({sku})")
         for kind in atm.KINDS:
-            r = fit_kind(args.data, sku, chip, kind, Path(args.catalog), args.lane)
+            r = fit_kind(args.data, sku, chip, kind, Path(args.catalog), args.lane,
+                         args.collection)
             if r is None or r["status"] != "ok":
                 print(f"  {kind:12s} {r['status']}"
                       + (f"  ({r.get('rows', 0):,} rows, lane {r.get('lane')})"

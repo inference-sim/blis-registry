@@ -120,6 +120,13 @@ def test_collective_floors_and_rates_survive_independent_rederivation(
         if len(parts) < 9 or parts[3] == "-":
             continue
         op, dtype, ranks = parts[0], parts[1], int(parts[2])
+        # all_reduce is fitted from vLLM's own custom kernel, not from NCCL, because vLLM
+        # does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve.
+        # Re-deriving it from the NCCL sweep would compare the registry against a
+        # collection no committed entry cites. The vLLM lane is re-derived separately
+        # below, so the coefficient is still checked -- against the right data.
+        if op == "all_reduce":
+            continue
         floor = float(parts[3])
         # The script reports rates in GB/s for readability; the registry stores
         # bytes per microsecond, which is 1000x. Converting here rather than
@@ -141,7 +148,59 @@ def test_collective_floors_and_rates_survive_independent_rederivation(
                 f"gives {want}"
             )
             checked += 1
-    assert checked >= 12, f"{chip}: re-derivation produced too little to compare"
+    assert checked >= 9, f"{chip}: re-derivation produced too little to compare"
+
+
+@pytest.mark.parametrize(
+    "sku, chip, vllm",
+    [
+        ("h200_sxm", "h200", "0.24.0"),
+        ("h100_sxm", "h100", "0.24.0"),
+        ("b200_sxm", "b200", "0.24.0"),
+        ("b300_sxm", "b300", "0.24.0"),
+    ],
+)
+def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
+    """The all-reduce triple must re-derive from the collection its citations name.
+
+    BLIS prices vLLM serving, and vLLM serves a tensor-parallel all-reduce from its own
+    custom kernel rather than from NCCL. The committed values therefore come from
+    `custom_allreduce_perf.parquet` in the CUDA-graph lane, which is the lane a decode step
+    runs in, and this re-derives them from that file.
+
+    The lane matters enough to pin: on h200 at 8 ranks the NCCL floor is 15.98us against
+    4.711us here, and the eager lane is slower than NCCL rather than faster. A test that
+    accepted any of the three would accept a 3.4x mispricing.
+    """
+    reg = registry_values()
+    out = run_script(
+        "fit_collectives_vllm.py", str(DATA / sku / "comm" / "vllm" / vllm)
+    )
+    checked = 0
+    for line in out.splitlines():
+        parts = line.replace("#", " ").split()
+        # backend ranks floor_us trans_GB/s peak_GB/s err2 err3 flat_n
+        if len(parts) < 8 or parts[0] != "vllm_graph":
+            continue
+        ranks = int(parts[1])
+        floor, transition, peak = float(parts[2]), float(parts[3]), float(parts[4])
+        stem = f"all_reduce_fp16_{ranks}rank_{chip.replace('-', '_')}"
+        for key, want, tol in (
+            (f"collective_floor_{stem}", round(floor, 2), 0.05),
+            (f"collective_peak_rate_{stem}", peak * 1000, 50.0),
+            (f"collective_transition_rate_{stem}", transition * 1000, 50.0),
+        ):
+            got = reg.get((key, (chip,)))
+            assert got is not None, f"{chip}: {key} is not in the registry"
+            assert abs(float(got) - want) < tol, (
+                f"{chip} {key}: registry holds {got}, an independent re-derivation "
+                f"of the vLLM lane gives {want}"
+            )
+            checked += 1
+    assert checked == 9, (
+        f"{chip}: expected 3 ranks x 3 coefficients from the vllm_graph lane, "
+        f"compared {checked}"
+    )
 
 
 def test_no_coefficient_cites_a_non_nvidia_measurement_source():

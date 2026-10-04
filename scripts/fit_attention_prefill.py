@@ -48,7 +48,22 @@ import yaml
 DEFAULT_DATA = "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"
 DEFAULT_CATALOG = "/Users/sri/Documents/Projects/blis-catalog"
 DEFAULT_REGISTRY = "."
-COLLECTION = "trtllm/1.3.0rc20"
+# The lane the sweep was measured in. This kernel predicts vLLM, so vllm/0.25.0 is
+# the lane its prefill coefficients belong on. The TRT-LLM default is retained only
+# because the first committed fit used it; passing --collection vllm/0.25.0
+# reproduces the values the registry now carries for the five parts that have a vLLM
+# context sweep.
+#
+# The lanes are not interchangeable. Over ~38,000 shapes shared between them, vLLM
+# prefill attention runs at 0.79-0.81x of TRT-LLM's on every part, and the gap is
+# concentrated at short prompts rather than spread across the ramp: the ratio is
+# 0.505x at isl=1, rising to a ~0.87x plateau for isl >= 128. That is the floor, and
+# the raw sweeps say so without any fit -- at batch 1, isl 1, full attention, the
+# median is 16.50us against 11.46us on H200 and 15.17us against 8.98us on B200.
+#
+# L40S has no vLLM context-attention sweep, so its prefill pair stays on TRT-LLM and
+# says so in its own citation.
+DEFAULT_COLLECTION = "trtllm/1.3.0rc20"
 
 # AISimulate SKU directory -> catalog chip name.
 SKUS = {
@@ -83,10 +98,10 @@ def envelope(registry: Path) -> dict[str, tuple[float, float]]:
 
 
 def fit(data: Path, catalog: Path, sku: str, chip: str,
-        env: tuple[float, float]) -> str | None:
-    path = data / sku / "attention" / COLLECTION / "context_attention_perf.parquet"
+        env: tuple[float, float], collection: str) -> str | None:
+    path = data / sku / "attention" / collection / "context_attention_perf.parquet"
     if not path.exists():
-        return f"{chip:14s} no context-attention sweep at {COLLECTION}"
+        return f"{chip:14s} no context-attention sweep at {collection}"
     d = pq.read_table(path).to_pydict()
     hw = yaml.safe_load((catalog / "hardware" / f"{chip}.yaml").read_text())
     peak = hw["TFlopsPeak"] * 1e12
@@ -130,6 +145,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--data", default=DEFAULT_DATA)
     ap.add_argument("--catalog", default=DEFAULT_CATALOG)
     ap.add_argument("--registry", default=DEFAULT_REGISTRY)
+    ap.add_argument("--collection", default=DEFAULT_COLLECTION,
+                    help="framework/version lane under <sku>/attention/ "
+                         f"(default {DEFAULT_COLLECTION!r})")
     ap.add_argument("parts", nargs="*", metavar="sku:chip")
     args = ap.parse_args(argv[1:])
 
@@ -142,6 +160,7 @@ def main(argv: list[str]) -> int:
     else:
         pairs = sorted(SKUS.items())
 
+    print(f"# lane: {args.collection}")
     rc = 0
     for sku, chip in pairs:
         if not chip:
@@ -153,7 +172,8 @@ def main(argv: list[str]) -> int:
                   f"emit_primitives.py first", file=sys.stderr)
             rc = 1
             continue
-        print(fit(Path(args.data), Path(args.catalog), sku, chip, env[chip]))
+        print(fit(Path(args.data), Path(args.catalog), sku, chip, env[chip],
+                  args.collection))
     return rc
 
 

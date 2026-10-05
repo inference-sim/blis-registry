@@ -289,7 +289,7 @@ So `eps_max` is fitted to an asymptote the kernel never reaches, and a fit that 
 large M over-predicts there by up to 12 points of efficiency.
 
 **Why this is recorded and not fixed.** A decode step's M is the token count in the batch,
-and the corpus runs M = 1 to 2048 with 97% of points at M <= 128. The decline begins above
+and the corpus runs M = 1 to 2048 with 97.2% of points (1,036 of 1,066) at M <= 128. The decline begins above
 M ~ 4096, outside the range any evaluated deployment reaches. Scoring the same fit inside
 and outside the operating range:
 

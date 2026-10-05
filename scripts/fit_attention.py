@@ -100,10 +100,14 @@ def main(argv: list[str]) -> int:
     facts = yaml.safe_load((catalog / "hardware" / f"{chip}.yaml").read_text())
     peak = facts["BwPeakTBs"] * 1e12
 
+    # window_size is absent from the older collections -- vLLM 0.14.0 on A100 predates
+    # the sliding-window sweep -- and a missing column means every row is full
+    # attention. Defaulting to 0 keeps those rows rather than failing on the key, and
+    # cannot silently admit a windowed row from a collection that does sweep them.
     points = [
         (kv_bytes(r), r["latency"] * 1e-3)  # the file records milliseconds
         for r in rows
-        if r["window_size"] == 0 and r["latency"] > 0
+        if r.get("window_size", 0) == 0 and r["latency"] > 0
     ]
     if len(points) < 100:
         print(f"only {len(points)} full-attention points; too few to fit",

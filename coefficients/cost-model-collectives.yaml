@@ -60,7 +60,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -70,7 +70,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -80,7 +80,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -90,7 +90,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -100,7 +100,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -110,7 +110,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -120,7 +120,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -130,7 +130,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -140,7 +140,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -150,7 +150,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -160,7 +160,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -170,7 +170,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -180,7 +180,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -190,7 +190,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -200,7 +200,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -210,7 +210,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -220,7 +220,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -230,99 +230,99 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
         165.75 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.364x under the two-parameter form to 1.181x. Below the asymptote, which is 0.71 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
   - collective_floor_all_reduce_fp16_2rank_a100_sxm:
-      value: 9.98
+      value: 4.85
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.10x, so the minimum rather than the median. 21 points in the sweep.
   - collective_peak_rate_all_reduce_fp16_2rank_a100_sxm:
-      value: 96521.3
+      value: 99530.0
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         96.52 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_2rank_a100_sxm.
   - collective_transition_rate_all_reduce_fp16_2rank_a100_sxm:
-      value: 78250.0
+      value: 90500.0
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         78.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.440x under the two-parameter form to 1.254x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
   - collective_floor_all_reduce_fp16_4rank_a100_sxm:
-      value: 13.86
+      value: 5.15
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep.
   - collective_peak_rate_all_reduce_fp16_4rank_a100_sxm:
-      value: 72231.9
+      value: 73590.0
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         72.23 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_4rank_a100_sxm.
   - collective_transition_rate_all_reduce_fp16_4rank_a100_sxm:
-      value: 61250.0
+      value: 59250.0
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         61.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.343x under the two-parameter form to 1.166x. Below the asymptote, which is 0.85 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
   - collective_floor_all_reduce_fp16_8rank_a100_sxm:
-      value: 21.27
+      value: 5.62
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep.
   - collective_peak_rate_all_reduce_fp16_8rank_a100_sxm:
-      value: 63521.5
+      value: 65070.0
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         63.52 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_8rank_a100_sxm.
   - collective_transition_rate_all_reduce_fp16_8rank_a100_sxm:
-      value: 48500.0
+      value: 52750.0
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
       rationale: >
         48.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.306x under the two-parameter form to 1.142x. Below the asymptote, which is 0.76 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
   - collective_floor_all_reduce_int8_2rank_a100_sxm:
@@ -330,7 +330,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -340,7 +340,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -350,7 +350,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -360,7 +360,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -370,7 +370,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -380,7 +380,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -390,7 +390,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -400,7 +400,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -410,7 +410,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -420,7 +420,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -430,7 +430,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -440,7 +440,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -450,7 +450,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -460,7 +460,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -470,7 +470,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -480,7 +480,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -490,7 +490,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -500,7 +500,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -510,7 +510,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -520,7 +520,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -530,7 +530,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -540,7 +540,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -550,7 +550,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -560,7 +560,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -570,7 +570,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -580,7 +580,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -590,7 +590,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -600,7 +600,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -610,7 +610,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -620,7 +620,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -630,7 +630,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -640,7 +640,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -650,7 +650,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -660,7 +660,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -670,7 +670,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -680,7 +680,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -690,7 +690,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -700,7 +700,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -710,7 +710,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -720,7 +720,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -730,7 +730,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -740,7 +740,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -750,7 +750,7 @@ coefficients:
       units: us_per_transfer
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -760,7 +760,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: false
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -770,7 +770,7 @@ coefficients:
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
       rationale: >
@@ -4869,3 +4869,726 @@ coefficients:
         1.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.435x under the two-parameter form to 1.169x. Below the asymptote, which is 0.79 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
 
 # 480 entries generated.
+
+  - collective_floor_all_gather_fp16_2rank_a100_80:
+      value: 8.98
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.17x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_fp16_2rank_a100_80:
+      value: 149980.7
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        149.98 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_fp16_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_fp16_2rank_a100_80:
+      value: 116000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        116.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.440x under the two-parameter form to 1.250x. Below the asymptote, which is 0.77 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_gather_fp16_4rank_a100_80:
+      value: 10.76
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.10x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_fp16_4rank_a100_80:
+      value: 127704.8
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        127.70 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_fp16_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_fp16_4rank_a100_80:
+      value: 101250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        101.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.470x under the two-parameter form to 1.273x. Below the asymptote, which is 0.79 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_gather_fp16_8rank_a100_80:
+      value: 14.58
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.07x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_fp16_8rank_a100_80:
+      value: 117323.2
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        117.32 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_fp16_8rank_a100_sxm. The sweep had not saturated at its largest message, so this is a lower bound on the asymptote rather than the asymptote; it overstates transfer time, which is the safe direction. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_fp16_8rank_a100_80:
+      value: 82750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        82.75 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.370x under the two-parameter form to 1.184x. Below the asymptote, which is 0.71 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_gather_int8_2rank_a100_80:
+      value: 9.01
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.03x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_int8_2rank_a100_80:
+      value: 299994.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        299.99 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_int8_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_int8_2rank_a100_80:
+      value: 232250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        232.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.440x under the two-parameter form to 1.251x. Below the asymptote, which is 0.77 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_gather_int8_4rank_a100_80:
+      value: 10.81
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.05x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_int8_4rank_a100_80:
+      value: 255482.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        255.48 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_int8_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_int8_4rank_a100_80:
+      value: 202500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        202.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.466x under the two-parameter form to 1.270x. Below the asymptote, which is 0.79 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_gather_int8_8rank_a100_80:
+      value: 14.62
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_gather_int8_8rank_a100_80:
+      value: 234421.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        234.42 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_int8_8rank_a100_sxm. The sweep had not saturated at its largest message, so this is a lower bound on the asymptote rather than the asymptote; it overstates transfer time, which is the safe direction. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_gather_int8_8rank_a100_80:
+      value: 165750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        165.75 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.364x under the two-parameter form to 1.181x. Below the asymptote, which is 0.71 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_fp16_2rank_a100_80:
+      value: 4.85
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.10x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_fp16_2rank_a100_80:
+      value: 99530.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        96.52 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_fp16_2rank_a100_80:
+      value: 90500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        78.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.440x under the two-parameter form to 1.254x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_fp16_4rank_a100_80:
+      value: 5.15
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_fp16_4rank_a100_80:
+      value: 73590.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        72.23 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_fp16_4rank_a100_80:
+      value: 59250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        61.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.343x under the two-parameter form to 1.166x. Below the asymptote, which is 0.85 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_fp16_8rank_a100_80:
+      value: 5.62
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_fp16_8rank_a100_80:
+      value: 65070.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        63.52 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_8rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_fp16_8rank_a100_80:
+      value: 52750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/vllm/0.14.0/custom_allreduce_perf.parquet (NVIDIA A100-SXM4-80GB), vllm_graph lane, 138 all_reduce rows", role: primary}
+      rationale: >
+        48.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.306x under the two-parameter form to 1.142x. Below the asymptote, which is 0.76 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_int8_2rank_a100_80:
+      value: 9.91
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.05x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_int8_2rank_a100_80:
+      value: 188793.1
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        188.79 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_int8_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_int8_2rank_a100_80:
+      value: 149250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        149.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.493x under the two-parameter form to 1.296x. Below the asymptote, which is 0.79 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_int8_4rank_a100_80:
+      value: 13.96
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.04x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_int8_4rank_a100_80:
+      value: 140855.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        140.86 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_int8_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_int8_4rank_a100_80:
+      value: 115000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        115.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.386x under the two-parameter form to 1.197x. Below the asymptote, which is 0.82 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_all_reduce_int8_8rank_a100_80:
+      value: 21.31
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_all_reduce_int8_8rank_a100_80:
+      value: 123014.2
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        123.01 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_int8_8rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_all_reduce_int8_8rank_a100_80:
+      value: 87500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        87.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.342x under the two-parameter form to 1.164x. Below the asymptote, which is 0.71 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_fp16_2rank_a100_80:
+      value: 10.52
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.10x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_fp16_2rank_a100_80:
+      value: 164150.6
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        164.15 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_fp16_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_fp16_2rank_a100_80:
+      value: 133250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        133.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.392x under the two-parameter form to 1.220x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_fp16_4rank_a100_80:
+      value: 12.39
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.02x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_fp16_4rank_a100_80:
+      value: 129948.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        129.95 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_fp16_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_fp16_4rank_a100_80:
+      value: 104500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        104.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.310x under the two-parameter form to 1.143x. Below the asymptote, which is 0.80 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_fp16_8rank_a100_80:
+      value: 12.79
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.25x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_fp16_8rank_a100_80:
+      value: 116030.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        116.03 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_fp16_8rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_fp16_8rank_a100_80:
+      value: 94000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        94.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.368x under the two-parameter form to 1.193x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_int8_2rank_a100_80:
+      value: 10.55
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.03x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_int8_2rank_a100_80:
+      value: 327780.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        327.78 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_int8_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_int8_2rank_a100_80:
+      value: 266500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        266.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.392x under the two-parameter form to 1.220x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_int8_4rank_a100_80:
+      value: 12.39
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.04x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_int8_4rank_a100_80:
+      value: 260680.2
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        260.68 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_int8_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_int8_4rank_a100_80:
+      value: 209000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        209.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.320x under the two-parameter form to 1.149x. Below the asymptote, which is 0.80 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_alltoall_int8_8rank_a100_80:
+      value: 12.42
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.29x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_alltoall_int8_8rank_a100_80:
+      value: 232030.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        232.03 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_int8_8rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_alltoall_int8_8rank_a100_80:
+      value: 188250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        188.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.381x under the two-parameter form to 1.203x. Below the asymptote, which is 0.81 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_fp16_2rank_a100_80:
+      value: 8.9
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.11x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_fp16_2rank_a100_80:
+      value: 166543.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        166.54 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_fp16_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_fp16_2rank_a100_80:
+      value: 133500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        133.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.413x under the two-parameter form to 1.242x. Below the asymptote, which is 0.80 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_fp16_4rank_a100_80:
+      value: 10.72
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.07x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_fp16_4rank_a100_80:
+      value: 135416.2
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        135.42 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_fp16_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_fp16_4rank_a100_80:
+      value: 108250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        108.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.415x under the two-parameter form to 1.232x. Below the asymptote, which is 0.80 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_fp16_8rank_a100_80:
+      value: 14.52
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 5 messages at or below 4 KiB, where latency is independent of size; that region spans 1.07x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_fp16_8rank_a100_80:
+      value: 121623.6
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        121.62 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_fp16_8rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_fp16_8rank_a100_80:
+      value: 86000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        86.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.324x under the two-parameter form to 1.154x. Below the asymptote, which is 0.71 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_int8_2rank_a100_80:
+      value: 8.89
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.04x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_int8_2rank_a100_80:
+      value: 320711.4
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        320.71 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_int8_2rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_int8_2rank_a100_80:
+      value: 248250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        248.25 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.441x under the two-parameter form to 1.263x. Below the asymptote, which is 0.77 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_int8_4rank_a100_80:
+      value: 10.91
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.05x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_int8_4rank_a100_80:
+      value: 258061.4
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        258.06 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_int8_4rank_a100_sxm. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_int8_4rank_a100_80:
+      value: 200000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        200.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.443x under the two-parameter form to 1.251x. Below the asymptote, which is 0.78 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_floor_reduce_scatter_int8_8rank_a100_80:
+      value: 14.95
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        Minimum latency over the 4 messages at or below 4 KiB, where latency is independent of size; that region spans 1.06x, so the minimum rather than the median. 21 points in the sweep. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_peak_rate_reduce_scatter_int8_8rank_a100_80:
+      value: 229706.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        229.71 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_int8_8rank_a100_sxm. The sweep had not saturated at its largest message, so this is a lower bound on the asymptote rather than the asymptote; it overstates transfer time, which is the safe direction. A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.
+  - collective_transition_rate_reduce_scatter_int8_8rank_a100_80:
+      value: 156000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/comm/nccl/2.27.3/nccl_perf.parquet (NCCL 2.27.3, NVIDIA A100-SXM4-80GB)", role: primary}
+      rationale: >
+        156.00 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.315x under the two-parameter form to 1.142x. Below the asymptote, which is 0.68 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
+
+  # --- b200: NVIDIA B200, NCCL 2.29.2 --- A100-80 is the same silicon as A100-SXM -- the catalog's own chip file says "Alias for A100-SXM" and every physical field matches -- so this carries A100-SXM's measured value under the name the kernel builds from the chip, which is how hardware_config.json's A100-80 entry resolves. Re-fit both together.

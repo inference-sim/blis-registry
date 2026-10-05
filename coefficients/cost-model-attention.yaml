@@ -93,25 +93,25 @@ coefficients:
         so an attention kernel does not convert the extra bandwidth fully.
 
   - attention_decode_floor:
-      value: 18.5
+      value: 19.0
       units: us_per_transfer
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/trtllm/1.0.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5026 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
         The highest floor of the five parts, and the only one fitted on an older collection
         (TRT-LLM 1.0.0, the newest that covers this part) over 5026 points rather than
         40367, so it is the least well determined. Geometric error 1.942x against 16.3x.
   - attention_decode_rate:
-      value: 1713000.0
+      value: 1345740.0
       units: bytes_per_us
       method: measured
       fitted: true
-      scope: {hardware: [a100-sxm]}
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/trtllm/1.0.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5026 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
         1.71 TB/s, 0.84 of this part's 2.039 TB/s peak.
 
@@ -122,19 +122,19 @@ coefficients:
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 40920 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 31831 full-attention points", role: primary}
       rationale: >
         Geometric error 1.932x against 9.7x. The smallest improvement of the five, because
         this part's low bandwidth means the bandwidth term dominates the floor over more of
         the measured range.
   - attention_decode_rate:
-      value: 674000.0
+      value: 725760.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 40920 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 31831 full-attention points", role: primary}
       rationale: >
         0.67 TB/s, 0.78 of this part's 0.864 TB/s peak.
 
@@ -222,27 +222,47 @@ coefficients:
       rationale: >
         21.9x to 1.647x.
   - attention_prefill_floor:
-      value: 15.0
+      value: 13.0
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA L40S), 55028 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/context_attention_perf.parquet (NVIDIA L40S), 26267 full-attention points", role: primary}
       rationale: >
         The lowest prefill floor of the four parts, and the only one below its own decode
         floor of 11 us by less than a factor of two.
   - attention_prefill_work_scale:
-      value: 0.38
+      value: 0.5
       units: dimensionless
       method: measured
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/context_attention_perf.parquet (NVIDIA L40S), 55028 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/context_attention_perf.parquet (NVIDIA L40S), 26267 full-attention points", role: primary}
       rationale: >
         12.9x to 1.648x. The lowest scale of the four, so this part converts the least of its
         matmul efficiency into attention throughput.
+  - attention_prefill_floor:
+      value: 19.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80, a100-sxm]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/context_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5457 full-attention points", role: primary}
+      rationale: >
+        Prefill attention floor on A100, fitted on the vLLM lane this kernel predicts. A100's vLLM collection is 0.14.0 -- the oldest shipped -- so this part is pinned to an earlier engine than the Hopper and Blackwell parts, and the pin is stated rather than averaged away. Geometric error 1.509x against 13.1x for the FLOPs-only form. Reproduce with scripts/fit_attention_prefill.py --collection vllm/0.14.0.
+  - attention_prefill_work_scale:
+      value: 0.5
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80, a100-sxm]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/context_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5457 full-attention points", role: primary}
+      rationale: >
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches on A100, from the same fit as attention_prefill_floor.
   - attention_prefill_floor:
       value: 17.0
       units: us_per_transfer

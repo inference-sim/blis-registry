@@ -73,6 +73,7 @@ SKUS = {
     "gb200": "gb200-nvl72",
     "b200_sxm": "b200",
     "b300_sxm": "b300",
+    "a100_sxm": "a100-sxm",
 }
 
 FLOOR_GRID = [x * 0.5 for x in range(2, 80)]
@@ -109,7 +110,13 @@ def fit(data: Path, catalog: Path, sku: str, chip: str,
 
     pts = []
     for i in range(len(d["latency"])):
-        if d["window_size"][i] != 0 or d["latency"][i] <= 0:
+        # window_size is absent from the older collections -- vLLM 0.14.0 on A100
+        # predates the sliding-window sweep -- and a missing column means every row is
+        # full attention. Read through a default so those collections fit rather than
+        # failing on the key; a collection that DOES sweep windows still has its
+        # windowed rows excluded.
+        if (d.get("window_size", [0] * len(d["latency"]))[i] != 0
+                or d["latency"][i] <= 0):
             continue
         b, isl = d["batch_size"][i], d["isl"][i]
         nq, dh = d["num_heads"][i], d["head_dim"][i]

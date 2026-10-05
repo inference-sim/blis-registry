@@ -73,8 +73,23 @@ def run_script(script: str, *args: str) -> str:
     return result.stdout
 
 
+# Parts whose GEMM ramp is the three-factor shape-aware form, fitted by
+# fit_gemm_shape_ramp.py on vllm/0.25.0. Their eps_max and m_half come from that JOINT
+# fit, so re-deriving them from the one-factor envelope would check a provenance the
+# registry no longer claims. l40s and a100-sxm are absent deliberately: their vLLM gemm
+# sweeps are at 0.24.0 and 0.14.0, and pinning one collection per part is what keeps a
+# difference between parts attributable to silicon rather than to an engine version.
+SHAPE_RAMP_PARTS = {"h200", "h100", "b200", "b300", "gb200-nvl72"}
+SHAPE_RAMP_COLLECTION = "vllm/0.25.0"
+
+
 @pytest.mark.parametrize("sku,chip,collection,nccl", PARTS)
 def test_gemm_envelope_survives_independent_refit(sku, chip, collection, nccl):
+    if chip in SHAPE_RAMP_PARTS:
+        pytest.skip(
+            f"{chip} carries the three-factor ramp; "
+            f"test_gemm_shape_ramp_survives_independent_refit covers it"
+        )
     reg = registry_values()
     out = run_script("fit_gemm_envelope.py", str(DATA / sku / "gemm" / collection))
     checked = 0
@@ -220,3 +235,45 @@ def test_no_coefficient_cites_a_non_nvidia_measurement_source():
                     f"{name}/{key} cites {cite!r}, which is not an AISimulate "
                     f"collection; this set is single-sourced"
                 )
+
+
+@pytest.mark.parametrize("sku,chip", sorted(
+    (sku, chip) for sku, chip in {
+        "h200_sxm": "h200", "h100_sxm": "h100", "b200_sxm": "b200",
+        "b300_sxm": "b300", "gb200": "gb200-nvl72",
+    }.items()
+))
+def test_gemm_shape_ramp_survives_independent_refit(sku, chip):
+    """Re-derive all four ramp coefficients from the sweep their citation names.
+
+    The three-factor form fits eps_max, m_half, k_half and n_half TOGETHER, so all four
+    have to be checked against one re-run. Checking a subset would let the registry hold
+    a mixture of two fits -- which is the defect this replaces: eps_max and m_half were
+    the envelope fit's while the shape terms were absent, so every GEMM in a layer read
+    the same efficiency.
+    """
+    reg = registry_values()
+    out = run_script("fit_gemm_shape_ramp.py", "--emit", f"{sku}:{chip}")
+    seen = {}
+    name = None
+    for line in out.splitlines():
+        m = re.match(r"^  - (gemm_\w+):$", line)
+        if m:
+            name = m.group(1)
+            continue
+        m = re.match(r"^      value: ([\d.]+)$", line)
+        if m and name:
+            seen[name] = float(m.group(1))
+            name = None
+    assert seen, f"{chip}: the fitter emitted no coefficients"
+    checked = 0
+    for key, want in seen.items():
+        got = reg.get((key, (chip,)))
+        assert got is not None, f"{chip}: {key} is not in the registry"
+        assert abs(float(got) - want) < 1e-9, (
+            f"{chip} {key}: registry holds {got}, an independent refit of "
+            f"{SHAPE_RAMP_COLLECTION} gives {want}"
+        )
+        checked += 1
+    # Four coefficients per dtype, and a part carries at least bf16, fp8 and fp8_block.
+    assert checked >= 12, f"{chip}: only {checked} coefficients re-derived"

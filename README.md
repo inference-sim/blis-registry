@@ -77,14 +77,12 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
-Real sets live in `coefficients/` — the five `cost-model-*` sets that price a step
-(primitives, collectives, attention, recurrent, host overheads), the
-`communication-coefficients` set (named tensor-parallel/MoE collectives), the
-`lora-adapter-costs` set (Digital-Twin adapter cost terms), the `legacy-kv-transfer`
-set (the pre-#1590 CPU↔GPU transfer defaults), and the `pd-transfer-estimates` set
-(the PD KV-transfer base-latency estimate and the fabric-bandwidth overhead correction).
-These committed sets are what CI validates on every run. Every `cost-model-*` value is
-re-derivable from public data — see [`docs/reproducing-coefficients.md`](docs/reproducing-coefficients.md).
+Real sets live in `coefficients/`: the five `cost-model-*` sets that price a step —
+primitives, collectives, attention, recurrent and host overheads. Those five are exactly
+what `blis-latency-kernel` loads, and nothing in `coefficients/` is unread by it. These
+committed sets are what CI validates on every run, and every value in them is re-derivable
+from public data — see
+[`docs/reproducing-coefficients.md`](docs/reproducing-coefficients.md).
 
 ## Usage
 

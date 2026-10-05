@@ -261,22 +261,44 @@ order-of-magnitude anchor only — the values there were fitted against a differ
 functional form, and a coefficient is valid only for the form it was fitted against. The
 citations name the git SHA where that file can still be read.
 
-## 4. Sets this registry ships that the kernel does not read
+## 4. Why the registry holds only what the kernel reads
 
-`blis-latency-kernel` requests exactly five sets: `cost-model-primitives`,
+`blis-latency-kernel` requests exactly five sets — `cost-model-primitives`,
 `cost-model-collectives`, `cost-model-host-overheads`, `cost-model-attention`,
-`cost-model-recurrent`. Three further sets are carried for other BLIS consumers and are
-**not** exercised by kernel accuracy:
+`cost-model-recurrent` — and `coefficients/` now holds exactly those, 724 entries.
 
-* `communication-coefficients.yaml` — the kernel's collective pricing comes from
-  `cost-model-collectives` instead.
-* `pd-transfer-estimates.yaml` and `legacy-kv-transfer.yaml` — the kernel's
-  `PDTransferTime` and `TierTime` price from blis-catalog hardware facts
-  (`IntraNodeBwGBps`, `InterNodeBwGBps`, and `StorageDevice` bandwidths/latency), using
-  only `host_link_bandwidth` from `cost-model-primitives` as a host-link ceiling.
-* `lora-adapter-costs.yaml` — Digital-Twin adapter terms.
+Four sets were removed because nothing in BLIS read them; they are recoverable from git history, where they last appear at 8d78ff8:
 
-Anyone extending the kernel to consume these should expect to calibrate them first.
+| set | what it held | why it went |
+|---|---|---|
+| `communication-coefficients.yaml` | 10 named TP/MoE collectives | the kernel prices collectives from `cost-model-collectives`; 9 of its 10 entries were `assumed`/`copied` placeholders, 7 of them the value `1.0` |
+| `pd-transfer-estimates.yaml` | PD KV-transfer base latency, fabric overhead | `PDTransferTime` prices from catalog facts instead |
+| `legacy-kv-transfer.yaml` | pre-#1590 CPU↔GPU transfer defaults | `TierTime` prices from catalog facts instead |
+| `lora-adapter-costs.yaml` | Digital-Twin adapter terms | no consumer |
+
+The kernel's `TierTime` and `PDTransferTime` take their numbers from blis-catalog hardware
+facts — `StorageDevice` read/write bandwidths and base latency, `IntraNodeBwGBps`,
+`InterNodeBwGBps` — using only `host_link_bandwidth` from `cost-model-primitives` as a
+host-link ceiling. `inference-sim` does not read any of the four either; its own
+`defaults.yaml` carries the values its backends use.
+
+**The removal was verified to change nothing measurable.** Scored against the InferenceX
+measured tier (`-config-tier measured -framework vllm -length-range-ratio 1.0`), the
+before and after reports are identical after stripping timestamps — every summary table,
+every GPU family, every model, the same `n`:
+
+| registry | TPOT shape | TPOT mape | TTFT shape | TTFT mape |
+|---|---|---|---|---|
+| 747 entries, 9 sets | 11.60% | 13.52% | 15.32% | 50.68% |
+| 724 entries, 5 sets | 11.60% | 13.52% | 15.32% | 50.68% |
+
+Both runs used one binary, one catalog revision and one kernel revision, varying only the
+registry — the figures move with the catalog, so a comparison across catalog revisions
+proves nothing. `n` is 292/360/288/356.
+
+Anyone extending the kernel to price offload tiers, PD transfer or LoRA should expect to
+calibrate those terms rather than recover them from history: the removed values were
+placeholders and transcriptions, not measurements.
 
 ## 5. Checking a re-derivation
 

@@ -101,9 +101,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
-        The highest floor of the five parts, and the only one fitted on an older collection
-        (TRT-LLM 1.0.0, the newest that covers this part) over 5026 points rather than
-        40367, so it is the least well determined. Geometric error 1.942x against 16.3x.
+        The highest floor of the parts fitted, and the least well determined: the newest vLLM
+        collection covering this part is 0.14.0, giving 5431 points rather than the ~34800 the
+        Hopper and Blackwell parts get. Geometric error 1.422x against 18.7x.
   - attention_decode_rate:
       value: 1345740.0
       units: bytes_per_us
@@ -113,7 +113,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
-        1.71 TB/s, 0.84 of this part's 2.039 TB/s peak.
+        1.35 TB/s, 0.66 of this part's 2.039 TB/s peak.
 
   - attention_decode_floor:
       value: 11.0
@@ -136,7 +136,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 31831 full-attention points", role: primary}
       rationale: >
-        0.67 TB/s, 0.78 of this part's 0.864 TB/s peak.
+        0.73 TB/s, 0.84 of this part's 0.864 TB/s peak.
 
   - attention_decode_floor:
       value: 11.0

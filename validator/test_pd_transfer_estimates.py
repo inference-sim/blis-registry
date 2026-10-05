@@ -18,8 +18,8 @@ the N-track's (R2 tracker), as with the other transcription tests in this direct
 
 The unit choice (``us_per_transfer`` rather than the issue's literal ``ms``) is a deliberate
 CORRECTION: ``ms`` is not a member of the schema's closed ``UNITS`` enum, so a coefficient
-carrying it would be rejected. This mirrors ``output_token_processing`` in
-``trained-physics.yaml`` (semantically µs/token, recorded under an in-schema unit with the
+carrying it would be rejected. This mirrors ``output_token_processing`` in the since-removed
+``trained-physics`` set (semantically µs/token, recorded under an in-schema unit with the
 value preserved and the reason stated in its rationale).
 """
 
@@ -97,8 +97,8 @@ def test_both_are_assumed_not_measured():
 
 def test_scope_is_all_supported_hardware():
     # Both terms derive from GLOBAL CLI flags, not a per-GPU fit, so they hold across every
-    # supported GPU — NOT H100-only. (H100-only sets like trained-physics are H100 because they
-    # were fitted on H100; these are unfitted placeholders that apply wherever the simulator
+    # supported GPU — NOT H100-only. (A set scoped to one GPU is scoped that way because it was
+    # fitted there; these are unfitted placeholders that apply wherever the simulator
     # runs.) There is no `fabric`/`network` scope key today to express the per-fabric variation
     # the eventual measured overhead will carry (issue #10), so all-hardware is the honest scope.
     all_hw = {"hardware": ["H100", "H200", "A100-80", "A100-SXM", "L40S"]}

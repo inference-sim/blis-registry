@@ -39,14 +39,15 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import sys
 from pathlib import Path
 
 import pyarrow.parquet as pq
 import yaml
 
-DEFAULT_DATA = "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"
-DEFAULT_CATALOG = "/Users/sri/Documents/Projects/blis-catalog"
+DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
 DEFAULT_REGISTRY = "."
 # The lane the sweep was measured in. This kernel predicts vLLM, so vllm/0.25.0 is
 # the lane its prefill coefficients belong on. The TRT-LLM default is retained only

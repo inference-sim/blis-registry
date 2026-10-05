@@ -56,6 +56,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import math
+import os
 import random
 import sys
 from pathlib import Path
@@ -73,8 +74,8 @@ assert _spec.loader is not None
 _spec.loader.exec_module(_ep)
 entry = _ep.entry
 
-DEFAULT_DATA = "/private/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"
-DEFAULT_CATALOG = "/Users/sri/Documents/Projects/blis-catalog"
+DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/private/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
 COLLECTION = "vllm/0.25.0"
 
 SKUS = {

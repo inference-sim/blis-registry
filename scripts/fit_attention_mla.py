@@ -85,6 +85,7 @@ checked against the datasheet.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -212,7 +213,8 @@ def main(argv: list[str]) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", required=True, type=Path)
     ap.add_argument("--catalog", type=Path,
-                    default=Path("/Users/sri/Documents/Projects/blis-catalog"))
+                    default=Path(os.environ.get(
+                        "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")))
     ap.add_argument("--sku")
     ap.add_argument("--chip")
     ap.add_argument("--lane", default="*", help="a vLLM version directory, or * for newest")

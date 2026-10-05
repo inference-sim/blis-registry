@@ -27,8 +27,8 @@ bit-for-bit runtime step-time parity — that runtime byte-identity gate is the 
 (R2 tracker). What ``1.0`` guarantees here is only that it is an exact multiplicative identity in
 the data.
 
-``tp_allreduce_attention`` and ``cross_node_hop_latency`` are NOT in this set — they already
-carry their final R2G4 names in ``coefficients/trained-physics.yaml`` and are unchanged by R2G4.
+``tp_allreduce_attention`` and ``cross_node_hop_latency`` are NOT in this set — they carried
+their final R2G4 names in the since-removed ``trained-physics`` set and are unchanged by R2G4.
 """
 
 from __future__ import annotations
@@ -84,8 +84,8 @@ def test_set_validates_as_standalone():
 
 def test_names_are_exactly_the_added_and_renamed_set():
     # Exactly the three split/renamed entries plus the seven per-backend dials — no more, no
-    # less. tp_allreduce_attention / cross_node_hop_latency are NOT here (they stay in
-    # trained-physics with their final names); a leaked restatement fails by name.
+    # less. tp_allreduce_attention / cross_node_hop_latency are NOT here (they stayed in the
+    # since-removed trained-physics set); a leaked restatement fails by name.
     assert set(_coeffs_by_name()) == SPLIT_FROM_BETA4 | MOE_COMM_SCALE_NAMES
 
 
@@ -139,7 +139,7 @@ def test_values_are_preserved():
 
 
 def test_scope_is_h100_throughout():
-    # Consistent with trained-physics: H100 is the only calibrated target. Nothing new is
+    # H100 is the only calibrated target for this set. Nothing new is
     # in-repo fitted, so fitted is false on every entry (checked per-family above).
     coeffs = _coeffs_by_name()
     for name, entry in coeffs.items():

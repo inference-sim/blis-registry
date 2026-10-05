@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -108,6 +109,33 @@ def entry(
     )
 
 
+# The NCCL collection each committed entry cites. Pinned rather than "newest wins":
+# AISimulate keeps adding collections, and the newest is not always the richest. NCCL
+# 2.30.7, added after these coefficients were generated, carries 60 rows under a narrower
+# schema with no `device`/`version` columns, where 2.29.2 carries 504 under the full one.
+# Taking the newest would both crash and silently change the citations. Override with
+# NCCL_COLLECTION=<version> to fit a different one deliberately.
+PINNED_NCCL = {
+    "a100_sxm": "2.27.3",
+    "a100_pcie": "2.27.3",
+    "l40s": "2.27.3",
+    "h100_sxm": "2.29.2",
+    "h200_sxm": "2.29.2",
+    "b200_sxm": "2.29.2",
+    "b300_sxm": "2.29.2",
+    "gb200": "2.29.2",
+}
+
+
+def _pick_collection(comm: Path, sku: str) -> Path | None:
+    """The pinned NCCL collection for `sku`, or None when it is absent."""
+    want = os.environ.get("NCCL_COLLECTION") or PINNED_NCCL.get(sku)
+    if want is None:
+        return None
+    path = comm / want
+    return path if path.is_dir() else None
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -119,7 +147,9 @@ def main(argv: list[str]) -> int:
         comm = root / sku / "comm" / "nccl"
         if not comm.is_dir():
             continue
-        version = sorted(comm.iterdir())[-1]
+        version = _pick_collection(comm, sku)
+        if version is None:
+            continue
         rows = fc.read_sweep(version)
         device, nccl = rows[0]["device"], rows[0]["version"]
         cite = (

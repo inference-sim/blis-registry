@@ -21,7 +21,8 @@
 # assumed here because the environment these were written in had no tokenizer library
 # installed, not because the measurement is hard.
 #
-# WHAT THE VALUES REST ON. BLIS's trained-physics.yaml holds fitted values for two of the
+# WHAT THE VALUES REST ON. BLIS's former trained-physics set (removed from this registry as
+# unreproducible; recoverable at git 2dcf24014edd) held fitted values for two of the
 # three quantities, obtained against a different functional form: output_token_processing
 # at 45.907545 and post_decode_fixed at 777.3455, both us_per_request on H100, both
 # method: measured. Those numbers are not reusable here — a coefficient is valid only for
@@ -59,7 +60,7 @@ coefficients:
       scope: {hardware: [a100-80, a100-sxm, b200, b300, gb200-nvl72, h100, h200, l40s]}
       sources:
         - kind: discussion
-          cite: "BLIS trained-physics.yaml queueing (alpha_1 = a per-input-token term in a fitted queueing form), used as an order-of-magnitude anchor only"
+          cite: "BLIS trained-physics (removed; git 2dcf24014edd) queueing (alpha_1 = a per-input-token term in a fitted queueing form), used as an order-of-magnitude anchor only"
           role: supporting
       rationale: >
         CPU time per prompt token before a request can be scheduled: tokenization, chat
@@ -87,7 +88,7 @@ coefficients:
       scope: {hardware: [a100-80, a100-sxm, b200, b300, gb200-nvl72, h100, h200, l40s]}
       sources:
         - kind: discussion
-          cite: "BLIS trained-physics.yaml output_token_processing = 45.907545 (fitted on H100 against a different step-time form), used as an order-of-magnitude anchor only"
+          cite: "BLIS trained-physics (removed; git 2dcf24014edd) output_token_processing = 45.907545 (fitted on H100 against a different step-time form), used as an order-of-magnitude anchor only"
           role: supporting
       rationale: >
         Host time per emitted token: incremental detokenization and streaming. vLLM runs
@@ -111,7 +112,7 @@ coefficients:
       scope: {hardware: [a100-80, a100-sxm, b200, b300, gb200-nvl72, h100, h200, l40s]}
       sources:
         - kind: discussion
-          cite: "BLIS trained-physics.yaml post_decode_fixed = 777.3455 (fitted on H100 against a different step-time form), used as an order-of-magnitude anchor only"
+          cite: "BLIS trained-physics (removed; git 2dcf24014edd) post_decode_fixed = 777.3455 (fitted on H100 against a different step-time form), used as an order-of-magnitude anchor only"
           role: supporting
       rationale: >
         Fixed per-request host work at completion: finish-reason determination, response

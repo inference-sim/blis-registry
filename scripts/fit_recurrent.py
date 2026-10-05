@@ -25,6 +25,8 @@ the registry:
   LOWER BOUND on the layer, not the layer, and they are labelled to say so.
 
 Usage:
+    python scripts/fit_recurrent.py <sweep>.parquet [--model <model_name>]
+
     python scripts/fit_recurrent.py <data>/h100_sxm/kda/sglang/0.5.16/kda_perf.parquet
     python scripts/fit_recurrent.py <data>/h100_sxm/linear_attention/trtllm/1.3.0rc20/mamba2_perf.parquet
 """
@@ -67,10 +69,15 @@ def fit(points: list[tuple[float, float]]) -> tuple[float, float, float]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
+    if len(argv) not in (2, 4) or (len(argv) == 4 and argv[2] != "--model"):
         print(__doc__, file=sys.stderr)
         return 2
     path = Path(argv[1])
+    # Pooling models is wrong when their geometries differ: the committed mamba2 entries
+    # are fitted on Nemotron-3-Ultra alone, because d_model/nheads set how much work one
+    # token is and a fit over six geometries describes none of them. The sweep's own
+    # model_name column is the filter, so the citation and the command can agree.
+    only_model = argv[3] if len(argv) == 4 else None
     if not path.is_file():
         print(f"no such file: {path}", file=sys.stderr)
         return 1
@@ -80,6 +87,12 @@ def main(argv: list[str]) -> int:
         print(f"no generation-phase rows in {path.name}", file=sys.stderr)
         return 1
 
+    if only_model is not None:
+        generation = [r for r in generation
+                      if str(r.get("model_name", "?")) == only_model]
+        if not generation:
+            print(f"no generation rows for model {only_model}", file=sys.stderr)
+            return 1
     models = sorted({str(r.get("model_name", "?")) for r in generation})
     print(f"# {rows[0]['device']}, {rows[0]['framework']} {rows[0]['version']}, "
           f"op {rows[0]['op_name']}")

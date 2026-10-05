@@ -37,7 +37,7 @@ import sys
 
 import pyarrow.parquet as pq
 
-DEFAULT_DATA = "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"
+DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
 
 # AISimulate SKU directory -> catalog chip name. Same mapping the other fitters use.
 SKUS = {

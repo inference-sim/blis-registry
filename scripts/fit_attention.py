@@ -28,6 +28,7 @@ Usage:
 from __future__ import annotations
 
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -77,7 +78,8 @@ def log_error(points: list[tuple[float, float]], predict) -> float:
 def main(argv: list[str]) -> int:
     args = argv[1:]
     chip = None
-    catalog = Path("/Users/sri/Documents/Projects/blis-catalog")
+    catalog = Path(os.environ.get("BLIS_CATALOG",
+                                 "/Users/sri/Documents/Projects/blis-catalog"))
     if "--chip" in args:
         i = args.index("--chip")
         chip = args[i + 1]

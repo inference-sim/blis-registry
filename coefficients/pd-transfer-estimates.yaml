@@ -32,7 +32,7 @@ coefficients:
   # placeholder — a minute too long, a nanosecond too short — NOT a measurement, so method:
   # assumed. Recorded in us_per_transfer (the schema's per-transfer-latency unit; UNITS has no
   # `ms` member), so the physical 0.05 ms is preserved as 50.0 µs — the same in-schema-unit
-  # substitution output_token_processing uses in trained-physics.yaml for an absent unit.
+  # substitution output_token_processing used in the removed trained-physics set for an absent unit.
   #
   # SOLE OWNER — no catalog term to compose with. blis-catalog#12 (R2H3) REMOVES
   # PDTransferBaseLatencyMs from the networks/*.yaml fabric classes entirely (a fabric has no

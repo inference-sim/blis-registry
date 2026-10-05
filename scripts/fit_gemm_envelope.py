@@ -24,6 +24,7 @@ from __future__ import annotations
 import collections
 import csv
 import math
+import os
 import statistics
 import sys
 from pathlib import Path
@@ -210,7 +211,8 @@ def report_moe(rows: list[dict]) -> None:
 def main(argv: list[str]) -> int:
     args = argv[1:]
     moe_dir: Path | None = None
-    catalog = Path("/Users/sri/Documents/Projects/blis-catalog")
+    catalog = Path(os.environ.get("BLIS_CATALOG",
+                                 "/Users/sri/Documents/Projects/blis-catalog"))
     if "--moe" in args:
         i = args.index("--moe")
         if i + 1 >= len(args):

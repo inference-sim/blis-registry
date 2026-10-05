@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -221,7 +222,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=atm.DEFAULT_DATA)
-    ap.add_argument("--catalog", default="/Users/sri/Documents/Projects/blis-catalog")
+    ap.add_argument("--catalog", default=os.environ.get(
+        "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog"))
     ap.add_argument("--sku")
     ap.add_argument("--chip")
     ap.add_argument("--lane", default=None, help="kernel_source to fit; default the most populous")

@@ -35,7 +35,7 @@ schema so that missing provenance, unrecognized fields, or ill-formed values are
 ## Authoring and validating a set
 
 A coefficient set is one YAML file under `coefficients/`. It declares `kind:
-CoefficientSet`, a unique `name` (the set's identity — e.g. `roofline-h100`), and a
+CoefficientSet`, a unique `name` (the set's identity — e.g. `cost-model-attention`), and a
 `coefficients` list. Each list entry is a single-key map keyed by the coefficient name.
 Sets are standalone: there is no `backend` field and no inheritance between sets.
 
@@ -52,7 +52,7 @@ A minimal set looks like:
 
 ```yaml
 kind: CoefficientSet
-name: roofline-l40s
+name: example-set
 coefficients:
   - mfu_prefill:
       value: 0.32
@@ -77,14 +77,14 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
-Real sets live in `coefficients/` — the roofline MFU sets (one per supported GPU), the
-`trained-physics` correction set, the `communication-coefficients` set (the named
-tensor-parallel/MoE collectives, split from the trained-physics comm slot), the
+Real sets live in `coefficients/` — the five `cost-model-*` sets that price a step
+(primitives, collectives, attention, recurrent, host overheads), the
+`communication-coefficients` set (named tensor-parallel/MoE collectives), the
 `lora-adapter-costs` set (Digital-Twin adapter cost terms), the `legacy-kv-transfer`
 set (the pre-#1590 CPU↔GPU transfer defaults), and the `pd-transfer-estimates` set
-(the PD KV-transfer base-latency estimate and the fabric-bandwidth overhead correction)
-are transcribed there, with more added by later tasks. These committed sets are what CI
-validates on every run.
+(the PD KV-transfer base-latency estimate and the fabric-bandwidth overhead correction).
+These committed sets are what CI validates on every run. Every `cost-model-*` value is
+re-derivable from public data — see [`docs/reproducing-coefficients.md`](docs/reproducing-coefficients.md).
 
 ## Usage
 

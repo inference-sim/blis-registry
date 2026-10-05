@@ -48,14 +48,15 @@ Usage:
 import argparse
 import hashlib
 import math
+import os
 import sys
 from pathlib import Path
 
 import pyarrow.parquet as pq
 import yaml
 
-DEFAULT_DATA = "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"
-DEFAULT_CATALOG = "/Users/sri/Documents/Projects/blis-catalog"
+DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
 DEFAULT_REGISTRY = "."
 COLLECTION = "trtllm/1.3.0rc20"
 

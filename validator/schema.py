@@ -58,11 +58,9 @@ UNITS = frozenset(
         # expresses them.
         "tokens",           # a token count (the GEMM efficiency ramp's half-max point)
         "sm_count",         # streaming multiprocessors withheld by a concurrent op
-        # A per-emitted-token host cost. The gap is recorded in this repository
-        # already: trained-physics.yaml's output_token_processing holds a µs/token
-        # quantity under us_per_request with the note that "the schema's units enum has
-        # no us_per_token member". This is that member; the relocation of that entry is
-        # a separate, value-preserving change.
+        # A per-emitted-token host cost. The since-removed trained-physics set recorded
+        # output_token_processing as a µs/token quantity under us_per_request, noting that
+        # "the schema's units enum has no us_per_token member". This is that member.
         "us_per_token",
     }
 )

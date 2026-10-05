@@ -1,6 +1,6 @@
 # Communication coefficients — the named collectives (R2G4).
 #
-# WHY THIS SET. The trained-physics fit (R2G3, coefficients/trained-physics.yaml) folded three
+# WHY THIS SET. The trained-physics fit (R2G3; set since removed as unreproducible) folded three
 # distinct tensor-parallel collectives into ONE array slot — β₄ (beta_coeffs[3] = 0.752037) —
 # purely because they were adjacent positions, not because any measurement showed them equal.
 # R2G4 gives each communication coefficient its OWN NAME while keeping the value it holds today,
@@ -11,10 +11,10 @@
 # sets). This set holds only what R2G4 ADDS or RENAMES; it does not restate entries that already
 # carry their final name elsewhere:
 #   - tp_allreduce_attention (β₄, the ONE measured/fitted value) already has its final R2G4 name
-#     in trained-physics.yaml — not re-declared here. The two split siblings below `copied_from`
+#     in trained-physics — not re-declared here. The two split siblings below `copied_from`
 #     it, recording honestly that only one number was fit and the others share it because they
 #     were one array slot, not independently measured.
-#   - cross_node_hop_latency (α_hop) already has its final name in trained-physics.yaml
+#   - cross_node_hop_latency (α_hop) already had its final name in trained-physics
 #     (us_per_hop, not_charged, 0.0). R2H1/R2H2 places no competing hop-latency fact in the
 #     catalog (networks/*.yaml carry only InterNodeBwGBps — blis-catalog#12 removed the
 #     PDTransferBaseLatencyMs field, deferring every fabric-latency estimate to the registry),

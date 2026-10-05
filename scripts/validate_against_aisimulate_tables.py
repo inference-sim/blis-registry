@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -56,7 +57,7 @@ assert _spec.loader is not None
 _spec.loader.exec_module(atm)
 
 REGISTRY = Path(__file__).parent.parent
-DEFAULT_CATALOG = "/Users/sri/Documents/Projects/blis-catalog"
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
 
 # The regime the evaluation corpus actually runs. Reporting a ratio over every measured shape
 # would average in contexts and batches no scored point visits, and the interesting question is

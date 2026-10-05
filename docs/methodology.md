@@ -330,3 +330,87 @@ FPM is the validation source in §3, but its reach is narrower than the coeffici
   AISimulate K and M folds above already refuse the relane on the shapes the corpus runs,
   so no FPM run was needed to decide it. An FPM fold remains the right arbiter for a change
   to the ramp's FORM, which §7.3 identifies and does not attempt.
+
+## 8. Lane provenance: every coefficient family, and every remaining borrow
+
+The lane rule in §2 is applied per operator. This section is the resulting census, so a
+reader can tell at a glance which engine's measurements each coefficient rests on, and
+which four are borrowed because no alternative exists.
+
+### 8.1 The census
+
+| lane | n | share | what it is |
+|---|---|---|---|
+| `nccl` | 498 | 68.8% | all_gather, reduce_scatter, all_to_all, and the int8 all-reduce |
+| `vllm` | 152 | 21.0% | attention, GEMM, MoE imbalance, KDA, and the fp16 all-reduce |
+| descriptor | 64 | 8.8% | NVIDIA's own `systems/<sku>.yaml` — HBM derate, PCIe, p2p, NCCL buffers |
+| none | 6 | 0.8% | host overheads, all `method: assumed` |
+| `trtllm` | 2 | 0.3% | mamba2 — **borrow** |
+| `sglang` | 2 | 0.3% | A100 MoE imbalance — **borrow** |
+
+**NCCL is not a borrow.** It is vLLM's own path for every collective except all-reduce:
+`CustomAllreduce` implements all-reduce only, and `should_custom_all_gather` /
+`should_custom_reduce_scatter` gate and fall through. AISimulate ships no vLLM data for
+those operators because there is nothing to measure. Of the 654 data-fitted coefficients,
+**650 (99.4%) rest on vLLM's actual execution path** — 152 vLLM-lane plus 498 NCCL. The
+remaining four are the borrows in §8.3.
+
+### 8.2 Per-family detail
+
+| set | family | n | lanes |
+|---|---|---|---|
+| attention | `attention_decode_{floor,rate}` | 14 | vllm 0.25.0 ×10, 0.24.0 ×2, 0.14.0 ×2 |
+| attention | `attention_decode_*_swa` | 12 | vllm 0.25.0 ×10, 0.24.0 ×2 |
+| attention | `attention_prefill_{floor,work_scale}` | 14 | vllm 0.25.0 ×10, 0.24.0 ×2, 0.14.0 ×2 |
+| collectives | all-reduce fp16 (floor, peak, transition) | 69 | **vllm** 0.24.0 ×36, 0.14.0 ×18, nccl ×15 |
+| collectives | every other collective | 429 | nccl 2.29.2 / 2.27.3 |
+| primitives | `gemm_{eps_max,m_half}` | 44 | vllm 0.27.1 ×24, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
+| primitives | `moe_routing_imbalance_{median,p90}` | 14 | vllm ×12, **sglang 0.5.10 ×2 (A100)** |
+| primitives | descriptors | 64 | AISimulate `systems/<sku>.yaml` |
+| recurrent | `recurrent_decode_*_kda` | 2 | vllm 0.1.dev19262 |
+| recurrent | `recurrent_decode_*_mamba2` | 2 | **trtllm 1.3.0rc20** |
+| host-overheads | all | 6 | none — `method: assumed` |
+
+Where a part has no collection at the newest version, it uses the newest it has: L40S's
+attention and GEMM come from `vllm/0.24.0` because 0.25.0 does not cover it, and A100's
+from `vllm/0.14.0`. The citation on each entry names the collection it was fitted on.
+
+### 8.3 The four borrows, and why each is unavoidable
+
+**mamba2 (2 entries, trtllm/1.3.0rc20).** `mamba2_perf.parquet` exists on the TRT-LLM lane
+and nowhere else — checked across all eight SKUs in the tree. The vLLM `linear_attention`
+collections carry `gdn_perf.parquet` only. A strict vLLM-only registry could not price
+Nemotron-3 hybrids at all. The entries remain a documented LOWER BOUND regardless of lane:
+the sweep has only `causal_conv1d_fn` and `causal_conv1d_update`, so the selective-scan
+kernel that does the rest of a Mamba2 layer is in no collection.
+
+**A100 MoE imbalance (2 entries, sglang/0.5.10).** A100's only vLLM MoE collection
+(`vllm/0.14.0`) contains `power_law_1.01` and `power_law_1.2` rows and **no `balanced`
+rows at all**. The coefficient is a ratio of skewed to balanced latency at identical
+shape, so with no balanced measurement there is no ratio to take. SGLang's sweep carries
+all three distributions. A100's GEMM entries DID move to the vLLM lane — that sweep is
+usable — so this is the narrowest possible borrow.
+
+### 8.4 What validates what
+
+The three-level separation in §3 assigns FPM the validation role, but FPM's reach is
+narrower than the coefficient set and it is worth being exact about where it applies.
+
+FPM's 59 records are 41 vLLM and 18 SGLang, across five GPU families: B200 (17),
+GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
+
+* **GEMM and MoE**: validatable. Every FPM model carries dense `GEMM` nodes, and the MoE
+  models carry `GroupedGEMM`, on chips the catalog prices.
+* **Attention, full and windowed**: GQA and MLA are validatable; **sliding window is not**
+  — no FPM model declares a `kind: swa` node. The SWA relane therefore rests on held-out
+  AISimulate folds (§7.1) plus lane correctness, with no FPM arbiter.
+* **KDA**: the data EXISTS but the catalog cannot reach it. Four Kimi-K3 artifacts are
+  all vLLM and all on **GB300**, two of them on `vllm/0.1.dev19262` — the same collection
+  the kernel fit used, which would be the cleanest possible pairing. The catalog has no
+  `gb300` chip, so no scenario can be built. Tracked as blis-catalog#17 and
+  blis-registry#25; until then KDA is the one family shipping on fit quality and vLLM
+  source reading alone.
+* **mamba2**: no FPM artifact carries a Mamba2 forward pass, and no InferenceX tier
+  carries Nemotron-3. Unvalidatable from either direction.
+* **A100 and L40S**: absent from FPM and from InferenceX entirely. Their coefficients are
+  fitted and shipped but carry no end-to-end check, which is stated rather than implied.

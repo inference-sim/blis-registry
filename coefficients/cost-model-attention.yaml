@@ -473,30 +473,22 @@ coefficients:
       rationale: >
         4.00 TB/s, 0.50 of this part's 8.000 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 29,662 points.
   - attention_decode_floor_swa:
-      value: 10.5
+      value: 8.5
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 11,794 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 14,550 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        32.2x to 1.683x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.24.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 14,550 windowed points; geometric error 2.110x.
   - attention_decode_rate_swa:
-      value: 622080.0
+      value: 224640.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [l40s]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA L40S), 11,794 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 14,550 sliding-window decode points", role: primary}
       rationale: >
-        0.72 of the 0.864 TB/s datasheet bandwidth, against 0.78 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        0.22 TB/s, 0.26 of this part's 0.864 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.24.0) over 14,550 points.

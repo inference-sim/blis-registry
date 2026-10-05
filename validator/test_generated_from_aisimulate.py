@@ -40,12 +40,23 @@ pytestmark = pytest.mark.skipif(
 )
 
 # (sku, catalog chip, gemm collection, nccl version)
+# (sku, chip, the GEMM collection its coefficients CITE, the NCCL collection).
+# The GEMM entries moved to the vLLM lane: vLLM runs its own linear kernels for every
+# quantized dtype -- CutlassFP8ScaledMMLinearKernel, FlashInferCuteDslNvFp4LinearKernel,
+# and a FlashInfer/DeepGEMM dispatch for fp8_block -- not the single `torch_flow` path the
+# TRT-LLM sweep measures. A100 keeps SGLang, the only lane carrying that family for it.
+# l40s's newest vLLM gemm collection is 0.24.0; the Hopper and Blackwell parts use 0.25.0
+# or 0.27.1 and are covered by the shape-ramp gate below rather than here.
 PARTS = [
-    ("h200_sxm", "h200", "trtllm/1.3.0rc20", "2.29.2"),
-    ("h100_sxm", "h100", "trtllm/1.3.0rc20", "2.29.2"),
-    ("l40s", "l40s", "trtllm/1.3.0rc20", "2.27.3"),
-    ("gb200", "gb200-nvl72", "trtllm/1.3.0rc20", "2.29.2"),
-    ("a100_sxm", "a100-sxm", "sglang/0.5.10", "2.27.3"),
+    ("h200_sxm", "h200", "vllm/0.25.0", "2.29.2"),
+    ("h100_sxm", "h100", "vllm/0.25.0", "2.29.2"),
+    ("l40s", "l40s", "vllm/0.24.0", "2.27.3"),
+    ("gb200", "gb200-nvl72", "vllm/0.27.1", "2.29.2"),
+    # a100_sxm's GEMM moved to the vLLM lane too: its vLLM sweep (0.14.0) is smaller
+    # than SGLang's but measures the engine being predicted, and scored against the vLLM
+    # envelope the vLLM fit wins 0.0673 to 0.1002. Its MoE imbalance stays on SGLang --
+    # the vLLM MoE sweep for this part has no `balanced` rows, so no paired ratio exists.
+    ("a100_sxm", "a100-sxm", "vllm/0.14.0", "2.27.3"),
 ]
 
 DTYPE = {

@@ -373,145 +373,105 @@ coefficients:
         0.46 of the dense bf16 ramp, above B200's 0.40 on the same kernel: this part's bf16
         envelope peaks higher (0.854 vs 0.787), and attention converts more of it.
   - attention_decode_floor_swa:
-      value: 10.0
+      value: 15.0
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [h100]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 11,666 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 31,890 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        102.7x to 1.714x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 31,890 windowed points; geometric error 1.375x.
   - attention_decode_rate_swa:
-      value: 1072000.0
+      value: 871000.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [h100]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 11,666 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 31,890 sliding-window decode points", role: primary}
       rationale: >
-        0.32 of the 3.35 TB/s datasheet bandwidth, against 0.72 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        0.87 TB/s, 0.26 of this part's 3.350 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 31,890 points.
   - attention_decode_floor_swa:
-      value: 9.5
+      value: 14.0
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [h200]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 13,000 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H200), 31,890 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        130.8x to 1.704x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 31,890 windowed points; geometric error 1.390x.
   - attention_decode_rate_swa:
-      value: 1248000.0
+      value: 864000.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [h200]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA H200), 13,000 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H200), 31,890 sliding-window decode points", role: primary}
       rationale: >
-        0.26 of the 4.8 TB/s datasheet bandwidth, against 0.54 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        0.86 TB/s, 0.18 of this part's 4.800 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 31,890 points.
   - attention_decode_floor_swa:
-      value: 11.5
+      value: 9.0
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [b200]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B200), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        217.1x to 1.429x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 29,662 windowed points; geometric error 1.265x.
   - attention_decode_rate_swa:
-      value: 3850000.0
+      value: 3388000.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [b200]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B200), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        0.5 of the 7.7 TB/s datasheet bandwidth, against 0.88 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        3.39 TB/s, 0.44 of this part's 7.700 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 29,662 points.
   - attention_decode_floor_swa:
-      value: 11.0
+      value: 9.0
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 9,184 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        244.6x to 1.433x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 29,662 windowed points; geometric error 1.250x.
   - attention_decode_rate_swa:
-      value: 3565000.0
+      value: 3875000.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 9,184 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        0.46 of the 7.75 TB/s datasheet bandwidth, against 0.84 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        3.88 TB/s, 0.50 of this part's 7.750 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 29,662 points.
   - attention_decode_floor_swa:
-      value: 12.5
+      value: 10.5
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [gb200-nvl72]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB200), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        A sliding-window decode kernel reads a bounded slice of the context rather than all of
-        it, so it is a different kernel from full attention and carries its own floor and rate.
-        Fitted on the window-bounded byte count: positions read are min(context, window_size).
-        229.9x to 1.404x against a form with no floor and no derate.
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 29,662 windowed points; geometric error 1.235x.
   - attention_decode_rate_swa:
-      value: 4960000.0
+      value: 4000000.0
       units: bytes_per_us
       method: measured
       fitted: true
       scope: {hardware: [gb200-nvl72]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/trtllm/1.3.0rc20/generation_attention_perf.parquet (NVIDIA GB200), 10,518 sliding-window decode points, kernel_source torch_flow", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB200), 29,662 sliding-window decode points", role: primary}
       rationale: >
-        0.62 of the 8.0 TB/s datasheet bandwidth, against 0.86 for full attention
-        on this part -- a windowed kernel sustains materially less effective bandwidth, so
-        pricing it with the full-attention rate makes every windowed layer too cheap. The
-        fitted fraction is capped at 1.0: a rate above peak would not be a measurement of
-        speed but a sign the byte count is wrong, which is how an uncapped first fit landed at
-        2.00 of peak.
+        4.00 TB/s, 0.50 of this part's 8.000 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 29,662 points.
   - attention_decode_floor_swa:
       value: 10.5
       units: us_per_transfer

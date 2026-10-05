@@ -33,6 +33,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import collections
 import math
 import sys
@@ -69,15 +70,25 @@ def fit(points: list[tuple[float, float]]) -> tuple[float, float, float]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 4) or (len(argv) == 4 and argv[2] != "--model"):
-        print(__doc__, file=sys.stderr)
-        return 2
-    path = Path(argv[1])
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("sweep", type=Path, help="a *_perf.parquet under <sku>/<family>/...")
     # Pooling models is wrong when their geometries differ: the committed mamba2 entries
     # are fitted on Nemotron-3-Ultra alone, because d_model/nheads set how much work one
     # token is and a fit over six geometries describes none of them. The sweep's own
     # model_name column is the filter, so the citation and the command can agree.
-    only_model = argv[3] if len(argv) == 4 else None
+    ap.add_argument("--model", dest="only_model",
+                    help="fit only rows whose model_name matches exactly")
+    # The same hazard along a second axis. vLLM's KDA sweep varies num_k_heads over
+    # 12/24/48/96 where SGLang's holds it at 12, so a fit pooled over the vLLM file
+    # describes no geometry: it lands at geo-err 1.733x where each width alone fits to
+    # 1.169-1.196x. A per-width fit is the comparable one.
+    ap.add_argument("--num-k-heads", dest="num_k_heads", type=int,
+                    help="fit only rows with this num_k_heads")
+    ap.add_argument("--group-by", choices=["kernel", "kernel+heads"], default="kernel",
+                    help="'kernel+heads' reports one fit per (kernel, num_k_heads)")
+    args = ap.parse_args(argv[1:])
+    path, only_model = args.sweep, args.only_model
     if not path.is_file():
         print(f"no such file: {path}", file=sys.stderr)
         return 1
@@ -93,6 +104,13 @@ def main(argv: list[str]) -> int:
         if not generation:
             print(f"no generation rows for model {only_model}", file=sys.stderr)
             return 1
+    if args.num_k_heads is not None:
+        generation = [r for r in generation
+                      if r.get("num_k_heads") == args.num_k_heads]
+        if not generation:
+            print(f"no generation rows with num_k_heads={args.num_k_heads}",
+                  file=sys.stderr)
+            return 1
     models = sorted({str(r.get("model_name", "?")) for r in generation})
     print(f"# {rows[0]['device']}, {rows[0]['framework']} {rows[0]['version']}, "
           f"op {rows[0]['op_name']}")
@@ -100,7 +118,10 @@ def main(argv: list[str]) -> int:
 
     by_kernel: dict[str, list[tuple[float, float]]] = collections.defaultdict(list)
     for r in generation:
-        by_kernel[r["kernel_source"]].append((r["num_tokens"], r["latency"] * 1000))
+        key = r["kernel_source"]
+        if args.group_by == "kernel+heads" and r.get("num_k_heads") is not None:
+            key = f"{key} hk={r['num_k_heads']}"
+        by_kernel[key].append((r["num_tokens"], r["latency"] * 1000))
     for kernel in sorted(by_kernel):
         points = by_kernel[kernel]
         if len(points) < 8:

@@ -210,3 +210,123 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 * **skips are explicit** — a gate that cannot run says why. The three-factor GEMM ramp's
   gate skips while the registry carries the one-factor form, and activates the moment the
   coefficients land.
+
+## 7. Held-out validation of the lane decisions
+
+§4 states the splitting principle. This section records the folds actually run, the
+numbers they produced, and the decisions they support or refuse. Every figure here is
+reproduced by the script named beside it; none is a residual on the rows that were fitted.
+
+### 7.1 Sliding-window attention: hold out one window width
+
+`scripts/holdout_attention_swa.py`. The window is the dimension that defines the kind —
+`kv_bytes` reads `min(context, window)` positions — so a held-out width is a byte count the
+fit never saw. Reported as the median over folds, because the widths are heavily unbalanced
+(window 128 carries 82% of h200's rows, so that fold trains on an eighth of the sweep while
+the others hold out 3-6%); a mean over folds this uneven would describe none of them.
+
+| part | vLLM collection | vLLM median held-out | TRT-LLM median held-out | shared folds won by vLLM | decision |
+|---|---|---|---|---|---|
+| h200 | vllm/0.25.0 | **1.457x** | 1.754x | 3/3 | relane |
+| h100 | vllm/0.25.0 | **1.433x** | 1.787x | 2/2 | relane |
+| b200 | vllm/0.25.0 | **1.344x** | 1.475x | 2/3 | relane |
+| b300 | vllm/0.25.0 | **1.317x** | 1.498x | 2/2 | relane |
+| gb200-nvl72 | vllm/0.25.0 | **1.276x** | 1.358x | 3/3 | relane |
+| l40s | vllm/0.24.0 | 2.073x | **1.681x** | 0/2 | **keep TRT-LLM** |
+
+Twelve of thirteen shared folds favour vLLM on the five relaned parts; the single exception
+is b200 at window 2048 (1.259x against 1.244x). The vLLM sweep also covers five widths
+where TRT-LLM covers two or three, so the TRT-LLM fit was never tested at 512 or 1024 on
+any part.
+
+L40S is the documented exception and now has held-out evidence rather than a residual: its
+vLLM fit is worse on BOTH folds. Note that L40S has no `vllm/0.25.0` attention collection
+at all — `vllm/0.24.0` is its newest — so the comparison uses that, and an earlier reading
+of "no vLLM data" for this part was wrong.
+
+### 7.2 KDA: hold out the head-count geometry
+
+`scripts/fit_recurrent.py --group-by kernel+heads`. vLLM's KDA sweep varies `num_k_heads`
+over 12/24/48/96 where SGLang's holds it at 12. Pooling those four geometries into one fit
+gives geo-err **1.733x**; fitted per geometry the same rows give 1.169x to 1.196x. The
+pooled figure is an artefact of the pooling, not a property of the lane:
+
+| lane | num_k_heads | n | floor | rate | geo-err |
+|---|---|---|---|---|---|
+| sglang/0.5.16 (committed) | 12 | 11 | 5.1 us | 1.50 tok/us | **1.160x** |
+| vllm/0.1.dev19262 | 12 | 11 | 5.4 us | 1.75 tok/us | **1.169x** |
+| vllm/0.1.dev19262 | 24 | 11 | 5.3 us | 1.00 tok/us | 1.196x |
+| vllm/0.1.dev19262 | 48 | 11 | 3.6 us | 0.50 tok/us | 1.191x |
+| vllm/0.1.dev19262 | 96 | 11 | 3.6 us | 0.25 tok/us | 1.188x |
+
+At the matching geometry — `num_k_heads: 12`, which is what SGLang measures — the two lanes
+are **equivalent** (1.160x against 1.169x, a difference of 0.009). An earlier claim that the
+vLLM lane fits 1.49x worse was wrong, and wrong because of the pooling above.
+
+This does not by itself relane KDA. The vLLM collection is a dev build
+(`0.1.dev19262+gb6bbf29dd`), Kimi-K3 appears in no InferenceX tier and in no FPM artifact
+with a KDA node, so the change is unevaluable end to end and the decision rests on fit
+quality alone, where the two lanes tie.
+
+### 7.3 GEMM ramp: hold out whole K values, and the largest M values
+
+`scripts/holdout_gemm_ramp.py`. Two folds, and the second one found a defect in the FORM
+rather than in the lane.
+
+**The ramp is the wrong shape above M ~ 4096.** `eff(M) = eps_max * M / (M + M_half)` is
+monotone and saturating, but the measured envelope PEAKS mid-sweep and then declines — on
+h200 bfloat16, 0.956 at M=3329 falling to 0.875 at M=32768 on the vLLM lane, and 0.870 at
+M=4097 falling to 0.839 on TRT-LLM. Both lanes show it, so it is a property of the kernel
+and not of either engine. Holding out the three largest M values and extrapolating:
+
+| held-out M | predicted | measured | error |
+|---|---|---|---|
+| 8192 | 0.987 | 0.930 | +0.057 |
+| 16384 | 0.993 | 0.911 | +0.082 |
+| 32768 | 0.997 | 0.875 | **+0.121** |
+
+So `eps_max` is fitted to an asymptote the kernel never reaches, and a fit that has not seen
+large M over-predicts there by up to 12 points of efficiency.
+
+**Why this is recorded and not fixed.** A decode step's M is the token count in the batch,
+and the corpus runs M = 1 to 2048 with 97% of points at M <= 128. The decline begins above
+M ~ 4096, outside the range any evaluated deployment reaches. Scoring the same fit inside
+and outside the operating range:
+
+| lane | range | n | rms | mean signed |
+|---|---|---|---|---|
+| vllm/0.25.0 | M <= 128 (97% of corpus steps) | 30 | 0.0585 | +0.0509 |
+| vllm/0.25.0 | M <= 2048 (all corpus steps) | 52 | 0.0745 | +0.0009 |
+| trtllm/1.3.0rc20 | M <= 128 | 30 | **0.0474** | **+0.0393** |
+| trtllm/1.3.0rc20 | M <= 2048 | 52 | **0.0538** | +0.0040 |
+
+**This refuses a vLLM-lane GEMM relane.** In the range that matters TRT-LLM fits better on
+both measures, which is consistent with §2's finding that the lanes agree to 0.4-3.6% on
+shared shapes — the same cuBLAS/CUTLASS kernels underneath — so the larger TRT-LLM sweep
+wins on determination rather than on engine. The lane rule is "fit the engine you predict"
+only where the engine changes the kernel, and for GEMM it does not.
+
+Both lanes over-predict efficiency at small M (+0.039 and +0.051), which UNDER-predicts
+decode latency on the shapes that dominate the corpus. That is a real, quantified direction
+for future work, and it is a form problem: the fix is a non-monotone ramp or a small-M
+correction term, not a different collection.
+
+### 7.4 What FPM could and could not adjudicate
+
+FPM is the validation source in §3, but its reach is narrower than the coefficient set:
+
+* **SWA**: unusable. No FPM model carries a sliding-window node. Four of the six models in
+  the FPM catalog have a graph in blis-catalog — MiniMax-M2.7 (`gqa`), GLM-5.2
+  (`gqa`, `sparse_mla`), DeepSeek-V4-Pro (`gqa`, `mla`, `sparse_mla`) and Kimi-K3
+  (`kda`, `mla`) — and none declares `kind: swa`; the other two
+  (DeepSeek-V4.1-Flash, DeepSeek-V4-Flash-0731) have no catalog graph, so the kernel cannot
+  price them either way. The relane in §7.1 therefore rests on held-out AISimulate folds
+  plus provenance, with no FPM arbiter, and that is weaker evidence than a GEMM change
+  would carry.
+* **KDA**: unusable for the same reason; Kimi-K3's FPM artifacts carry no KDA-node forward
+  pass in the local snapshot.
+* **GEMM**: usable in principle — each of the four graphed FPM models carries dense `GEMM`
+  nodes (3 on MiniMax-M2.7, 9 on GLM-5.2, 18 on DeepSeek-V4-Pro, 17 on Kimi-K3) — but the
+  AISimulate K and M folds above already refuse the relane on the shapes the corpus runs,
+  so no FPM run was needed to decide it. An FPM fold remains the right arbiter for a change
+  to the ramp's FORM, which §7.3 identifies and does not attempt.

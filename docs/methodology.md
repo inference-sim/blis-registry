@@ -262,6 +262,28 @@ attributable rather than merely visible.
 A figure quoted without its flags cannot be checked, and this is the reason every
 table in the companion documents carries its invocation.
 
+### 6.1.1 The scorer's kernel is pinned, and the pin is not this registry's concern
+
+One asymmetry in the reproduce recipe is worth stating because it looks like an
+oversight and is not. `inference-sim`'s scoring branch clones the catalog and the
+registry with `-b modeling`, because both are read at RUN TIME by path and the
+scorer takes `-catalog` and `-registry` flags. It clones `blis-latency-kernel`
+WITHOUT a branch flag, because the kernel is a COMPILED dependency pinned by
+module version in `go.mod`, and its default branch is `main`.
+
+The consequence for a reader: changing this registry changes the figures
+immediately, while changing the kernel does not until its pin is advanced. At the
+time of writing the scoring branch pins kernel `0bbcb97`, which is an ancestor of
+the kernel's `modeling` branch by 17 commits. A figure recorded by
+`compare_registries.py --record` therefore states the scorer revision alongside
+the registry, and `--check` reports when it has moved, because a figure is a claim
+about the pair.
+
+A local `replace` directive pointing at on-disk kernel checkouts is how the
+scoring branch's own plan describes linking the two, and it is explicitly
+worktree-only: committing one would break the build for anyone following the
+clone recipe.
+
 ### 6.2 Which tier to weigh
 
 `inferencex_engine_settings.json` records **68 sweeps with a captured engine-args

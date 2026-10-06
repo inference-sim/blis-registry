@@ -91,6 +91,18 @@ coefficients:
         is real but misnamed if read as frontend overhead. Candidates not yet separated:
         first-request eager execution before graph capture, sampler and logits-processor
         construction, and the first detokenisation.
+        KNOWN LIMITATION, in the concurrency dimension. A constant adds the same amount at
+        every concurrency, so it lifts the low-concurrency anchor and compresses TTFT's
+        growth curve. Across the 95 vLLM sweeps carrying both concurrency 4 and 64,
+        measured TTFT rises 3.056x at the median (p10 2.144x) against ITL's 2.364x, and
+        rises faster than ITL in 72.6% of them -- an arriving request queues behind whole
+        prefills while a decode step grows only with the batch it joins. With this term
+        charged the model rises 1.407x against its own ITL's 2.128x, so the ordering
+        inverts. inference-sim's TestTTFTRisesWithConcurrency asserted both properties and
+        was relaxed to "TTFT must rise at all" with that measurement recorded in it. The
+        fix this points at is charging the deficit through a quantity that grows with queue
+        depth rather than a constant, which needs the measurement below rather than another
+        reading of the evaluation corpus.
         TO REPLACE THIS WITH A MEASUREMENT. Time client-observed TTFT against a running
         vLLM server at 1-token and 1,024-token prompts on the target part, at
         concurrency 1 with a warm cache; the intercept of those two points is F with no

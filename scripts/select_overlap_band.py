@@ -37,9 +37,14 @@ from pathlib import Path
 import pandas as pd
 
 
-def refuse_evaluation_data(path: Path) -> None:
-    """Fail loudly if asked to select against the evaluation corpus."""
-    parts = {p.lower() for p in path.parts}
+def refuse_evaluation_data(path: Path | str) -> None:
+    """Fail loudly if asked to select against the evaluation corpus.
+
+    Accepts a str as well as a Path: a caller that passes a string would
+    otherwise get an AttributeError from .parts rather than the refusal, which
+    reads as a bug in the caller instead of the deliberate block it is.
+    """
+    parts = {p.lower() for p in Path(path).parts}
     if any("inferencex" in p or "semianalysis" in p for p in parts):
         raise SystemExit(
             f"{path}: InferenceX/SemiAnalysis data is evaluation-only and must not "

@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -34,6 +35,11 @@ from pathlib import Path
 METRICS = ("TPOT shape", "TPOT mape", "TTFT shape", "TTFT mape")
 DEFAULT_SCORER = Path("/private/tmp/blis-kernel-wt")
 REPO = Path(__file__).resolve().parent.parent
+
+
+# The recorded figures live beside the documents that quote them, so a reader who
+# checks out this repository has both the claim and the means to test it.
+BASELINE = REPO / "docs" / "evaluation-baseline.json"
 
 
 def revisions(scorer: Path, catalog: Path) -> list[str]:
@@ -105,6 +111,74 @@ def materialise(spec: str, tmp: Path) -> Path:
     return dest
 
 
+def single(scorer: Path, registry: Path, catalog: Path, tiers: list[str],
+           args, keep: Path) -> int:
+    """Score ONE registry and either record its headline figures or check them.
+
+    This is the end-to-end reproducibility path. It reuses the same controls the
+    two-registry comparison uses -- one scorer checkout, one catalog, an explicit
+    `-registry`, and the revisions printed above -- because those are exactly the
+    things that silently move a figure.
+
+    A recorded file is a claim about a specific triple of revisions, not about the
+    registry alone. `--check` therefore compares the revisions too and says so when
+    they differ, rather than reporting a drift it cannot attribute.
+    """
+    live: dict = {"framework": args.framework,
+                  "length_range_ratio": args.length_range_ratio,
+                  "revisions": revisions(scorer, catalog),
+                  "tiers": {}}
+    for tier in tiers:
+        path = keep / f"single-{tier}.txt"
+        score(scorer, registry, catalog, tier, args.framework,
+              args.length_range_ratio, path)
+        H = headline(path)
+        if not H:
+            print(f"=== {tier}: no headline table parsed", file=sys.stderr)
+            return 1
+        live["tiers"][tier] = {m: [round(H[m][0], 2), H[m][1]] for m in METRICS if m in H}
+
+    dest = Path(args.record or args.check)
+    if args.record:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(live, indent=2) + "\n", encoding="utf-8")
+        print(f"\nrecorded {dest}")
+        for tier, ms in live["tiers"].items():
+            print(f"  {tier}: " + "  ".join(f"{m} {v[0]:.2f}%" for m, v in ms.items()))
+        return 0
+
+    if not dest.exists():
+        print(f"no recorded baseline at {dest}; run --record first", file=sys.stderr)
+        return 1
+    rec = json.loads(dest.read_text())
+    rc = 0
+    for key in ("framework", "length_range_ratio"):
+        if rec.get(key) != live[key]:
+            print(f"FAIL {key}: recorded={rec.get(key)!r} now={live[key]!r}")
+            rc = 1
+    if rec.get("revisions") != live["revisions"]:
+        print("NOTE the scorer or catalog revision moved since the baseline was recorded:")
+        for line in rec.get("revisions", []):
+            print(f"  recorded  {line}")
+        for line in live["revisions"]:
+            print(f"  now       {line}")
+    for tier, ms in live["tiers"].items():
+        recorded = rec.get("tiers", {}).get(tier, {})
+        for m, (val, n) in ms.items():
+            if m not in recorded:
+                print(f"FAIL {tier} {m}: not in the recorded baseline")
+                rc = 1
+                continue
+            rval, rn = recorded[m]
+            if abs(val - rval) > 0.005 or n != rn:
+                print(f"FAIL {tier} {m}: computed={val:.2f}% n={n} "
+                      f"recorded={rval:.2f}% n={rn}")
+                rc = 1
+            else:
+                print(f"OK   {tier} {m}: {val:.2f}% (n={n})")
+    return rc
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -119,6 +193,12 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--framework", default="vllm")
     ap.add_argument("--length-range-ratio", default="1.0")
     ap.add_argument("--keep", metavar="DIR", help="write the raw score reports here")
+    ap.add_argument("--record", metavar="FILE", nargs="?", const=str(BASELINE),
+                    help="score --after alone and write its headline figures to FILE "
+                         f"(default {BASELINE.name}), instead of comparing two registries")
+    ap.add_argument("--check", metavar="FILE", nargs="?", const=str(BASELINE),
+                    help="score --after alone and FAIL if any headline figure differs "
+                         f"from FILE (default {BASELINE.name})")
     args = ap.parse_args(argv[1:])
 
     scorer, catalog = Path(args.scorer), Path(args.catalog)
@@ -133,8 +213,10 @@ def main(argv: list[str]) -> int:
     keep = Path(args.keep) if args.keep else tmp
     keep.mkdir(parents=True, exist_ok=True)
     try:
-        before = materialise(args.before, tmp)
         after = Path(args.after).resolve()
+        if args.record or args.check:
+            return single(scorer, after, catalog, tiers, args, keep)
+        before = materialise(args.before, tmp)
         print(f"# before  {before}\n# after   {after}")
         rc = 0
         for tier in tiers:

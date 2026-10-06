@@ -198,9 +198,89 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
   per-sequence context. Joining them directly is a 256x KV error at batch 256; the join is
   on `(batch, batch*ctx == kv_total)`.
 
-## 7. Validation gates
+### 6.0 What is reproducible, and what is not
 
-`pytest validator/` — 188 passing, 8 skipped. The ones that matter:
+Three kinds of value live in this registry, and only the first is reproducible
+from a dataset. Counted from the coefficient files themselves:
+
+| `method` | entries | reproducible by | 
+|---|---|---|
+| `measured` | 654 | a named fitter in `scripts/`, re-run by the validator |
+| `vendor_spec` | 64 | a datasheet citation |
+| `assumed` | 7 | nothing — each states its reasoning and what would replace it |
+
+All seven `assumed` entries are host overheads in
+`cost-model-host-overheads.yaml`: `host_admission_per_request`,
+`host_admission_per_token`, `host_output_token`, `host_completion`,
+`host_launch_eager_per_layer`, `host_replay_graph_per_step` and
+`host_launch_per_kernel`. No dataset in this project measures client-observed
+host time: AISimulate times kernels, FPM times one synchronized forward pass
+(all 42 of its columns were enumerated — there is no `ttft`, `e2e`, `client`,
+`queue` or `host` column), and InferenceX is evaluation-only.
+
+So a reader can re-derive 718 of 725 entries and must take 7 on the reasoning
+written into them. Each of those seven carries the measurement that would
+replace it; `host_admission_per_request` names the exact experiment, a
+client-observed TTFT measurement at 1-token and 1,024-token prompts against a
+running vLLM server at concurrency 1 with a warm cache, whose intercept is the
+coefficient with no evaluation data involved.
+
+This boundary is stated rather than smoothed over because the largest single
+accuracy movement in this work — TTFT mape 52.94% to 31.47% on the measured
+tier — comes from one of the seven.
+
+### 6.1 Reproducing the end-to-end evaluation tables
+
+Reproducing a coefficient needs only a fitter and its collection. Reproducing an
+accuracy FIGURE needs four things pinned, and each of them has silently produced a
+wrong number during this work:
+
+| what | why it matters |
+|---|---|
+| the scorer checkout | `cmd/metricscore` is on inference-sim's `kernel-exclusive` branch only — not `main`, not `modeling`. A checkout of either fails with `stat cmd/metricscore: directory not found` |
+| `-registry` | defaults to the sibling `blis-registry` checkout, so scoring a branch without passing it explicitly scores a different registry |
+| `-catalog` | the figures move with the catalog revision; a comparison across catalog revisions once produced an apparent 0.03pp "effect" that was two catalog commits |
+| `-config-tier`, `-framework`, `-length-range-ratio` | each changes every figure. On one kernel revision the same command with and without `-length-range-ratio 1.0` gives 11.62/12.05/15.23/52.94 against 11.22/12.19/16.22/57.13 |
+
+`scripts/compare_registries.py` pins all four by construction and prints the
+revisions it used. Beyond comparing two registries it records and checks absolute
+figures:
+
+    # write the current figures, with revisions and flags, to docs/evaluation-baseline.json
+    python scripts/compare_registries.py --record --scorer /path/to/kernel-exclusive/checkout
+
+    # fail if any figure, or any n, has moved since
+    python scripts/compare_registries.py --check  --scorer /path/to/kernel-exclusive/checkout
+
+`docs/evaluation-baseline.json` is the machine-checkable record. It holds the four
+headline figures and their point counts per tier, plus the framework, the
+length-range-ratio and the scorer and catalog revisions, because a figure is a
+claim about that whole triple rather than about the registry alone. `--check`
+compares the revisions too and says when they have moved, so a drift is
+attributable rather than merely visible.
+
+A figure quoted without its flags cannot be checked, and this is the reason every
+table in the companion documents carries its invocation.
+
+### 6.2 Which tier to weigh
+
+`inferencex_engine_settings.json` records **68 sweeps with a captured engine-args
+log and 136 without**, each of the latter listed in its `incomplete` array with
+`reason: "no engine-args log"`. For those 136 the engine configuration is resolved
+from vLLM's defaults rather than observed, so an error there is as likely to be a
+wrong assumed configuration as a wrong model.
+
+The measured tier is the only one where the simulated deployment is ground truth.
+It is therefore the tier on which a coefficient change can be attributed to the
+model, and the tier to weigh when judging one. The resolved tier answers a weaker
+and still useful question — how well a predictor does when it must guess the
+configuration too — and mixing the two in one average mixes two kinds of
+evidence, which is why the scorer takes `-config-tier` and the baseline records
+them separately.
+
+### 6.3 Validation gates
+
+`pytest validator/` — 147 passing, 8 skipped (verified by running it). The ones that matter:
 
 * **independent re-derivation** — re-runs the fitter and compares to the registry, so a
   value edited without its citation fails.

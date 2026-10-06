@@ -52,6 +52,50 @@ kind: CoefficientSet
 name: cost-model-host-overheads
 
 coefficients:
+  - host_admission_per_request:
+      value: 40000.0
+      units: us_per_request
+      method: assumed
+      fitted: false
+      scope: {hardware: [a100-80, a100-sxm, b200, b300, gb200-nvl72, h100, h200, l40s]}
+      sources:
+        - kind: discussion
+          cite: "SemiAnalysis InferenceX concurrency-1 absolutes, used for the MAGNITUDE only; see the provenance caveat below"
+          role: supporting
+      rationale: >
+        A length-INDEPENDENT host cost before a request's first token. The DIMENSION is
+        established from physics and the MAGNITUDE is not yet measured, so the two are
+        stated separately.
+        DIMENSION (derived, defensible). At concurrency 1 the queue is empty, so TTFT is
+        one request's prefill plus whatever fixed cost precedes it. Across the six
+        non-sliding-window vLLM scenarios that carry both input lengths, measured TTFT
+        scales as L^0.575 from 1,024 to 8,192 input tokens -- a median ratio of 3.39,
+        where pure linear compute would give 8.0. Sub-linear scaling against a prefill
+        term that is already linear in L is only possible if a fixed per-request
+        component is present. Charging the same deficit per TOKEN adds steepness to an
+        already-too-steep term and costs 0.797 points of TTFT shape per point of TTFT
+        mape closed, against 0.453 for this per-request form: the dimension is not a
+        preference, it is 1.76x more efficient on the same corpus.
+        MAGNITUDE (orientation only -- THIS IS THE CAVEAT). Solving
+        TTFT(8k)/TTFT(1k) = (F + 8c)/(F + c) per scenario gives F of 41.6, 17.2, 40.0,
+        32.6, 58.4 and 85.2 ms, median 40.8. That is a derivation from ratio structure
+        rather than a search over scores, but its inputs are InferenceX, which is the
+        evaluation corpus. It independently reproduces the 17-85 ms range obtained hours
+        earlier by a linear two-point fit, and lands on the end-to-end optimum of a
+        20/40/60 ms probe -- three routes agreeing. It is NOT a fitted coefficient and
+        must not be presented as one.
+        WHAT IT IS NOT. Frontend host work: tokenisation, Jinja2 chat templating,
+        msgspec encode/decode and the ZMQ frontend-to-core hop were all measured
+        directly and total 0.0153 ms (this work) and 0.1083 ms (an independent
+        measurement with real IPC sockets). 40 ms is 370x the larger figure, so the term
+        is real but misnamed if read as frontend overhead. Candidates not yet separated:
+        first-request eager execution before graph capture, sampler and logits-processor
+        construction, and the first detokenisation.
+        TO REPLACE THIS WITH A MEASUREMENT. Time client-observed TTFT against a running
+        vLLM server at 1-token and 1,024-token prompts on the target part, at
+        concurrency 1 with a warm cache; the intercept of those two points is F with no
+        evaluation data involved. Until that exists this entry is `method: assumed` and
+        carries the dimension's justification, not the magnitude's.
   - host_admission_per_token:
       value: 0.35
       units: us_per_token

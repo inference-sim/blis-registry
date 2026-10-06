@@ -414,3 +414,100 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
   carries Nemotron-3. Unvalidatable from either direction.
 * **A100 and L40S**: absent from FPM and from InferenceX entirely. Their coefficients are
   fitted and shipped but carry no end-to-end check, which is stated rather than implied.
+
+## 9. The FPM mixed rows, and what they found
+
+§8.4 noted that FPM's reach is narrower than the coefficient set. It was also being
+under-used: 79.2% of FPM is MIXED prefill+decode rows (67,736 of 85,484), and none had
+ever been scored. `scripts/score_fpm_mixed.py` closes that, and the result is the largest
+single finding in this work.
+
+### 9.1 What the coordinates mean, verified in AISimulate's own source
+
+FPM's coordinate system is `iteration_totals_balanced_v1`
+(`crates/core/src/perfmodel/perf_database/fpm_forward.rs:59`), and the totals are
+**per-rank iteration totals**, not global ones. AISimulate builds a query as
+
+```rust
+// crates/core/src/perfmodel/operators/fpm_forward.rs:203-218
+FpmPhase::Prefill => vec![b, b * s as f64, b * prefix as f64],
+FpmPhase::Decode   => vec![b, b / w * s as f64],
+```
+
+so `total_prefill_tokens = batch × per_request_prefill` and
+`total_kv_read_tokens = batch × per_request_context`. Dividing by `batch_size` to recover
+the per-request shape the kernel takes is therefore the correct inverse, and is what
+`select_overlap_band.py` already documents. The source warns that the round trip adds
+integer-division rounding, which is why the scorer medians per grid point rather than
+per row.
+
+For a data-parallel cell the recorded latency is the **maximum across DP ranks**
+(`collector/fpm_forward/native_artifact.py:704`,
+`expected_wall_time = max(value for _, value in wall_times)`), not a mean — so a DP cell's
+measurement is gated by its slowest rank.
+
+### 9.2 Six cells scored, and the error is strongly topology-dependent
+
+NoOverlap edge, all mixed grid points, against the committed registry:
+
+| cell | parallelism | n | mean abs | signed | over |
+|---|---|---|---|---|---|
+| m27 pure_tp4 | tp4, ep1 | 5,986 | 15.63% | **−13.63%** | 13.0% |
+| m27 tep2 | tp2, ep2 | 5,782 | 20.13% | **−14.86%** | 20.8% |
+| m27 tep4 | tp4, ep4 | 5,986 | 25.58% | **−25.24%** | 3.1% |
+| m27 dep2 | tp1, dp2, ep2 | 5,383 | 34.58% | **−33.96%** | 2.6% |
+| m27 dep4 | tp1, dp4, ep4 | 5,918 | 47.14% | **−46.67%** | 1.6% |
+| glm-5.2 tep8 | tp8, ep8 | 5,910 | 49.79% | **−45.04%** | 10.5% |
+
+Every cell under-predicts, and the error spans 13% to 47% — a 3.4× range across topologies
+of the same model on the same chip. That is not scatter; it is a missing term that scales
+with parallelism.
+
+The error is also **flat across the prefill share of the batch** on the tep4 cell
+(−25.05% below 25% prefill, −22.57% at 25–75%, −28.40% above 75%), so it is not a
+prefill-specific or a decode-specific defect. The whole forward pass is under-priced.
+
+### 9.3 The mechanism: attention-DP funnels every rank's tokens into the experts
+
+With attention data parallelism, all DP ranks' tokens are concatenated before expert
+routing, so the MoE grouped GEMM sees `dp × tokens` rather than one rank's share. Three
+independent sources agree:
+
+* **vLLM**: `fused_moe/routed_experts_capturer.py:115-117` — "``n == total`` (naive
+  dispatch): all DP ranks' tokens are **concatenated before routing**". `naive` and
+  `allgather_reducescatter` are that path, and `allgather_reducescatter` is vLLM's default
+  (`config/parallel.py:195`).
+* **AISimulate**: `crates/core/src/perfmodel/operators/moe.rs:287` —
+  `let num_tokens = num_tokens.saturating_mul(self.attention_dp_size.max(1));` with the
+  comment "Attention-dp scales up the total input tokens (all dp ranks all-gather into one
+  shared expert pool)".
+* **blis-latency-kernel**: `kernel.go:402` —
+  `routedPerRank := tokensF * float64(l.TopK) * k.localExpertShare`. **No DP factor.**
+  `DP` reaches exactly one decision, `SequenceParallelMoE`
+  (`internal/resolve/layout.go:106`), and that rule requires `tp > 1 && dp > 1`
+  (`blis-schemas rules/rules.go:196`) — so on the two `dep` cells, which carry `tp=1`,
+  DP influences no pricing term at all.
+
+The two `dep` cells are the two worst MiniMax results and they order by `dp` (−33.96% at
+dp=2, −46.67% at dp=4), which is the direction and roughly the magnitude a missing `×dp`
+on the routed term predicts.
+
+**What this does NOT explain.** `glm-5.2 tep8` is dp=1 and still −45.04%, so a missing DP
+factor cannot be the whole account. GLM-5.2 differs from MiniMax-M2.7 in more than
+topology — it carries `sparse_mla` attention and a separate indexer GEMM — so that cell
+needs its own diagnosis rather than being folded into this one. Stating the limit is the
+point: one mechanism explains the MiniMax ordering, and a second, unidentified term is
+still live on GLM.
+
+### 9.4 A committed figure this corrected
+
+`docs/band-selection.md` reports NoOverlap's signed mean as −3.44% over 219 points and
+calls it "nearly unbiased". Scoring every pure-decode grid point in the m27 tep4 artifact
+rather than the 45 the old band sweep reached gives **−22.93%** (1,500 points), or
+**−19.27%** restricted to batches within the scenario's declared `max_num_seqs` of 256
+(1,048 points). FPM carries 1,557 distinct decode grid points for that cell, so the
+committed figure rested on under 3% of the evidence available for it, and the deficit
+grows with batch (−12.8% at batch 8 to −31.3% at 512) in a way a 45-point slice can miss.
+
+The band CHOICE is unaffected — NoOverlap beats Overlap on every slice measured here, by
+about 7pp on the mixed rows. The claim of near-unbiasedness is withdrawn.

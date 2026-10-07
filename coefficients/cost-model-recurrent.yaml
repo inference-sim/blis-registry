@@ -26,7 +26,12 @@
 #   rationale is where the incompleteness lives, and a reader pricing a Mamba2 model should
 #   treat the recurrent term as a floor rather than an estimate.
 #
-# Both families are scoped to h100, the only part with recurrent sweeps in this tree.
+# KDA is fitted for h100 and h200; mamba2 for h100. The tree carries KDA sweeps for eight
+# parts (b200, b300, gb200, gb300, h100, h200, l40s, rtx_pro_6000_server) and
+# linear_attention sweeps for nine, so the remaining parts are UNFITTED rather than
+# unavailable. A part with no entry resolves none and falls through to a cheaper path
+# silently, so each is a gap to close when a deployment needs it -- not a statement that
+# the data is missing.
 kind: CoefficientSet
 name: cost-model-recurrent
 
@@ -51,6 +56,26 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/kda/vllm/0.1.dev19262/kda_perf.parquet, kernels causal_conv1d_update + fused_recurrent_kda_packed_decode summed, generation phase, num_k_heads=96, model moonshotai/Kimi-K3, 11 and 10 points", role: primary}
       rationale: >
         Tokens per microsecond past the floor. The two kernels run in series, so their times add and the reciprocal rates add: 1/4.0 + 1/0.25 tok/us. The recurrent scan dominates, being sequential in the state dimension -- it cannot spread one sequence's work across the machine the way a matmul spreads a batch's. Fitted on the vLLM lane at num_k_heads=96.
+  - recurrent_decode_floor_kda:
+      value: 4.3
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/kda/vllm/0.1.dev19262/kda_perf.parquet, kernels causal_conv1d_update + fused_recurrent_kda_packed_decode summed, generation phase, num_k_heads=96, model moonshotai/Kimi-K3, 11 and 10 points", role: primary}
+      rationale: >
+        The h200 counterpart of the h100 entry above, fitted by the same command on the same vLLM collection version for the h200_sxm part: 3.3us + 1.0us. Added because a KDA model priced on h200 previously resolved no recurrent entry at all and fell through to a cheaper path, which on GLM-5.3-Flash -- 34 of its 45 layers are KDA -- made an h200 prefill read 9.4x FASTER than the same step on h100 despite the two parts sharing the GH100 die. That gap was an artifact of the missing coefficient, not a measurement. Per-kernel geometric error 1.069x and 1.321x. The floor is 1.13x the h100 figure and the rate within 1.01x, which is the expected result for a shared die: this entry exists so the part resolves its own measurement rather than to express a difference.
+  - recurrent_decode_rate_kda:
+      value: 0.237
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [h200]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/kda/vllm/0.1.dev19262/kda_perf.parquet, kernels causal_conv1d_update + fused_recurrent_kda_packed_decode summed, generation phase, num_k_heads=96, model moonshotai/Kimi-K3, 11 and 10 points", role: primary}
+      rationale: >
+        Tokens per microsecond past the h200 floor. Same series composition as the h100 entry: 1/4.5 + 1/0.25 tok/us, the recurrent scan dominating because it is sequential in the state dimension. Fitted on the vLLM lane at num_k_heads=96, the geometry Kimi-K3's graph declares, since the coefficient carries no head term.
   - recurrent_decode_floor_mamba2:
       value: 3.5
       units: us_per_transfer

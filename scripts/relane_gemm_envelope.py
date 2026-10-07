@@ -260,11 +260,15 @@ def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
         # rewritten entry emits its 10 canonical lines and drops the rest, which
         # silently deleted the count comment once the last entry in the file became a
         # gemm_* one.
-        # File-level trailing lines are blank lines and column-0 comments only. An
-        # entry's own content is always indented (the rationale body sits at eight
-        # spaces), so indentation alone cannot distinguish them.
+        # Trailing lines that belong to the FILE rather than to this entry: blank
+        # lines, column-0 comments (the "# N entries generated." footer) and indented
+        # section headers ("  # --- gb300 descriptors ---"). All must survive the
+        # rewrite. An entry's own content is a `      key: value` field, so the test is
+        # "not an indented field" rather than "not indented" -- the rationale body sits
+        # at eight spaces and would be eaten by the looser test.
         tail: list[str] = []
-        while block and (not block[-1].strip() or block[-1].startswith("#")):
+        while block and (not block[-1].strip()
+                         or block[-1].lstrip().startswith("#")):
             tail.insert(0, block.pop())
         chip = None
         scoped: list[str] = []

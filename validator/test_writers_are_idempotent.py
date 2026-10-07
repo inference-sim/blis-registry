@@ -47,9 +47,19 @@ WRITERS = [
     ("relane_attention_decode.py", "full-attention decode floor and rate"),
     ("relane_attention_prefill.py", "prefill floor and work_scale"),
     ("relane_attention_swa.py", "sliding-window decode floor and rate"),
-    ("relane_recurrent_kda.py", "the KDA chain pair"),
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
+]
+
+# Writers whose rewrite path renders a GENERIC rationale, over entries that carry
+# hand-authored prose a fit cannot regenerate. For these, byte-identity is the wrong
+# assertion -- it would demand that the committed file lose a finding. The h200 KDA
+# entry records that a missing coefficient made a GLM-5.3-Flash prefill read 9.4x
+# FASTER on h200 than h100 despite a shared die; that is worth more than the generic
+# sentence a re-render would put in its place. So the VALUES are asserted instead,
+# which is what a drift check is actually for.
+VALUE_ONLY = [
+    ("relane_recurrent_kda.py", "cost-model-recurrent.yaml", "the KDA chain pair"),
 ]
 
 
@@ -66,6 +76,53 @@ def test_writer_reproduces_the_committed_file(script, what):
         f"produces. Either a fit moved and the file was not updated, or the file was "
         f"edited without re-running the writer.\n"
         f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"
+    )
+
+
+@pytest.mark.parametrize("script,target,what", VALUE_ONLY,
+                         ids=[w[0] for w in VALUE_ONLY])
+def test_writer_reproduces_the_committed_values(script, target, what, tmp_path):
+    """Every VALUE must re-derive, even where the prose is deliberately hand-authored.
+
+    Runs the writer against a scratch copy of the repo's coefficients directory, then
+    compares (name, scope) -> value against the committed file. Prose is ignored by
+    construction; a moved number fails.
+    """
+    import shutil
+
+    import yaml
+
+    def values(path):
+        doc = yaml.safe_load(Path(path).read_text())
+        out = {}
+        for e in doc["coefficients"]:
+            (n, b), = e.items()
+            scope = tuple(sorted(
+                (k, tuple(v) if isinstance(v, list) else v)
+                for k, v in (b.get("scope") or {}).items()))
+            out[(n, scope)] = b["value"]
+        return out
+
+    scratch = tmp_path / "repo"
+    shutil.copytree(REPO / "coefficients", scratch / "coefficients")
+    shutil.copytree(REPO / "scripts", scratch / "scripts")
+    committed = values(REPO / "coefficients" / target)
+
+    env = dict(os.environ, AISIMULATE_DATA=str(DATA))
+    r = subprocess.run(
+        [sys.executable, str(scratch / "scripts" / script)],
+        capture_output=True, text=True, env=env, cwd=str(scratch), timeout=1800,
+    )
+    assert r.returncode == 0, f"{script} failed:\n{r.stdout}\n{r.stderr}"
+
+    refit = values(scratch / "coefficients" / target)
+    moved = {k: (committed[k], refit[k])
+             for k in committed if k in refit and committed[k] != refit[k]}
+    missing = [k for k in committed if k not in refit]
+    assert not moved and not missing, (
+        f"{script} re-derives different values for {what}: moved={moved} "
+        f"missing={missing}. A value that its own fitter no longer produces is the "
+        f"drift this file exists to catch."
     )
 
 

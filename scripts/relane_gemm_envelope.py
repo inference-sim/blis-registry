@@ -80,13 +80,14 @@ DEFAULT_CATALOG = os.environ.get(
 # token counts) but it measures a different engine, and sweep size does not substitute for
 # measuring the engine being predicted.
 PARTS = [("h200_sxm", "h200"), ("h100_sxm", "h100"), ("b200_sxm", "b200"),
-         ("b300_sxm", "b300"), ("gb200", "gb200-nvl72"), ("l40s", "l40s"),
-         ("a100_sxm", "a100-sxm")]
+         ("b300_sxm", "b300"), ("gb200", "gb200-nvl72"), ("gb300", "gb300"),
+         ("l40s", "l40s"), ("a100_sxm", "a100-sxm")]
 SUFFIX = {"bfloat16": "bf16", "fp8": "fp8", "fp8_block": "fp8_block", "nvfp4": "nvfp4"}
 DEVICE = {"h200": "NVIDIA H200", "h100": "NVIDIA H100 80GB HBM3",
           "a100-sxm": "NVIDIA A100-SXM4-80GB",
           "b200": "NVIDIA B200", "b300": "NVIDIA B300",
-          "gb200-nvl72": "NVIDIA GB200", "l40s": "NVIDIA L40S"}
+          "gb200-nvl72": "NVIDIA GB200", "gb300": "NVIDIA GB300",
+          "l40s": "NVIDIA L40S"}
 # The vLLM kernel each dtype's fit describes, for the citation. Read off the sweep's
 # own kernel_source column and cross-checked against vLLM's dispatch lists.
 KERNEL = {
@@ -121,6 +122,123 @@ def measure(data: Path, catalog: Path, sku: str, chip: str) -> dict:
     return out
 
 
+def entry_lines(kind: str, suffix: str, chip: str, scoped: list[str], f: dict) -> list[str]:
+    """Render one coefficient entry.
+
+    Shared by the rewrite path, which maintains the parts already in the file, and the
+    insert path, which adds a part that is not there yet. One renderer rather than two
+    so an inserted entry is byte-identical to the one a later re-run would produce;
+    two renderers would drift and the drift would show up as a spurious --check
+    failure on the next data update.
+    """
+    value = f["eps"] if kind == "eps_max" else f["m_half"]
+    cite = (f"NVIDIA AISimulate systems/data/{f['sku']}/gemm/{f['coll']}/"
+            f"gemm_perf.parquet ({DEVICE[chip]}), {f['rows']:,} {f['dtype']} rows "
+            f"over {f['ms']} token counts, kernel {KERNEL[f['dtype']]}")
+    if kind == "eps_max":
+        rat = (f"The fraction of this part's {f['dtype']} peak a large, well-shaped "
+               f"matmul asymptotically reaches, on vLLM's own linear kernel rather "
+               f"than the generic `torch_flow` path the TRT-LLM sweep measures. "
+               f"Envelope rather than mean: a cost model predicts what a well-shaped "
+               f"GEMM achieves. Least-squares residual {f['rms']:.4f} over "
+               f"{f['ms']} token counts.")
+    else:
+        rat = (f"The token count at which the ramp reaches half its asymptote, so it "
+               f"sets how fast a widening batch approaches peak. Fitted jointly with "
+               f"gemm_eps_max_{suffix} on the same envelope; residual "
+               f"{f['rms']:.4f}.")
+    return [
+        f"  - gemm_{kind}_{suffix}:",
+        f"      value: {value}",
+        "      units: " + ("dimensionless" if kind == "eps_max" else "tokens"),
+        "      method: measured",
+        "      fitted: true",
+        f"      scope: {{hardware: [{', '.join(scoped)}]}}",
+        "      sources:",
+        f'        - {{kind: model, cite: "{cite}", role: primary}}',
+        "      rationale: >",
+        f"        {rat}",
+    ]
+
+
+def has_gemm_entry(text: str, chip: str) -> bool:
+    """Whether a gemm_* entry scoped to `chip` already exists.
+
+    Walked entry by entry rather than matched with one regex over the whole file: a
+    pattern spanning `gemm_...:` to a `hardware: [...]` line will happily cross
+    intervening entries, so it reports a hit when some OTHER family in this same set
+    carries the chip. That is not a hypothetical -- MoE imbalance lives in
+    cost-model-primitives.yaml too, and inserting it first made exactly this guard
+    refuse a GEMM insert that had not happened yet.
+    """
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        if not re.match(r"  - gemm_(?:eps_max|m_half)_[a-z0-9_]+:$", lines[i]):
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
+            sm = re.search(r"scope: \{hardware: \[([^\]]+)\]\}", lines[j])
+            if sm and chip in [x.strip() for x in sm.group(1).split(",")]:
+                return True
+            j += 1
+        i = j
+    return False
+
+
+def insert_part(text: str, chip: str, sku: str, fits: dict[str, dict]) -> tuple[str, int]:
+    """Append a per-chip GEMM block for a part the file does not carry yet.
+
+    Inserted before the trailing entry-count comment, in the same
+    `# --- <chip> (<sku>) ---` form the other parts use, so the file keeps one
+    structure and `rewrite` maintains the new block on every later run.
+    """
+    f = fits.get(chip)
+    if not f:
+        return text, 0
+    lines = text.split("\n")
+    # Insert above the trailing generated-count comment, which must stay last, and
+    # restate the count: a stale total is the kind of retyped figure this project
+    # treats as a defect in its own right.
+    at = len(lines)
+    count_at = None
+    for idx in range(len(lines) - 1, -1, -1):
+        if lines[idx].startswith("# ") and "entries generated" in lines[idx]:
+            count_at = idx
+            at = idx
+            break
+    if count_at is None:
+        # No count comment: append after the last non-empty line.
+        for idx in range(len(lines) - 1, -1, -1):
+            if lines[idx].strip():
+                at = idx + 1
+                break
+    block = [f"  # --- {chip} ({sku}) ---"]
+    for suffix in ("bf16", "fp8", "fp8_block", "nvfp4"):
+        if suffix not in f:
+            continue
+        for kind in ("eps_max", "m_half"):
+            block += entry_lines(kind, suffix, chip, [chip], f[suffix])
+    if len(block) == 1:
+        return text, 0
+    added = (len(block) - 1) // 10
+    out = lines[:at] + block + lines[at:]
+    if count_at is not None:
+        # The comment moved down by len(block) lines.
+        new_at = count_at + len(block)
+        m = re.match(r"# (\d+) entries generated\.", out[new_at])
+        if m:
+            out[new_at] = f"# {int(m.group(1)) + added} entries generated."
+    # split("\n") on a trailing-newline file yields a final "" element, and joining
+    # restores it. Guard anyway: losing the trailing newline makes the next rewrite
+    # report 52 spurious changes, which is a real failure this hit.
+    result = "\n".join(out)
+    if text.endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result, added
+
+
 def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
     lines = text.split("\n")
     out: list[str] = []
@@ -136,6 +254,18 @@ def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
         while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
             j += 1
         block = lines[i:j]
+        # An entry's own lines end at its last indented field. Anything after that --
+        # a blank line, the file's trailing "# N entries generated." comment -- belongs
+        # to the FILE, not the entry, and must survive a rewrite. Without this the
+        # rewritten entry emits its 10 canonical lines and drops the rest, which
+        # silently deleted the count comment once the last entry in the file became a
+        # gemm_* one.
+        # File-level trailing lines are blank lines and column-0 comments only. An
+        # entry's own content is always indented (the rationale body sits at eight
+        # spaces), so indentation alone cannot distinguish them.
+        tail: list[str] = []
+        while block and (not block[-1].strip() or block[-1].startswith("#")):
+            tail.insert(0, block.pop())
         chip = None
         scoped: list[str] = []
         for b in block:
@@ -153,36 +283,11 @@ def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
         f = fits.get(chip, {}).get(suffix) if chip else None
         if f is None:
             out.extend(block)
+            out.extend(tail)
             i = j
             continue
-        value = f["eps"] if kind == "eps_max" else f["m_half"]
-        cite = (f"NVIDIA AISimulate systems/data/{f['sku']}/gemm/{f['coll']}/"
-                f"gemm_perf.parquet ({DEVICE[chip]}), {f['rows']:,} {f['dtype']} rows "
-                f"over {f['ms']} token counts, kernel {KERNEL[f['dtype']]}")
-        if kind == "eps_max":
-            rat = (f"The fraction of this part's {f['dtype']} peak a large, well-shaped "
-                   f"matmul asymptotically reaches, on vLLM's own linear kernel rather "
-                   f"than the generic `torch_flow` path the TRT-LLM sweep measures. "
-                   f"Envelope rather than mean: a cost model predicts what a well-shaped "
-                   f"GEMM achieves. Least-squares residual {f['rms']:.4f} over "
-                   f"{f['ms']} token counts.")
-        else:
-            rat = (f"The token count at which the ramp reaches half its asymptote, so it "
-                   f"sets how fast a widening batch approaches peak. Fitted jointly with "
-                   f"gemm_eps_max_{suffix} on the same envelope; residual "
-                   f"{f['rms']:.4f}.")
-        out += [
-            f"  - gemm_{kind}_{suffix}:",
-            f"      value: {value}",
-            "      units: " + ("dimensionless" if kind == "eps_max" else "tokens"),
-            "      method: measured",
-            "      fitted: true",
-            f"      scope: {{hardware: [{', '.join(scoped)}]}}",
-            "      sources:",
-            f'        - {{kind: model, cite: "{cite}", role: primary}}',
-            "      rationale: >",
-            f"        {rat}",
-        ]
+        out += entry_lines(kind, suffix, chip, scoped, f)
+        out.extend(tail)
         changed += 1
         i = j
     return "\n".join(out), changed
@@ -194,6 +299,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--data", default=DEFAULT_DATA)
     ap.add_argument("--catalog", default=DEFAULT_CATALOG)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--insert", metavar="CHIP",
+                    help="append a per-chip block for a part the set does not carry "
+                         "yet (the rewrite path only maintains parts already present)")
     args = ap.parse_args(argv[1:])
 
     fits: dict[str, dict] = {}
@@ -210,6 +318,25 @@ def main(argv: list[str]) -> int:
         return 1
 
     before = SET_PATH.read_text(encoding="utf-8")
+
+    if args.insert:
+        chip = args.insert
+        sku = next((s for s, c in PARTS if c == chip), None)
+        if sku is None:
+            print(f"{chip}: not in PARTS; add it there first", file=sys.stderr)
+            return 1
+        if has_gemm_entry(before, chip):
+            print(f"{chip}: GEMM entries already present; use the rewrite path",
+                  file=sys.stderr)
+            return 1
+        after, n = insert_part(before, chip, sku, fits)
+        if not n:
+            print(f"{chip}: nothing to insert", file=sys.stderr)
+            return 1
+        SET_PATH.write_text(after, encoding="utf-8")
+        print(f"\n{SET_PATH.name}: inserted {n} {chip} entries")
+        return 0
+
     after, changed = rewrite(before, fits)
     if args.check:
         if before != after:

@@ -1186,6 +1186,26 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/moe/vllm/0.24.0/moe_perf.parquet, power_law_1.01 against balanced at identical shape and kernel_source, 16,028 paired shapes", role: primary}
       rationale: >
         The 90th percentile of the same paired ratios, recorded for the tail a badly-balanced router can reach. Not consumed by blis-latency-kernel today, which reads the median only.
+  - moe_routing_imbalance_median:
+      value: 0.954
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/moe/vllm/0.27.1/moe_perf.parquet, power_law_1.01 against balanced at identical shape and kernel_source, 675 paired shapes", role: primary}
+      rationale: >
+        Median ratio of skewed to balanced latency on vLLM's own expert kernels -- Triton, FlashInfer-Cutlass and Marlin, which is what vLLM runs rather than the `moe_torch_flow*` paths the TRT-LLM sweep measures. Paired per shape AND per kernel, so no ratio crosses implementations. This multiplies the routed-expert FLOPs in the kernel's step time.
+  - moe_routing_imbalance_p90:
+      value: 1.272
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/moe/vllm/0.27.1/moe_perf.parquet, power_law_1.01 against balanced at identical shape and kernel_source, 675 paired shapes", role: primary}
+      rationale: >
+        The 90th percentile of the same paired ratios, recorded for the tail a badly-balanced router can reach. Not consumed by blis-latency-kernel today, which reads the median only.
   - hbm_derate:
       value: 0.8
       units: dimensionless
@@ -1267,4 +1287,85 @@ coefficients:
       rationale: >
         3.8 GB of non-weight, non-KV occupancy NVIDIA's descriptor reserves, described there as covering CUDA-graph capture, workspace and the inaccuracy of the rest of the memory calculation. It is a lumped allowance rather than a decomposition, so the memory breakdown reports it as one term and does not claim to split it.
 
-# 122 entries generated.
+  # --- gb300 (gb300) ---
+  - gemm_eps_max_bf16:
+      value: 0.995
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 bfloat16 rows over 74 token counts, kernel torch.nn.functional.linear", role: primary}
+      rationale: >
+        The fraction of this part's bfloat16 peak a large, well-shaped matmul asymptotically reaches, on vLLM's own linear kernel rather than the generic `torch_flow` path the TRT-LLM sweep measures. Envelope rather than mean: a cost model predicts what a well-shaped GEMM achieves. Least-squares residual 0.0504 over 74 token counts.
+  - gemm_m_half_bf16:
+      value: 220
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 bfloat16 rows over 74 token counts, kernel torch.nn.functional.linear", role: primary}
+      rationale: >
+        The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_bf16 on the same envelope; residual 0.0504.
+  - gemm_eps_max_fp8:
+      value: 0.801
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 fp8 rows over 74 token counts, kernel CutlassFP8ScaledMMLinearKernel", role: primary}
+      rationale: >
+        The fraction of this part's fp8 peak a large, well-shaped matmul asymptotically reaches, on vLLM's own linear kernel rather than the generic `torch_flow` path the TRT-LLM sweep measures. Envelope rather than mean: a cost model predicts what a well-shaped GEMM achieves. Least-squares residual 0.0418 over 74 token counts.
+  - gemm_m_half_fp8:
+      value: 216
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 fp8 rows over 74 token counts, kernel CutlassFP8ScaledMMLinearKernel", role: primary}
+      rationale: >
+        The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_fp8 on the same envelope; residual 0.0418.
+  - gemm_eps_max_fp8_block:
+      value: 0.71
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,816 fp8_block rows over 74 token counts, kernel FlashInfer (M<32) / DeepGEMM (M>=32) block-scaled dispatch", role: primary}
+      rationale: >
+        The fraction of this part's fp8_block peak a large, well-shaped matmul asymptotically reaches, on vLLM's own linear kernel rather than the generic `torch_flow` path the TRT-LLM sweep measures. Envelope rather than mean: a cost model predicts what a well-shaped GEMM achieves. Least-squares residual 0.0296 over 74 token counts.
+  - gemm_m_half_fp8_block:
+      value: 174
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,816 fp8_block rows over 74 token counts, kernel FlashInfer (M<32) / DeepGEMM (M>=32) block-scaled dispatch", role: primary}
+      rationale: >
+        The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_fp8_block on the same envelope; residual 0.0296.
+  - gemm_eps_max_nvfp4:
+      value: 0.526
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 nvfp4 rows over 74 token counts, kernel FlashInferCuteDslNvFp4LinearKernel", role: primary}
+      rationale: >
+        The fraction of this part's nvfp4 peak a large, well-shaped matmul asymptotically reaches, on vLLM's own linear kernel rather than the generic `torch_flow` path the TRT-LLM sweep measures. Envelope rather than mean: a cost model predicts what a well-shaped GEMM achieves. Least-squares residual 0.0240 over 74 token counts.
+  - gemm_m_half_nvfp4:
+      value: 227
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 nvfp4 rows over 74 token counts, kernel FlashInferCuteDslNvFp4LinearKernel", role: primary}
+      rationale: >
+        The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_nvfp4 on the same envelope; residual 0.0240.
+# 130 entries generated.

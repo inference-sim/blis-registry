@@ -134,7 +134,10 @@ def test_every_fitted_family_has_a_writer():
     """
     import yaml
 
-    writers = {w for w, _ in WRITERS}
+    # Both gates count as owning a family: WRITERS asserts byte-identity, VALUE_ONLY
+    # asserts value-identity where the prose is deliberately hand-authored. A family in
+    # either is covered against drift.
+    writers = {w for w, _ in WRITERS} | {w for w, _, _ in VALUE_ONLY}
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",

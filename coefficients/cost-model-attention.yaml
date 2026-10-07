@@ -49,11 +49,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H200), 34818 full-attention points", role: primary}
       rationale: >
-        The minimum cost of a decode attention kernel, independent of context. Fitted
-        jointly with attention_decode_rate over 34818 points; the pair takes the geometric
-        error from 33.7x under a pure-KV-read model to 1.499x. Fitted on the vLLM
-        collection rather than TRT-LLM: BLIS prices vLLM serving, and on 25858 geometries
-        matched exactly between the two collections vLLM is slower by a median 1.2694x.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34818 points; the pair takes the geometric error from 33.7x under a pure-KV-read model to 1.499x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 2592000.0
       units: bytes_per_us
@@ -63,9 +59,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H200), 34818 full-attention points", role: primary}
       rationale: >
-        2.59 TB/s, which is 0.54 of this part's 4.8 TB/s datasheet bandwidth. The smallest
-        fraction of the five parts fitted, and not because the kernel is worse here: the
-        denominator is the largest.
+        2.59 TB/s, which is 0.54 of this part's 4.8 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34818 points (vllm/0.25.0); geometric error 1.499x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
 
   - attention_decode_floor:
       value: 14.5
@@ -76,9 +70,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 34818 full-attention points", role: primary}
       rationale: >
-        Identical to H200's, which the shared GH100 die predicts: a launch and setup cost is
-        set by the die and the driver rather than by memory bandwidth. Paired rate brings the
-        geometric error from 25.6x to 1.446x, on the vLLM collection.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34818 points; the pair takes the geometric error from 25.6x under a pure-KV-read model to 1.446x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 2412000.0
       units: bytes_per_us
@@ -88,9 +80,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA H100 80GB HBM3), 34818 full-attention points", role: primary}
       rationale: >
-        2.41 TB/s, 0.72 of this part's 3.35 TB/s peak. Against H200's 0.54 of a larger peak
-        the absolute rates differ by only 1.15x where the datasheet figures differ by 1.43x,
-        so an attention kernel does not convert the extra bandwidth fully.
+        2.41 TB/s, which is 0.72 of this part's 3.35 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34818 points (vllm/0.25.0); geometric error 1.446x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
 
   - attention_decode_floor:
       value: 19.0
@@ -101,9 +91,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
-        The highest floor of the parts fitted, and the least well determined: the newest vLLM
-        collection covering this part is 0.14.0, giving 5431 points rather than the ~34800 the
-        Hopper and Blackwell parts get. Geometric error 1.422x against 18.7x.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 5431 points; the pair takes the geometric error from 18.7x under a pure-KV-read model to 1.422x. Fitted on the vLLM collection (vllm/0.14.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 1345740.0
       units: bytes_per_us
@@ -113,7 +101,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/generation_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5431 full-attention points", role: primary}
       rationale: >
-        1.35 TB/s, 0.66 of this part's 2.039 TB/s peak.
+        1.35 TB/s, which is 0.66 of this part's 2.039 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 5431 points (vllm/0.14.0); geometric error 1.422x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
 
   - attention_decode_floor:
       value: 11.0
@@ -124,9 +112,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 31831 full-attention points", role: primary}
       rationale: >
-        Geometric error 1.932x against 9.7x. The smallest improvement of the five, because
-        this part's low bandwidth means the bandwidth term dominates the floor over more of
-        the measured range.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 31831 points; the pair takes the geometric error from 9.0x under a pure-KV-read model to 1.449x. Fitted on the vLLM collection (vllm/0.24.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 725760.0
       units: bytes_per_us
@@ -136,7 +122,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 31831 full-attention points", role: primary}
       rationale: >
-        0.73 TB/s, 0.84 of this part's 0.864 TB/s peak.
+        0.73 TB/s, which is 0.84 of this part's 0.864 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 31831 points (vllm/0.24.0); geometric error 1.449x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
 
   - attention_decode_floor:
       value: 11.0
@@ -147,9 +133,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB200), 34632 full-attention points", role: primary}
       rationale: >
-        Geometric error 1.283x, the best fit of the five, against 34.6x under a pure KV read
-        — the largest error the old form made, because this part's bandwidth is highest and
-        a bandwidth-only model is therefore most optimistic here.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34632 points; the pair takes the geometric error from 34.6x under a pure-KV-read model to 1.283x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 6880000.0
       units: bytes_per_us
@@ -159,23 +143,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB200), 34632 full-attention points", role: primary}
       rationale: >
-        6.88 TB/s, 0.86 of this part's 8.0 TB/s peak — the highest fraction of the five, so
-        an attention kernel comes closest to saturating memory on this part.
-
-# 10 entries: a floor and a rate for each of five parts.
-
-  # --- Prefill attention -------------------------------------------------------
-  #
-  # A separate regime from decode: compute-bound and quadratic in prompt length rather than
-  # bandwidth-bound in context. The cost model's FLOPs form is wrong here by 12.9x to 32.4x,
-  # for two reasons it has no term for — a per-kernel floor, and the fact that an attention
-  # kernel reaches under half the efficiency a well-shaped matmul does at the same token
-  # count. The form is
-  #
-  #     latency = floor + causal_flops / (peak * eff(tokens) * work_scale)
-  #
-  # with causal_flops halving the naive count because attention attends only to earlier
-  # positions. Reproduce with scripts/fit_attention_prefill.py.
+        6.88 TB/s, which is 0.86 of this part's 8.0 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34632 points (vllm/0.25.0); geometric error 1.283x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
   - attention_prefill_floor:
       value: 18.5
       units: us_per_transfer
@@ -185,11 +153,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA H200), 27693 full-attention points", role: primary}
       rationale: >
-        Higher than this part's 11 us decode floor, which is the expected direction: a
-        context kernel sets up a causal mask and tiles over a two-dimensional problem where a
-        generation kernel walks one row.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27693 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 25.3x under a FLOPs-only model to 1.511x.
   - attention_prefill_work_scale:
-      value: 0.44
+      value: 0.4
       units: dimensionless
       method: measured
       fitted: true
@@ -197,10 +163,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA H200), 27693 full-attention points", role: primary}
       rationale: >
-        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches.
-        0.48 means it achieves under half what a well-shaped matmul does at the same token
-        count, which is why reusing the ramp unmodified under-predicts. Paired with the floor
-        it takes the geometric error from 22.9x to 1.639x.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.40, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27693 points (vllm/0.25.0); geometric error 1.511x.
   - attention_prefill_floor:
       value: 19.5
       units: us_per_transfer
@@ -210,9 +173,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA H100 80GB HBM3), 27693 full-attention points", role: primary}
       rationale: >
-        Identical to H200's, as the shared GH100 die predicts for a setup cost.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27693 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 24.6x under a FLOPs-only model to 1.522x.
   - attention_prefill_work_scale:
-      value: 0.44
+      value: 0.4
       units: dimensionless
       method: measured
       fitted: true
@@ -220,9 +183,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h100_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA H100 80GB HBM3), 27693 full-attention points", role: primary}
       rationale: >
-        21.9x to 1.647x.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.40, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27693 points (vllm/0.25.0); geometric error 1.522x.
   - attention_prefill_floor:
-      value: 13.0
+      value: 12.5
       units: us_per_transfer
       method: measured
       fitted: true
@@ -230,10 +193,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/context_attention_perf.parquet (NVIDIA L40S), 26267 full-attention points", role: primary}
       rationale: >
-        The lowest prefill floor of the four parts, and the only one below its own decode
-        floor of 11 us by less than a factor of two.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 26267 points on the vLLM lane (vllm/0.24.0); the pair takes the geometric error from 11.8x under a FLOPs-only model to 1.483x.
   - attention_prefill_work_scale:
-      value: 0.5
+      value: 0.46
       units: dimensionless
       method: measured
       fitted: true
@@ -241,8 +203,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/context_attention_perf.parquet (NVIDIA L40S), 26267 full-attention points", role: primary}
       rationale: >
-        12.9x to 1.648x. The lowest scale of the four, so this part converts the least of its
-        matmul efficiency into attention throughput.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.46, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 26267 points (vllm/0.24.0); geometric error 1.483x.
   - attention_prefill_floor:
       value: 19.5
       units: us_per_transfer
@@ -252,9 +213,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/context_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5457 full-attention points", role: primary}
       rationale: >
-        Prefill attention floor on A100, fitted on the vLLM lane this kernel predicts. A100's vLLM collection is 0.14.0 -- the oldest shipped -- so this part is pinned to an earlier engine than the Hopper and Blackwell parts, and the pin is stated rather than averaged away. Geometric error 1.509x against 13.1x for the FLOPs-only form. Reproduce with scripts/fit_attention_prefill.py --collection vllm/0.14.0.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 5457 points on the vLLM lane (vllm/0.14.0); the pair takes the geometric error from 14.5x under a FLOPs-only model to 1.509x.
   - attention_prefill_work_scale:
-      value: 0.5
+      value: 0.46
       units: dimensionless
       method: measured
       fitted: true
@@ -262,7 +223,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/attention/vllm/0.14.0/context_attention_perf.parquet (NVIDIA A100-SXM4-80GB), 5457 full-attention points", role: primary}
       rationale: >
-        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches on A100, from the same fit as attention_prefill_floor.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.46, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 5457 points (vllm/0.14.0); geometric error 1.509x.
   - attention_prefill_floor:
       value: 17.0
       units: us_per_transfer
@@ -272,10 +233,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA GB200), 27574 full-attention points", role: primary}
       rationale: >
-        32.4x to 1.622x — again the largest error the FLOPs-only form made, on the part with
-        the highest compute peak.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27574 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 36.8x under a FLOPs-only model to 1.649x.
   - attention_prefill_work_scale:
-      value: 0.38
+      value: 0.32
       units: dimensionless
       method: measured
       fitted: true
@@ -283,7 +243,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb200/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA GB200), 27574 full-attention points", role: primary}
       rationale: >
-        0.40 of the dense ramp.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.32, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27574 points (vllm/0.25.0); geometric error 1.649x.
   - attention_decode_floor:
       value: 10.5
       units: us_per_transfer
@@ -293,9 +253,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B200), 34632 full-attention points", role: primary}
       rationale: >
-        Fitted at 12.5us against a 0.90 bandwidth fraction; recorded as 11.0 because the grid
-        is coarser than the difference is meaningful and 11.0 is the value every Hopper-class
-        and Blackwell-class part in this file shares. 32.2x to 1.320x against a pure KV read.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34632 points; the pair takes the geometric error from 32.2x under a pure-KV-read model to 1.320x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 6776000.0
       units: bytes_per_us
@@ -305,9 +263,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B200), 34632 full-attention points", role: primary}
       rationale: >
-        0.88 of the 7.7 TB/s datasheet bandwidth. A decode attention kernel reads the KV cache
-        and little else, so it approaches peak more closely than a GEMM does; the fraction is
-        higher than Hopper's 0.72-0.83 because the part's HBM4 sustains more of its rating.
+        6.78 TB/s, which is 0.88 of this part's 7.7 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34632 points (vllm/0.25.0); geometric error 1.320x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
   - attention_prefill_floor:
       value: 16.5
       units: us_per_transfer
@@ -317,10 +273,9 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B200), 27574 full-attention points", role: primary}
       rationale: >
-        31.3x to 1.629x. The FLOPs-only form's error is largest on the highest-peak parts,
-        which is the pattern GB200 shows too.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27574 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 36.5x under a FLOPs-only model to 1.684x.
   - attention_prefill_work_scale:
-      value: 0.38
+      value: 0.32
       units: dimensionless
       method: measured
       fitted: true
@@ -328,8 +283,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/b200_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B200), 27574 full-attention points", role: primary}
       rationale: >
-        0.40 of the dense bf16 ramp, matching GB200 — the same Blackwell attention kernel
-        against a similar compute peak.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.32, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27574 points (vllm/0.25.0); geometric error 1.684x.
   - attention_decode_floor:
       value: 9.5
       units: us_per_transfer
@@ -337,9 +291,9 @@ coefficients:
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 34632 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300), 34632 full-attention points", role: primary}
       rationale: >
-        Fitted at 9.5us on the vLLM collection. 31.5x to 1.315x against a pure KV read.
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34632 points; the pair takes the geometric error from 31.5x under a pure-KV-read model to 1.315x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
   - attention_decode_rate:
       value: 6510000.0
       units: bytes_per_us
@@ -347,31 +301,69 @@ coefficients:
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300 SXM6 AC), 34632 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA B300), 34632 full-attention points", role: primary}
       rationale: >
-        0.84 of the 7.75 TB/s datasheet bandwidth. Slightly under B200's fraction on slightly
-        more bandwidth, so the achieved rate is within 2 percent of B200's.
+        6.51 TB/s, which is 0.84 of this part's 7.75 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34632 points (vllm/0.25.0); geometric error 1.315x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
+  - attention_decode_floor:
+      value: 11.0
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB300), 34632 full-attention points", role: primary}
+      rationale: >
+        The minimum cost of a decode attention kernel, independent of context. Fitted jointly with attention_decode_rate over 34632 points; the pair takes the geometric error from 34.1x under a pure-KV-read model to 1.286x. Fitted on the vLLM collection (vllm/0.25.0) because BLIS prices vLLM serving.
+  - attention_decode_rate:
+      value: 6880000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB300), 34632 full-attention points", role: primary}
+      rationale: >
+        6.88 TB/s, which is 0.86 of this part's 8.0 TB/s datasheet bandwidth. Fitted jointly with attention_decode_floor over 34632 points (vllm/0.25.0); geometric error 1.286x. A decode attention kernel does not reach datasheet bandwidth, which is why the cost model carries a measured fraction rather than the peak.
   - attention_prefill_floor:
-      value: 15.0
+      value: 15.5
       units: us_per_transfer
       method: measured
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B300 SXM6 AC), 27574 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B300), 27574 full-attention points", role: primary}
       rationale: >
-        29.4x to 1.636x.
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27574 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 33.2x under a FLOPs-only model to 1.688x.
   - attention_prefill_work_scale:
-      value: 0.44
+      value: 0.38
       units: dimensionless
       method: measured
       fitted: true
       scope: {hardware: [b300]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B300 SXM6 AC), 27574 full-attention points", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/b300_sxm/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA B300), 27574 full-attention points", role: primary}
       rationale: >
-        0.46 of the dense bf16 ramp, above B200's 0.40 on the same kernel: this part's bf16
-        envelope peaks higher (0.854 vs 0.787), and attention converts more of it.
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.38, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27574 points (vllm/0.25.0); geometric error 1.688x.
+  - attention_prefill_floor:
+      value: 16.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA GB300), 27574 full-attention points", role: primary}
+      rationale: >
+        The minimum cost of a prefill attention kernel, independent of prompt length. A context kernel sets up a causal mask and tiles over a two-dimensional problem where a generation kernel walks one row, so this sits above the decode floor on every part. Fitted jointly with attention_prefill_work_scale over 27574 points on the vLLM lane (vllm/0.25.0); the pair takes the geometric error from 34.9x under a FLOPs-only model to 1.671x.
+  - attention_prefill_work_scale:
+      value: 0.38
+      units: dimensionless
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/context_attention_perf.parquet (NVIDIA GB300), 27574 full-attention points", role: primary}
+      rationale: >
+        The fraction of the dense-GEMM efficiency ramp a prefill attention kernel reaches: 0.38, so it achieves well under what a well-shaped matmul does at the same token count, which is why reusing the ramp unmodified under-predicts. This is a fraction OF THE bf16 ramp this registry carries, so it is only valid against that ramp -- a relane of gemm_eps_max_bf16 changes the denominator and this value must be refitted with it. Fitted jointly with attention_prefill_floor over 27574 points (vllm/0.25.0); geometric error 1.671x.
   - attention_decode_floor_swa:
       value: 15.0
       units: us_per_transfer
@@ -492,3 +484,23 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/l40s/attention/vllm/0.24.0/generation_attention_perf.parquet (NVIDIA L40S), 14,550 sliding-window decode points", role: primary}
       rationale: >
         0.22 TB/s, 0.26 of this part's 0.864 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.24.0) over 14,550 points.
+  - attention_decode_floor_swa:
+      value: 10.5
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB300), 29,662 sliding-window decode points", role: primary}
+      rationale: >
+        The minimum cost of a windowed decode kernel, independent of context. Fitted on the vLLM lane (vllm/0.25.0) — the engine BLIS prices, and the lane every GQA and prefill entry in this set already uses, so a model with both kinds no longer sums two engines in one step. Paired with attention_decode_rate_swa over 29,662 windowed points; geometric error 1.240x.
+  - attention_decode_rate_swa:
+      value: 4000000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/attention/vllm/0.25.0/generation_attention_perf.parquet (NVIDIA GB300), 29,662 sliding-window decode points", role: primary}
+      rationale: >
+        4.00 TB/s, 0.50 of this part's 8.000 TB/s datasheet bandwidth. A windowed kernel reads a bounded slice of the context rather than all of it and sustains materially less effective bandwidth than a full-attention kernel on the same silicon, so pricing it with the full-attention rate makes every windowed layer too cheap. Fitted on the vLLM lane (vllm/0.25.0) over 29,662 points.

@@ -48,6 +48,7 @@ SKUS = {
     "gb200": "gb200-nvl72",
     "b200_sxm": "b200",
     "b300_sxm": "b300",
+    "gb300": "gb300",
 }
 
 # One entry per attention kind this project models.

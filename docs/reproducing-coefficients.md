@@ -201,12 +201,12 @@ for the values currently committed. Only full attention is fitted — rows with 
 `window_size` read a bounded number of bytes, and fitting them together would fit one
 curve to two byte counts.
 
-### `cost-model-recurrent.yaml` — fitted per family, 4 entries
+### `cost-model-recurrent.yaml` — fitted per family, 8 entries
 
 ```bash
-# KDA (Kimi-K3). Take the kda_fused_decode row: floor 5.1 us, rate 1.50 tok/us.
-python scripts/fit_recurrent.py \
-    "$AISIMULATE_DATA"/h100_sxm/kda/sglang/0.5.16/kda_perf.parquet
+# KDA (Kimi-K3), h100 / h200 / gb300. Re-derives all six entries and diffs them
+# against the committed file; --insert CHIP adds a part the set does not carry yet.
+python scripts/relane_recurrent_kda.py --check
 
 # MAMBA2 (Nemotron-3-Ultra). The model filter is required to reproduce the committed
 # values: this sweep carries six geometries and pooling them fits none of them.
@@ -219,6 +219,15 @@ The second prints `n=11 floor=3.5us rate=8.50 tok/us geo-err 1.120x`, which is b
 committed `*_mamba2` value and the error its rationale states. Without `--model` the same
 command pools 66 rows across six models and prints 4.2/23.25 — a number that is in the
 file's history nowhere and should not be mistaken for a refit.
+
+The KDA command prints `h100 3.8us/0.235`, `h200 4.3us/0.237` and `gb300 7.4us/0.457`,
+which are the committed values. **Do not fit KDA from `kda/sglang/0.5.16` or take the
+`kda_fused_decode` row**: an earlier revision of this guide did, and both are wrong.
+`fused_kda_decode` is AMD-only — `vllm/models/kimi_k3/amd/ops/kda_decode.py` gates on
+`gfx942`/`gfx950` — so it runs on no CUDA deployment, and vLLM's NVIDIA path
+(`nvidia/kda.py:980-993`) runs `causal_conv1d_update` *then*
+`fused_recurrent_kda_packed_decode`, so a layer costs the **sum**. The superseded recipe
+gives floor 5.1 µs and rate 1.50 tok/µs, a rate 6.4× too fast.
 
 What this data does and does not cover matters more here than anywhere else in the
 registry, and the script's header says it: KDA (Kimi-K3) is complete, carrying the
@@ -260,6 +269,51 @@ that neither dataset isolates — the script header notes that several could mov
 order-of-magnitude anchor only — the values there were fitted against a different
 functional form, and a coefficient is valid only for the form it was fitted against. The
 citations name the git SHA where that file can still be read.
+
+### Adding a part — the GB300 worked example
+
+Every fitted family has a writer with `--check` (it re-runs its own fitter and exits
+non-zero if the committed file would change) and `--insert CHIP` (it appends a part the
+set does not carry yet, through the same renderer, so an inserted entry is byte-identical
+to what a later re-run produces). The order matters in one place: prefill attention reads
+the bf16 GEMM ramp **from the registry**, so the envelope must be committed first.
+
+```bash
+export AISIMULATE_DATA=<aisimulate>/python/aisimulate/src/aisimulate_core/systems/data
+export BLIS_CATALOG=<path-to-blis-catalog>
+
+# 1. descriptors (vendor_spec, from NVIDIA's own systems/gb300.yaml)
+#    emit_primitives.py owns this family; its GEMM/MoE path is superseded — see below.
+# 2. GEMM ramp, then MoE imbalance
+python scripts/relane_gemm_envelope.py  --insert gb300
+python scripts/relane_moe_imbalance.py  --insert gb300
+# 3. attention: decode, then prefill (needs the ramp from step 2), then windowed
+python scripts/relane_attention_decode.py  --insert gb300 gb300:gb300
+python scripts/relane_attention_prefill.py --insert gb300 gb300:gb300
+python scripts/relane_attention_swa.py     --insert gb300 gb300:gb300
+# 4. recurrent
+python scripts/relane_recurrent_kda.py     --insert gb300 gb300:gb300
+# 5. collectives, per operator from the lane each belongs on
+python scripts/insert_collectives_part.py --chip gb300 --sku gb300
+```
+
+Then assert idempotence, which is what makes the result auditable:
+
+```bash
+for s in relane_gemm_envelope relane_moe_imbalance relane_attention_decode \
+         relane_attention_prefill relane_attention_swa relane_recurrent_kda; do
+    python scripts/$s.py --check || echo "$s DRIFTED"
+done
+python -m pytest validator/ -q
+```
+
+**Do not run `emit_primitives.py` or `emit_collectives.py` to regenerate a whole set.**
+Both predate lane decisions that moved families off them. `emit_primitives.py`'s
+`COLLECTIONS` table still pins `trtllm/1.3.0rc20` while every committed `gemm_*` entry
+cites a vLLM lane (5be809b), and regenerating `cost-model-collectives.yaml` from NCCL
+gives 144 removals and 36 changes — all 36 being the `all_reduce` entries 2f71dd6 moved to
+vLLM's custom kernel, so it would silently re-introduce a 3.4× mispricing. Use the
+per-family writers; they are what `--check` guards.
 
 ## 4. Why the registry holds only what the kernel reads
 

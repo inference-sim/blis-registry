@@ -54,6 +54,7 @@ DEVICE = {
     "b200": "NVIDIA B200",
     "b300": "NVIDIA B300",
     "gb200-nvl72": "NVIDIA GB200",
+    "gb300": "NVIDIA GB300",
     "l40s": "NVIDIA L40S",
 }
 
@@ -109,6 +110,91 @@ def rationale(kind: str, chip: str, collection: str, f: dict) -> str:
     )
 
 
+def entry_lines(kind: str, chip: str, collection: str, f: dict) -> list[str]:
+    """Render one SWA entry.
+
+    Shared by the rewrite path, which maintains the parts already present, and the
+    insert path, which adds a part that is not there yet, so an inserted entry is
+    byte-identical to what a later re-run produces and --check stays green.
+    """
+    name = f"attention_decode_{kind}_swa"
+    value = f["floor"] if kind == "floor" else f["rate"]
+    cite = (
+        f"NVIDIA AISimulate systems/data/{f['sku']}/attention/{collection}/"
+        f"generation_attention_perf.parquet ({DEVICE[chip]}), "
+        f"{f['n']:,} sliding-window decode points"
+    )
+    return [
+        f"  - {name}:",
+        f"      value: {value}",
+        f"      units: {'us_per_transfer' if kind == 'floor' else 'bytes_per_us'}",
+        "      method: measured",
+        "      fitted: true",
+        f"      scope: {{hardware: [{chip}]}}",
+        "      sources:",
+        f'        - {{kind: model, cite: "{cite}", role: primary}}',
+        "      rationale: >",
+        f"        {rationale(kind, chip, collection, f)}",
+    ]
+
+
+def has_swa_entry(text: str, chip: str) -> bool:
+    """Whether an attention_decode_*_swa entry scoped to `chip` already exists.
+
+    Walked entry by entry rather than matched with one regex: a pattern spanning the
+    entry name to a `hardware: [...]` line crosses intervening entries and reports a
+    hit when some other family in the same set carries the chip.
+    """
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        if not re.match(r"  - attention_decode_(?:floor|rate)_swa:$", lines[i]):
+            i += 1
+            continue
+        j = i + 1
+        while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
+            sm = re.search(r"scope: \{hardware: \[([^\]]+)\]\}", lines[j])
+            if sm and chip in [x.strip() for x in sm.group(1).split(",")]:
+                return True
+            j += 1
+        i = j
+    return False
+
+
+def insert_part(
+    text: str, chip: str, collection: str, fits: dict[str, dict]
+) -> tuple[str, int]:
+    """Append the SWA pair for a part the set does not carry yet.
+
+    Placed after the last existing SWA entry so the family stays contiguous and
+    `rewrite` maintains the new entries on every later run.
+    """
+    f = fits.get(chip)
+    if not f:
+        return text, 0
+    lines = text.split("\n")
+    last = None
+    for idx, line in enumerate(lines):
+        if re.match(r"  - attention_decode_(?:floor|rate)_swa:$", line):
+            j = idx + 1
+            while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
+                j += 1
+            last = j
+    if last is None:
+        return text, 0
+    # Keep file-level trailing lines (blank lines, column-0 comments) after the block.
+    while last > 0 and (not lines[last - 1].strip() or lines[last - 1].startswith("#")):
+        last -= 1
+    block: list[str] = []
+    for kind in ("floor", "rate"):
+        block += entry_lines(kind, chip, collection, f)
+    out = lines[:last] + block + lines[last:]
+    result = "\n".join(out)
+    if text.endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result, 2
+
+
 def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int]:
     """Replace the floor/rate entries for every chip in `fits`; pass everything else through."""
     lines = text.split("\n")
@@ -125,6 +211,11 @@ def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int
         while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
             j += 1
         block = lines[i:j]
+        # File-level trailing lines belong to the file, not the entry, and must survive
+        # the rewrite; see the same guard in relane_gemm_envelope.py.
+        tail: list[str] = []
+        while block and (not block[-1].strip() or block[-1].startswith("#")):
+            tail.insert(0, block.pop())
         chip = None
         for b in block:
             sm = re.search(r"scope: \{hardware: \[([^\]]+)\]\}", b)
@@ -135,28 +226,11 @@ def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int
                 chip = scoped[0] if len(scoped) == 1 else None
         if chip is None or chip not in fits:
             out.extend(block)
+            out.extend(tail)
             i = j
             continue
-        f = fits[chip]
-        kind = m.group(2)
-        value = f["floor"] if kind == "floor" else f["rate"]
-        cite = (
-            f"NVIDIA AISimulate systems/data/{f['sku']}/attention/{collection}/"
-            f"generation_attention_perf.parquet ({DEVICE[chip]}), "
-            f"{f['n']:,} sliding-window decode points"
-        )
-        out += [
-            f"  - {m.group(1)}:",
-            f"      value: {value}",
-            f"      units: {'us_per_transfer' if kind == 'floor' else 'bytes_per_us'}",
-            "      method: measured",
-            "      fitted: true",
-            f"      scope: {{hardware: [{chip}]}}",
-            "      sources:",
-            f'        - {{kind: model, cite: "{cite}", role: primary}}',
-            "      rationale: >",
-            f"        {rationale(kind, chip, collection, f)}",
-        ]
+        out += entry_lines(m.group(2), chip, collection, fits[chip])
+        out.extend(tail)
         changed += 1
         i = j
     return "\n".join(out), changed
@@ -169,6 +243,9 @@ def main(argv: list[str]) -> int:
                     help="lane/version under <sku>/attention (default vllm/0.25.0)")
     ap.add_argument("--check", action="store_true",
                     help="exit 1 if the file would change; write nothing")
+    ap.add_argument("--insert", metavar="CHIP",
+                    help="append the SWA pair for a part the set does not carry yet "
+                         "(the rewrite path only maintains parts already present)")
     ap.add_argument("parts", nargs="*", metavar="sku:chip",
                     help=f"default: {' '.join(f'{s}:{c}' for s, c in DEFAULT_PARTS)}")
     args = ap.parse_args(argv[1:])
@@ -201,6 +278,25 @@ def main(argv: list[str]) -> int:
         return 1
 
     before = SET_PATH.read_text(encoding="utf-8")
+
+    if args.insert:
+        chip = args.insert
+        if chip not in fits:
+            print(f"{chip}: not fitted above; pass it as a sku:chip argument",
+                  file=sys.stderr)
+            return 1
+        if has_swa_entry(before, chip):
+            print(f"{chip}: SWA entries already present; use the rewrite path",
+                  file=sys.stderr)
+            return 1
+        after, n = insert_part(before, chip, args.collection, fits)
+        if not n:
+            print(f"{chip}: nothing to insert", file=sys.stderr)
+            return 1
+        SET_PATH.write_text(after, encoding="utf-8")
+        print(f"\n{SET_PATH.name}: inserted {n} {chip} entries")
+        return 0
+
     after, changed = rewrite(before, fits, args.collection)
     if args.check:
         if before != after:

@@ -52,6 +52,18 @@ DEFAULT_DATA = os.environ.get(
     "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
 
 SWEEP = "h100_sxm/kda/vllm/0.1.dev19262/kda_perf.parquet"
+# SKU directory -> catalog chip, for every part with a KDA sweep on the cited
+# collection. One collection per part, so a difference between parts is silicon.
+KDA_PARTS = {
+    "h100_sxm": "h100",
+    "h200_sxm": "h200",
+    "gb300": "gb300",
+    "b200_sxm": "b200",
+    "b300_sxm": "b300",
+    "gb200": "gb200-nvl72",
+    "l40s": "l40s",
+}
+COLLECTION = "kda/vllm/0.1.dev19262/kda_perf.parquet"
 # vllm/models/kimi_k3/nvidia/kda.py:980-993 -- the conv runs, then the recurrent scan.
 CHAIN = ["causal_conv1d_update", "fused_recurrent_kda_packed_decode"]
 # blis-catalog models/kimi-k3/graph.yaml: RecurrentUpdate n_heads: 96.
@@ -91,17 +103,73 @@ def fit_chain(path: Path) -> dict:
     return {"parts": parts, "floor": round(floor, 1), "rate": round(rate, 3)}
 
 
-def rewrite(text: str, fit: dict) -> tuple[str, int]:
+def entry_lines(kind: str, chip: str, sku: str, fit: dict) -> list[str]:
+    """Render one KDA entry for one part.
+
+    Shared by the rewrite and insert paths, and keyed on the part rather than on a
+    module-level constant: the previous version hardcoded `scope: {hardware: [h100]}`,
+    so once an h200 pair existed a rewrite would have relabelled it h100 and silently
+    merged two parts' measurements.
+    """
+    conv = fit["parts"]["causal_conv1d_update"]
+    scan = fit["parts"]["fused_recurrent_kda_packed_decode"]
+    cite = (f"NVIDIA AISimulate systems/data/{sku}/{COLLECTION}, kernels "
+            f"causal_conv1d_update + fused_recurrent_kda_packed_decode summed, "
+            f"generation phase, num_k_heads={HEADS}, model moonshotai/Kimi-K3, "
+            f"{conv['n']} and {scan['n']} points")
+    value = fit["floor"] if kind == "floor" else fit["rate"]
+    if kind == "floor":
+        rat = (f"The minimum cost of one KDA layer's decode-phase state update on "
+               f"{chip}. vLLM's NVIDIA path runs causal_conv1d_update and then "
+               f"fused_recurrent_kda_packed_decode for the same step "
+               f"(vllm/models/kimi_k3/nvidia/kda.py:980-993), so a layer costs the "
+               f"SUM: {conv['floor']}us + {scan['floor']}us. Fitted at "
+               f"num_k_heads={HEADS}, which is what Kimi-K3's graph declares; the "
+               f"kernel's coefficient carries no head term, so the fitted geometry "
+               f"must be the model's. Per-kernel geometric error {conv['err']}x and "
+               f"{scan['err']}x. The fused kernel an earlier revision used is AMD-only "
+               f"(amd/ops/kda_decode.py gates on gfx942/gfx950) and runs on no CUDA "
+               f"deployment.")
+    else:
+        rat = (f"Tokens per microsecond past the {chip} floor. The two kernels run in "
+               f"series, so their times add and the reciprocal rates add: "
+               f"1/{conv['rate']} + 1/{scan['rate']} tok/us. The recurrent scan "
+               f"dominates, being sequential in the state dimension -- it cannot "
+               f"spread one sequence's work across the machine the way a matmul "
+               f"spreads a batch's. Fitted on the vLLM lane at num_k_heads={HEADS}.")
+    return [
+        f"  - recurrent_decode_{kind}_kda:",
+        f"      value: {value}",
+        # `tokens` is the schema's unit for this quantity -- semantically tokens
+        # per microsecond, recorded under the in-schema member the mamba2 pair
+        # already uses. `tokens_per_us` is not in UNITS and is rejected.
+        "      units: " + ("us_per_transfer" if kind == "floor" else "tokens"),
+        "      method: measured",
+        "      fitted: true",
+        f"      scope: {{hardware: [{chip}]}}",
+        "      sources:",
+        f'        - {{kind: model, cite: "{cite}", role: primary}}',
+        "      rationale: >",
+        f"        {rat}",
+    ]
+
+
+def rewrite(text: str, fits: dict[str, tuple[str, dict]]) -> tuple[str, int]:
+    """Rewrite every KDA pair whose scoped chip appears in `fits`.
+
+    CAUTION, and the reason --insert exists separately. This renders a GENERIC
+    rationale from the fit. Some committed entries carry hand-authored rationale that
+    no fit can regenerate -- the h200 pair records that a missing coefficient made a
+    GLM-5.3-Flash prefill read 9.4x FASTER on h200 than h100 despite a shared die, a
+    finding worth more than the prose it replaces. Running the rewrite path over such
+    an entry destroys that. Values are unaffected (the fitter reproduces every
+    committed figure exactly), so prefer --insert for a new part and pass explicit
+    sku:chip arguments when deliberately re-rendering one.
+    """
     lines = text.split("\n")
     out: list[str] = []
     i = 0
     changed = 0
-    conv = fit["parts"]["causal_conv1d_update"]
-    scan = fit["parts"]["fused_recurrent_kda_packed_decode"]
-    cite = (f"NVIDIA AISimulate systems/data/{SWEEP}, kernels "
-            f"causal_conv1d_update + fused_recurrent_kda_packed_decode summed, "
-            f"generation phase, num_k_heads={HEADS}, model moonshotai/Kimi-K3, "
-            f"{conv['n']} and {scan['n']} points")
     while i < len(lines):
         m = re.match(r"  - (recurrent_decode_(floor|rate)_kda):$", lines[i])
         if not m:
@@ -111,45 +179,31 @@ def rewrite(text: str, fit: dict) -> tuple[str, int]:
         j = i + 1
         while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
             j += 1
+        block = lines[i:j]
+        tail: list[str] = []
+        while block and (not block[-1].strip() or block[-1].startswith("#")):
+            tail.insert(0, block.pop())
+        chip = None
+        for b in block:
+            sm = re.search(r"scope: \{hardware: \[([^\]]+)\]\}", b)
+            if sm:
+                sc = [x.strip() for x in sm.group(1).split(",")]
+                chip = sc[0] if len(sc) == 1 else None
         kind = m.group(2)
-        value = fit["floor"] if kind == "floor" else fit["rate"]
-        if kind == "floor":
-            rat = (f"The minimum cost of one KDA layer's decode-phase state update. vLLM's "
-                   f"NVIDIA path runs causal_conv1d_update and then "
-                   f"fused_recurrent_kda_packed_decode for the same step "
-                   f"(vllm/models/kimi_k3/nvidia/kda.py:980-993), so a layer costs the SUM: "
-                   f"{conv['floor']}us + {scan['floor']}us. Fitted at num_k_heads={HEADS}, "
-                   f"which is what Kimi-K3's graph declares; the kernel's coefficient "
-                   f"carries no head term, so the fitted geometry must be the model's. "
-                   f"Per-kernel geometric error {conv['err']}x and {scan['err']}x. The "
-                   f"fused kernel this entry previously used is AMD-only "
-                   f"(amd/ops/kda_decode.py gates on gfx942/gfx950) and runs on no CUDA "
-                   f"deployment.")
-        else:
-            rat = (f"Tokens per microsecond past the floor. The two kernels run in series, "
-                   f"so their times add and the reciprocal rates add: "
-                   f"1/{conv['rate']} + 1/{scan['rate']} tok/us. The recurrent scan "
-                   f"dominates, being sequential in the state dimension -- it cannot "
-                   f"spread one sequence's work across the machine the way a matmul "
-                   f"spreads a batch's. Fitted on the vLLM lane at num_k_heads={HEADS}.")
-        out += [
-            f"  - {m.group(1)}:",
-            f"      value: {value}",
-            # `tokens` is the schema's unit for this quantity -- semantically tokens
-            # per microsecond, recorded under the in-schema member the mamba2 pair
-            # already uses. `tokens_per_us` is not in UNITS and is rejected.
-            "      units: " + ("us_per_transfer" if kind == "floor" else "tokens"),
-            "      method: measured",
-            "      fitted: true",
-            "      scope: {hardware: [h100]}",
-            "      sources:",
-            f'        - {{kind: model, cite: "{cite}", role: primary}}',
-            "      rationale: >",
-            f"        {rat}",
-        ]
+        if chip is None or chip not in fits:
+            out.extend(block)
+            out.extend(tail)
+            i = j
+            continue
+        sku, fit = fits[chip]
+        out += entry_lines(kind, chip, sku, fit)
+        out.extend(tail)
         changed += 1
         i = j
-    return "\n".join(out), changed
+    result = "\n".join(out)
+    if text.endswith("\n") and not result.endswith("\n"):
+        result += "\n"
+    return result, changed
 
 
 def main(argv: list[str]) -> int:
@@ -157,17 +211,74 @@ def main(argv: list[str]) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=DEFAULT_DATA)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--insert", metavar="CHIP",
+                    help="append the KDA pair for a part the set does not carry yet")
+    ap.add_argument("parts", nargs="*", metavar="sku:chip",
+                    help="default: every part already scoped in the set")
     args = ap.parse_args(argv[1:])
 
-    fit = fit_chain(Path(args.data) / SWEEP)
-    for ks, p in fit["parts"].items():
-        print(f"  {ks:36} n={p['n']:3} floor={p['floor']:4.1f}us "
-              f"rate={p['rate']:5.2f} tok/us geo-err={p['err']}x")
-    print(f"  {'SUM (serial)':36}     floor={fit['floor']:4.1f}us "
-          f"rate={fit['rate']:.3f} tok/us")
+    if args.parts:
+        want = [tuple(p.split(":", 1)) for p in args.parts]
+    else:
+        want = sorted(KDA_PARTS.items())
+
+    fits: dict[str, tuple[str, dict]] = {}
+    for sku, chip in want:
+        path = Path(args.data) / sku / COLLECTION
+        if not path.is_file():
+            print(f"{chip:14} no KDA sweep at {COLLECTION}", file=sys.stderr)
+            continue
+        try:
+            fit = fit_chain(path)
+        except SystemExit as exc:
+            print(f"{chip:14} {exc}", file=sys.stderr)
+            continue
+        fits[chip] = (sku, fit)
+        print(f"{chip:14} floor={fit['floor']:4.1f}us rate={fit['rate']:.3f} tok/us  "
+              + "  ".join(f"{k.split('_')[0]}:{p['err']}x"
+                          for k, p in fit["parts"].items()))
+    if not fits:
+        print("no parts fitted; nothing to do", file=sys.stderr)
+        return 1
 
     before = SET_PATH.read_text(encoding="utf-8")
-    after, changed = rewrite(before, fit)
+
+    if args.insert:
+        chip = args.insert
+        if chip not in fits:
+            print(f"{chip}: not fitted above; pass it as a sku:chip argument",
+                  file=sys.stderr)
+            return 1
+        if re.search(r"hardware: \[" + re.escape(chip) + r"\]", before):
+            print(f"{chip}: already present; use the rewrite path", file=sys.stderr)
+            return 1
+        sku, fit = fits[chip]
+        lines = before.split("\n")
+        last = None
+        for idx, line in enumerate(lines):
+            if re.match(r"  - recurrent_decode_(?:floor|rate)_kda:$", line):
+                j = idx + 1
+                while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
+                    j += 1
+                last = j
+        if last is None:
+            print("no existing KDA entry to anchor to", file=sys.stderr)
+            return 1
+        while last > 0 and (not lines[last - 1].strip()
+                            or lines[last - 1].startswith("#")):
+            last -= 1
+        block: list[str] = []
+        for kind in ("floor", "rate"):
+            block += entry_lines(kind, chip, sku, fit)
+        out = lines[:last] + block + lines[last:]
+        result = "\n".join(out)
+        if before.endswith("\n") and not result.endswith("\n"):
+            result += "\n"
+        SET_PATH.write_text(result, encoding="utf-8")
+        print(f"\n{SET_PATH.name}: inserted 2 {chip} entries")
+        return 0
+
+    after, changed = rewrite(before, fits)
     if args.check:
         if before != after:
             print(f"\n{SET_PATH.name} would change ({changed} entries)", file=sys.stderr)

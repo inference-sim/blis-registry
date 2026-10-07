@@ -466,12 +466,16 @@ remaining four are the borrows in §8.3.
 | attention | `attention_prefill_{floor,work_scale}` | 14 | vllm 0.25.0 ×10, 0.24.0 ×2, 0.14.0 ×2 |
 | collectives | all-reduce fp16 (floor, peak, transition) | 69 | **vllm** 0.24.0 ×36, 0.14.0 ×18, nccl ×15 |
 | collectives | every other collective | 429 | nccl 2.29.2 / 2.27.3 |
-| primitives | `gemm_{eps_max,m_half}` | 44 | vllm 0.27.1 ×24, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
-| primitives | `moe_routing_imbalance_{median,p90}` | 14 | vllm ×12, **sglang 0.5.10 ×2 (A100)** |
-| primitives | descriptors | 64 | AISimulate `systems/<sku>.yaml` |
-| recurrent | `recurrent_decode_*_kda` | 2 | vllm 0.1.dev19262 |
+| primitives | `gemm_{eps_max,m_half}` | 52 | vllm 0.27.1 ×32, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
+| primitives | `moe_routing_imbalance_{median,p90}` | 16 | vllm ×14, **sglang 0.5.10 ×2 (A100)** |
+| primitives | descriptors | 72 | AISimulate `systems/<sku>.yaml` |
+| recurrent | `recurrent_decode_*_kda` | 6 | vllm 0.1.dev19262 |
 | recurrent | `recurrent_decode_*_mamba2` | 2 | **trtllm 1.3.0rc20** |
-| host-overheads | all | 6 | none — `method: assumed` |
+| host-overheads | all | 7 | none — `method: assumed` |
+
+Regenerate this table rather than editing it: every count above is derivable from
+`coefficients/` with a group-by on the family stem, and a retyped count is the defect
+class this registry has caught most often.
 
 Where a part has no collection at the newest version, it uses the newest it has: L40S's
 attention and GEMM come from `vllm/0.24.0` because 0.25.0 does not cover it, and A100's
@@ -506,16 +510,91 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
 * **Attention, full and windowed**: GQA and MLA are validatable; **sliding window is not**
   — no FPM model declares a `kind: swa` node. The SWA relane therefore rests on held-out
   AISimulate folds (§7.1) plus lane correctness, with no FPM arbiter.
-* **KDA**: the data EXISTS but the catalog cannot reach it. Four Kimi-K3 artifacts are
-  all vLLM and all on **GB300**, two of them on `vllm/0.1.dev19262` — the same collection
-  the kernel fit used, which would be the cleanest possible pairing. The catalog has no
-  `gb300` chip, so no scenario can be built. Tracked as blis-catalog#17 and
-  blis-registry#25; until then KDA is the one family shipping on fit quality and vLLM
-  source reading alone.
+* **KDA**: the data exists and is now reachable, but one gap remains and it is not the
+  one previously recorded here. Four Kimi-K3 artifacts are all vLLM and all on **GB300**,
+  two of them on `vllm/0.1.dev19262` — the same collection the kernel fit used, which is
+  the cleanest possible pairing. An earlier revision of this section said the catalog had
+  no `gb300` chip; it has carried one since blis-catalog#23, and this registry now carries
+  102 GB300 coefficients including the KDA pair. The dataset's own
+  `catalog/index.json` lists both artifacts as `aic_fpm_forward_perf` with
+  `phases: [decode, prefill]`, 5,266 and 4,874 rows at `tep8`.
+
+  What blocks the scoring now is a **rank width**, not a chip. The `tep8` artifact is
+  tp=8, moe_ep=8, and NCCL sweeps GB300 at 2 and 4 ranks only because a Grace-Blackwell
+  tray is four GPUs — so `all_gather`, `reduce_scatter` and `alltoall` carry
+  `method: assumed` 8-rank floors (§8.5) rather than measurements. All-reduce IS measured
+  at 8 and 16 ranks, from vLLM's own custom kernel. The second artifact,
+  `vllm/0.29.0/tp8-dcp8`, is `moe_ep=1` / `pure_tp`, so it exercises no expert
+  all-to-all and is the cleaner first cell to score.
+
+  Note also that FPM carries no per-kernel or per-node column at all — the truth
+  parquets hold one `latency_ms` per `(batch_size, total_prefill_tokens,
+  total_kv_read_tokens)`. "No KDA-node forward pass" describes something FPM never had
+  for any model; the right question is only whether a Kimi-K3 whole-forward measurement
+  exists on a chip the kernel can price, and it does.
 * **mamba2**: no FPM artifact carries a Mamba2 forward pass, and no InferenceX tier
   carries Nemotron-3. Unvalidatable from either direction.
 * **A100 and L40S**: absent from FPM and from InferenceX entirely. Their coefficients are
   fitted and shipped but carry no end-to-end check, which is stated rather than implied.
+
+### 8.5 Rack-scale rank widths, and the one place this registry extrapolates
+
+A Grace-Blackwell tray is four GPUs, so AISimulate's NCCL sweeps cover **2 and 4 ranks
+only** on GB200-NVL72 and GB300 — against 2, 4 and 8 on every SXM part. `tp=8` is an
+ordinary deployment on both, so three of the four collectives have no 8-rank measurement
+on any lane. All-reduce does: vLLM's own `custom_allreduce_perf.parquet` sweeps GB300 at
+2, 4, 8 and 16 ranks, and since §5 already puts every fp16 all-reduce on that lane, the
+8-rank figure is a first-class measurement rather than a borrow.
+
+For the other three, `all_gather`, `reduce_scatter` and `alltoall`, GB300 ships 18
+entries at `method: assumed`. This is the only extrapolation in the registry, and it is
+constructed to the standard `cost-model-host-overheads.yaml` set: dimension derived,
+magnitude caveated, replacement experiment named.
+
+**The model that was refuted first.** Ring hop-count predicts the 4→8 floor ratio as
+`(2·7/8)/(2·3/4)` = **1.167** for all-reduce. The measured median across the seven parts
+swept at both widths is **1.703**. Hop count is wrong by 46%, because a collective floor
+is dominated by per-rank synchronisation and launch cost rather than by hops. Grounding
+on textbook ring algebra would have under-priced these by a third; the refutation is
+recorded because the wrong model is the plausible one.
+
+**The model that holds.** `floor(n) = a + b·(n−1)`, with `a` and `b` fitted on each
+part's own measured widths {2, 4} and evaluated at n=8. Validated as a holdout on the
+NVLink parts that *do* carry 8-rank data:
+
+| operator | n | pred/meas median | range |
+|---|---|---|---|
+| `all_reduce` | 14 | 0.987 | 0.953–1.041 |
+| `all_gather` | 14 | 1.017 | 0.954–1.090 |
+| `reduce_scatter` | 14 | 1.018 | 0.967–1.107 |
+| `alltoall` | 14 | **1.128** | 0.737–1.294 |
+
+`alltoall` is the stated exception and its entries say so: its floor barely grows with
+width (median 4→8 ratio 1.090), so a two-point linear fit amplifies noise.
+
+**The reference class excludes L40S and RTX Pro 6000**, whose 8/4 rate ratios reach
+2.7×–4.2×. Those parts have no NVLink, so an 8-rank group crosses a materially different
+fabric. GB300 is full-NVSwitch: its descriptor states `inter_node_bw == intra_node_bw ==
+900 GB/s`, so crossing a tray boundary *inside the rack* is not a bandwidth change at
+all — only the rack boundary is, and that is a 9× step to InfiniBand. Including PCIe
+parts would have inflated the extrapolation.
+
+**Rates are not extrapolated.** The 8-rank peak and transition rates carry the part's own
+**4-rank measured** values. A geometric decay fitted on {2,4} under-predicts the measured
+8-rank rate by a median 0.84×–0.95×, and the ring-bandwidth law by 0.91×–0.94× — both
+biased low rather than centred, so neither is a sound estimator. Carrying the 4-rank
+figure gives a rate that is *above* the true 8-rank rate, which is an upper bound on
+throughput and therefore a lower bound on transfer time. That direction is stated in each
+entry rather than left for a reader to infer.
+
+**What replaces all 18 at once:** one 8-rank GB300 NCCL sweep.
+
+**The kernel enforces the boundary.** `blis-latency-kernel` reads the measured widths from
+the registry per chip rather than from a constant, and a width inside the sweep range that
+this part was never measured at is an **error naming the operator, width and chip** — not
+a silent clamp to a narrower floor. Before that change a GB200 `tp=8` group was priced at
+the 4-rank coefficient, understating an 8-rank all-reduce by 1.53×–1.91× across the parts
+measured at both widths.
 
 ## 9. The FPM mixed rows, and what they found
 

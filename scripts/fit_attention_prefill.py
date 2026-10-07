@@ -75,6 +75,7 @@ SKUS = {
     "b200_sxm": "b200",
     "b300_sxm": "b300",
     "a100_sxm": "a100-sxm",
+    "gb300": "gb300",
 }
 
 FLOOR_GRID = [x * 0.5 for x in range(2, 80)]

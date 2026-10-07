@@ -4868,7 +4868,788 @@ coefficients:
       rationale: >
         1.50 GB/s, the rate in max(floor + size / rate, size / peak). Fitted over 21 points by minimising the mean absolute log ratio, which weighs an under-prediction and an over equally. It cuts this configuration's geometric error from 1.435x under the two-parameter form to 1.169x. Below the asymptote, which is 0.79 of it, because a collective reaches its asymptotic bandwidth only at messages far larger than one forward pass produces.
 
-# 480 entries generated.
+  # --- gb300 (gb300) ---
+  - collective_floor_all_reduce_fp16_2rank_gb300:
+      value: 7.033
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.189x.
+  - collective_peak_rate_all_reduce_fp16_2rank_gb300:
+      value: 289452.8
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass.
+  - collective_transition_rate_all_reduce_fp16_2rank_gb300:
+      value: 233500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.189x against 1.363x for the two-parameter form.
+  - collective_floor_all_reduce_fp16_4rank_gb300:
+      value: 7.505
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.205x.
+  - collective_peak_rate_all_reduce_fp16_4rank_gb300:
+      value: 211485.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass.
+  - collective_transition_rate_all_reduce_fp16_4rank_gb300:
+      value: 192750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.205x against 1.355x for the two-parameter form.
+  - collective_floor_all_reduce_fp16_8rank_gb300:
+      value: 13.158
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.046x.
+  - collective_peak_rate_all_reduce_fp16_8rank_gb300:
+      value: 186227.1
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass.
+  - collective_transition_rate_all_reduce_fp16_8rank_gb300:
+      value: 172500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.046x against 1.165x for the two-parameter form.
+  - collective_floor_all_reduce_fp16_16rank_gb300:
+      value: 45.898
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.079x.
+  - collective_peak_rate_all_reduce_fp16_16rank_gb300:
+      value: 170712.3
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass.
+  - collective_transition_rate_all_reduce_fp16_16rank_gb300:
+      value: 141500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.079x against 1.199x for the two-parameter form.
+  - collective_floor_all_reduce_int8_2rank_gb300:
+      value: 7.033
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.189x. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_peak_rate_all_reduce_int8_2rank_gb300:
+      value: 289452.8
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_transition_rate_all_reduce_int8_2rank_gb300:
+      value: 233500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 2 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.189x against 1.363x for the two-parameter form. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_floor_all_reduce_int8_4rank_gb300:
+      value: 7.505
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.205x. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_peak_rate_all_reduce_int8_4rank_gb300:
+      value: 211485.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_transition_rate_all_reduce_int8_4rank_gb300:
+      value: 192750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 4 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.205x against 1.355x for the two-parameter form. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_floor_all_reduce_int8_8rank_gb300:
+      value: 13.158
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.046x. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_peak_rate_all_reduce_int8_8rank_gb300:
+      value: 186227.1
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_transition_rate_all_reduce_int8_8rank_gb300:
+      value: 172500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 8 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.046x against 1.165x for the two-parameter form. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_floor_all_reduce_int8_16rank_gb300:
+      value: 45.898
+      units: us_per_transfer
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        Minimum latency over the 6 messages at or below 4 KiB, where latency is independent of size. Fitted on vLLM's OWN custom all-reduce rather than NCCL: vLLM does not call NCCL for a tensor-parallel all-reduce its custom kernel can serve. The CUDA-graph lane is the one a decode step runs in. Three-parameter geometric error 1.079x. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_peak_rate_all_reduce_int8_16rank_gb300:
+      value: 170712.3
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        Maximum message_size/latency over the 23-point sweep, an order statistic rather than a curve fit. A ceiling on throughput; the transition rate below is what prices a forward pass. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_transition_rate_all_reduce_int8_16rank_gb300:
+      value: 141500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/vllm/0.27.0/custom_allreduce_perf.parquet (vLLM 0.27.0 custom all-reduce, CUDA-graph lane, NVIDIA GB300), 23 messages at 16 ranks", role: primary}
+      rationale: >
+        The rate in the transition region a forward pass's messages actually land in, fitted by grid search against the three-parameter form the kernel evaluates: max(floor + size/rate, size/peak). Geometric error 1.079x against 1.199x for the two-parameter form. The sweep measures a two-byte (bfloat16) payload only, so this int8 entry carries the same figure: no int8 custom-all-reduce measurement exists on any part, and an int8 all-reduce still moves through the same one-shot kernel. That is a stated equivalence, not a measurement of int8.
+  - collective_floor_all_gather_fp16_2rank_gb300:
+      value: 8.09
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for all_gather -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_all_gather_fp16_2rank_gb300:
+      value: 448116.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_all_gather_fp16_2rank_gb300:
+      value: 396500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.194x.
+  - collective_floor_all_gather_fp16_4rank_gb300:
+      value: 11.04
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for all_gather -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_all_gather_fp16_4rank_gb300:
+      value: 382027.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_all_gather_fp16_4rank_gb300:
+      value: 354000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.180x.
+  - collective_floor_all_gather_fp16_8rank_gb300:
+      value: 16.94
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 8.09us at 2 ranks and 11.04us at 4 give 16.94us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.021x over 8 cells, range 0.976-1.086x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_all_gather_fp16_8rank_gb300:
+      value: 382027.5
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_all_gather_fp16_8rank_gb300:
+      value: 354000.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+  - collective_floor_all_gather_int8_2rank_gb300:
+      value: 8.16
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for all_gather -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_all_gather_int8_2rank_gb300:
+      value: 895322.0
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_all_gather_int8_2rank_gb300:
+      value: 791750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.188x.
+  - collective_floor_all_gather_int8_4rank_gb300:
+      value: 11.08
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for all_gather -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_all_gather_int8_4rank_gb300:
+      value: 763305.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_all_gather_int8_4rank_gb300:
+      value: 708750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.177x.
+  - collective_floor_all_gather_int8_8rank_gb300:
+      value: 16.92
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 8.16us at 2 ranks and 11.08us at 4 give 16.92us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.021x over 8 cells, range 0.976-1.086x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_all_gather_int8_8rank_gb300:
+      value: 763305.5
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_all_gather_int8_8rank_gb300:
+      value: 708750.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, all_gather, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+  - collective_floor_reduce_scatter_fp16_2rank_gb300:
+      value: 8.11
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for reduce_scatter -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_reduce_scatter_fp16_2rank_gb300:
+      value: 419627.1
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_reduce_scatter_fp16_2rank_gb300:
+      value: 375500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.160x.
+  - collective_floor_reduce_scatter_fp16_4rank_gb300:
+      value: 11.18
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for reduce_scatter -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_reduce_scatter_fp16_4rank_gb300:
+      value: 370951.7
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_reduce_scatter_fp16_4rank_gb300:
+      value: 351500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.152x.
+  - collective_floor_reduce_scatter_fp16_8rank_gb300:
+      value: 17.32
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 8.11us at 2 ranks and 11.18us at 4 give 17.32us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.029x over 8 cells, range 0.962-1.107x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_reduce_scatter_fp16_8rank_gb300:
+      value: 370951.7
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_reduce_scatter_fp16_8rank_gb300:
+      value: 351500.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+  - collective_floor_reduce_scatter_int8_2rank_gb300:
+      value: 8.07
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for reduce_scatter -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_reduce_scatter_int8_2rank_gb300:
+      value: 744072.9
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_reduce_scatter_int8_2rank_gb300:
+      value: 667750.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.162x.
+  - collective_floor_reduce_scatter_int8_4rank_gb300:
+      value: 11.15
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for reduce_scatter -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_reduce_scatter_int8_4rank_gb300:
+      value: 679600.6
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_reduce_scatter_int8_4rank_gb300:
+      value: 655500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.150x.
+  - collective_floor_reduce_scatter_int8_8rank_gb300:
+      value: 17.31
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 8.07us at 2 ranks and 11.15us at 4 give 17.31us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.029x over 8 cells, range 0.962-1.107x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_reduce_scatter_int8_8rank_gb300:
+      value: 679600.6
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_reduce_scatter_int8_8rank_gb300:
+      value: 655500.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, reduce_scatter, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+  - collective_floor_alltoall_fp16_2rank_gb300:
+      value: 9.55
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for alltoall -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_alltoall_fp16_2rank_gb300:
+      value: 349689.3
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_alltoall_fp16_2rank_gb300:
+      value: 326500.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.212x.
+  - collective_floor_alltoall_fp16_4rank_gb300:
+      value: 10.28
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 25 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for alltoall -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_alltoall_fp16_4rank_gb300:
+      value: 341490.5
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_alltoall_fp16_4rank_gb300:
+      value: 304000.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.182x.
+  - collective_floor_alltoall_fp16_8rank_gb300:
+      value: 11.74
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 9.55us at 2 ranks and 10.28us at 4 give 11.74us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.014x over 8 cells, range 0.900-1.294x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. THIS IS THE WEAKEST OF THE FOUR OPERATORS: an alltoall floor barely grows with width, so a two-point linear fit amplifies noise. Treat it as an order-of-magnitude figure. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_alltoall_fp16_8rank_gb300:
+      value: 341490.5
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_alltoall_fp16_8rank_gb300:
+      value: 304000.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, half; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+  - collective_floor_alltoall_int8_2rank_gb300:
+      value: 9.51
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for alltoall -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_alltoall_int8_2rank_gb300:
+      value: 697869.4
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_alltoall_int8_2rank_gb300:
+      value: 652250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 2 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.217x.
+  - collective_floor_alltoall_int8_4rank_gb300:
+      value: 10.38
+      units: us_per_transfer
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Minimum latency over the 20 messages at or below 4 KiB, where latency does not depend on size. An order statistic rather than a fit: a floor is a lower bound on achievable latency, so a high outlier must not raise it. NCCL is vLLM's own path for alltoall -- CustomAllreduce implements all-reduce only.
+  - collective_peak_rate_alltoall_int8_4rank_gb300:
+      value: 683676.8
+      units: bytes_per_us
+      method: measured
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Maximum message_size/latency over 105 points, an order statistic. A ceiling; the transition rate prices a step.
+  - collective_transition_rate_alltoall_int8_4rank_gb300:
+      value: 609250.0
+      units: bytes_per_us
+      method: measured
+      fitted: true
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8, 4 ranks, 105 messages", role: primary}
+      rationale: >
+        Fitted by grid search against the three-parameter form the kernel evaluates. Geometric error 1.176x.
+  - collective_floor_alltoall_int8_8rank_gb300:
+      value: 12.12
+      units: us_per_transfer
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED, not measured: NCCL sweeps this part at 2 and 4 ranks only, because a Grace-Blackwell tray is four GPUs, while tp=8 is an ordinary deployment on it. DIMENSION (derived). floor(n) = a + b*(n-1), fitted on this part's OWN measured widths: 9.51us at 2 ranks and 10.38us at 4 give 12.12us at 8. Validated as a holdout on the NVLink parts that DO carry 8-rank data -- predicted/measured median 1.014x over 8 cells, range 0.900-1.294x. The textbook ring hop-count model was REFUTED first: it predicts a 4->8 ratio of 1.167 against a measured median of 1.703, so a collective floor is dominated by per-rank synchronisation rather than hop count. MAGNITUDE (the caveat). Extrapolated, never borrowed from another part. PCIe parts are excluded from the reference class: their 8/4 ratios reach 2.7x-4.2x because an 8-rank group crosses a different fabric, where this part's descriptor states inter_node_bw == intra_node_bw == 900 GB/s so a tray boundary inside the rack is no bandwidth change. THIS IS THE WEAKEST OF THE FOUR OPERATORS: an alltoall floor barely grows with width, so a two-point linear fit amplifies noise. Treat it as an order-of-magnitude figure. TO REPLACE THIS WITH A MEASUREMENT: an 8-rank NCCL sweep for this part. One sweep retires every assumed entry here at once.
+  - collective_peak_rate_alltoall_int8_8rank_gb300:
+      value: 683676.8
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank peak, carried to 8 ranks. NOT extrapolated, deliberately. A geometric decay fitted on widths 2 and 4 under-predicts the measured 8-rank rate by a median 0.84x-0.95x and the ring-bandwidth law by 0.91x-0.94x -- both biased low rather than centred, so neither is a sound estimator. The true 8-rank rate is BELOW this figure, which makes this an upper bound on throughput and therefore a lower bound on transfer time. Stated as a bound, not an estimate.
+  - collective_transition_rate_alltoall_int8_8rank_gb300:
+      value: 609250.0
+      units: bytes_per_us
+      method: assumed
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "Extrapolated from this part's own measured 2- and 4-rank floors in NVIDIA AISimulate systems/data/gb300/comm/nccl/ (version column: 2.29.2) nccl_perf.parquet, alltoall, int8; holdout-validated on 8 NVLink part/dtype cells", role: primary}
+      rationale: >
+        ASSUMED: this part's own measured 4-rank transition rate, carried to 8 ranks, for the reason the peak above gives. The kernel treats a missing transition rate as fatal because the two-parameter form understates a collective by up to 3.8x in the message range a forward pass produces, so an assumed figure with a stated direction is better than absence -- but it is an upper bound on rate and under-states this collective's time.
+# 558 entries generated.
 
   - collective_floor_all_gather_fp16_2rank_a100_80:
       value: 8.98

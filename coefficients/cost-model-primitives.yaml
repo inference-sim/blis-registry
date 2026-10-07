@@ -1368,4 +1368,92 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 nvfp4 rows over 74 token counts, kernel FlashInferCuteDslNvFp4LinearKernel", role: primary}
       rationale: >
         The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_nvfp4 on the same envelope; residual 0.0240.
-# 130 entries generated.
+  # --- gb300 descriptors (NVIDIA AISimulate systems/gb300.yaml) ---
+  - hbm_derate:
+      value: 0.8
+      units: dimensionless
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        The fraction of datasheet HBM bandwidth a real access stream achieves. NVIDIA ships this in its own system descriptor, annotated there as a correction based on observation. Applied to the catalog's BwPeakTBs. vendor_spec rather than measured: NVIDIA observed it, this project did not, and the sweep behind it is not published.
+
+  - hbm_constant_latency:
+      value: 3.0
+      units: us_per_transfer
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        A fixed floor on any memory access, below which a transfer's size stops mattering. At batch 32 the HBM term is milliseconds and this is noise, but for a small elementwise kernel it dominates.
+
+  - host_link_bandwidth:
+      value: 64000.0
+      units: bytes_per_us
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        64 GB/s single-direction over the CPU-to-GPU link, which is what an offload tier's transfer crosses in addition to host memory. NVIDIA's descriptor states this per part, and the value differs by platform: a Grace-Blackwell part connects over NVLink-C2C rather than PCIe, so a tier that is a liability on one host can be affordable on another. Nominal link rate, not a measured payload throughput; a real transfer reaches a fraction of it.
+
+  - p2p_latency:
+      value: 10.0
+      units: us_per_hop
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        Point-to-point latency between two GPUs, which NVIDIA's descriptor carries as a single per-part figure. The measured per-operation collective floors in cost-model-collectives supersede this for pricing a collective; it is recorded because it is the figure NVIDIA's own model uses, so a comparison against that model needs it.
+
+  - nccl_communicator_bytes_2rank:
+      value: 358612992
+      units: bytes_per_rank
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        Bytes a rank reserves for NCCL communicator buffers at 2 ranks, from NVIDIA's descriptor. It enters the memory breakdown's CommBuffers term, and it is a real per-rank-count figure rather than the order-of-magnitude constant this model previously carried.
+
+  - nccl_communicator_bytes_4rank:
+      value: 411041792
+      units: bytes_per_rank
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        Bytes a rank reserves for NCCL communicator buffers at 4 ranks, from NVIDIA's descriptor. It enters the memory breakdown's CommBuffers term, and it is a real per-rank-count figure rather than the order-of-magnitude constant this model previously carried.
+
+  - nccl_communicator_bytes_8rank:
+      value: 411041792
+      units: bytes_per_rank
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        Bytes a rank reserves for NCCL communicator buffers at 8 ranks, from NVIDIA's descriptor. It enters the memory breakdown's CommBuffers term, and it is a real per-rank-count figure rather than the order-of-magnitude constant this model previously carried.
+
+  - engine_workspace_bytes:
+      value: 3758096384
+      units: bytes_per_rank
+      method: vendor_spec
+      fitted: false
+      scope: {hardware: [gb300]}
+      sources:
+        - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
+      rationale: >
+        3.8 GB of non-weight, non-KV occupancy NVIDIA's descriptor reserves, described there as covering CUDA-graph capture, workspace and the inaccuracy of the rest of the memory calculation. It is a lumped allowance rather than a decomposition, so the memory breakdown reports it as one term and does not claim to split it.
+# 138 entries generated.

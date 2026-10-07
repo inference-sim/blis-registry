@@ -53,6 +53,15 @@ UNITS = frozenset(
         "bytes_per_rank",   # a per-rank memory footprint (LoRA HBM reservation)
         "us_per_load",      # a one-time per-cold-load-event latency (LoRA load base)
         "us_per_transfer",  # a fixed per-transfer latency (legacy CPU↔GPU KV transfer)
+        # Primitive cost-model families. The resource-decomposed step-time model fits
+        # constants these three dimensions describe, and none of the members above
+        # expresses them.
+        "tokens",           # a token count (the GEMM efficiency ramp's half-max point)
+        "sm_count",         # streaming multiprocessors withheld by a concurrent op
+        # A per-emitted-token host cost. The since-removed trained-physics set recorded
+        # output_token_processing as a µs/token quantity under us_per_request, noting that
+        # "the schema's units enum has no us_per_token member". This is that member.
+        "us_per_token",
     }
 )
 
@@ -364,11 +373,52 @@ def _check_coefficients(coefficients: Any) -> list[str]:
                 f"got {type(name).__name__}"
             )
         name_str = str(name)
-        if name_str in seen:
-            errors.append(f"duplicate coefficient name {name_str!r}")
-        seen.add(name_str)
+        # A coefficient's identity is its name AND its scope, not its name alone.
+        #
+        # A set that covers several parts carries one entry per (name, scope): the
+        # GEMM efficiency asymptote is a different number on H100 than on H200, and
+        # both are called gemm_eps_max_bf16 because the resolver selects between them
+        # by scope. Keying uniqueness on the name alone would forbid that, and forcing
+        # the part into the name instead would put a dimension in the name that the
+        # scope already expresses — leaving the resolver no way to tell that two
+        # entries are the same quantity measured on different hardware.
+        #
+        # Two entries with the same name AND the same scope are still an error: the
+        # resolver would keep whichever came last, so the file would silently mean
+        # something other than what it says.
+        key = (name_str, _scope_key(entry))
+        if key in seen:
+            scope = key[1]
+            errors.append(
+                f"duplicate coefficient name {name_str!r} at the same scope "
+                f"({'unscoped' if not scope else dict(scope)}); two entries with one "
+                f"name and one scope cannot both be resolved"
+            )
+        seen.add(key)
         errors.extend(_check_entry(name_str, entry))
     return errors
+
+
+def _scope_key(entry: Any) -> tuple:
+    """Return a hashable, order-independent form of an entry's scope.
+
+    Order-independent because `hardware: [h100, h200]` and `hardware: [h200, h100]`
+    are the same scope, and two entries differing only in that ordering are
+    duplicates rather than alternatives.
+    """
+    if not isinstance(entry, dict):
+        return ()
+    scope = entry.get("scope")
+    if not isinstance(scope, dict):
+        return ()
+    out = []
+    for dimension in sorted(scope):
+        value = scope[dimension]
+        if isinstance(value, list):
+            out.append((dimension, tuple(sorted(map(str, value)))))
+        else:
+            out.append((dimension, str(value)))
+    return tuple(out)
 
 
 def check_set(data: Any) -> list[str]:

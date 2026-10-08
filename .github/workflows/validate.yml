@@ -55,7 +55,7 @@ jobs:
           # cmd/validate-registry. Bump repository -> inference-sim/blis-schemas and
           # ref -> the main merge SHA once #38 merges.
           repository: namasl/blis-schemas
-          ref: 6c71fac14fe3ae674e065064a6b41469a7c61696
+          ref: da583933ebae76e6a062fb2e3081896eb0dc8b90
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

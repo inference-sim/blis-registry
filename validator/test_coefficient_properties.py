@@ -359,45 +359,12 @@ def test_hardware_independent_sets_cover_every_catalog_part():
         )
 
 
-def test_every_measured_entry_cites_a_source():
-    """`measured` means someone measured it, and the citation is where."""
-    for setname, name, body in ENTRIES:
-        if body.get("method") != "measured":
-            continue
-        srcs = body.get("sources") or []
-        assert srcs, (
-            f"{setname}: {name} is method: measured with no sources. A measurement "
-            f"whose provenance is absent cannot be re-derived or audited."
-        )
-
-
-def test_every_assumed_entry_explains_itself():
-    """`assumed` is a declared gap, so the rationale carries the whole argument."""
-    for setname, name, body in ENTRIES:
-        if body.get("method") != "assumed":
-            continue
-        rat = body.get("rationale") or ""
-        assert len(rat) > 200, (
-            f"{setname}: {name} is method: assumed with a {len(rat)}-character "
-            f"rationale. An assumed value is only as good as its stated reasoning; "
-            f"this set's house style states the dimension, the magnitude's caveat, and "
-            f"the experiment that would replace it."
-        )
-        assert not body.get("fitted"), (
-            f"{setname}: {name} is assumed AND fitted: true. `fitted` is reserved for "
-            f"a value fitted against its own term."
-        )
-
-
-def test_fitted_implies_measured():
-    """The schema reserves `fitted: true` for `method: measured`."""
-    for setname, name, body in ENTRIES:
-        if body.get("fitted"):
-            assert body.get("method") == "measured", (
-                f"{setname}: {name} is fitted: true with method "
-                f"{body.get('method')!r}."
-            )
-
+# NOTE: the provenance / schema-consistency checks that used to live here
+# (measured -> sources, assumed -> rationale, fitted -> measured) were removed when the
+# registry collapsed to a single validator: those are document-shape and provenance rules,
+# which blis-schemas owns (migrated in blis-schemas#38). Keeping them here would recreate
+# the second validator this change removes. What stays below is derivation / physical
+# plausibility of the values, which blis-schemas does not check.
 
 # --------------------------------------------------------------------------------------
 # Kind-specific terms against their part-wide siblings

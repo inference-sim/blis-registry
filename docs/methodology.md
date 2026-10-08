@@ -399,7 +399,9 @@ them separately.
 
 ### 6.3 Validation gates
 
-`pytest validator/` — 147 passing, 8 skipped (verified by running it). The ones that matter:
+`pytest validator/` runs the registry's **derivation / value-preservation** gates — schema
+and provenance validation now live in blis-schemas (the Go validator every consumer loads
+through; see the registry README), not here. The derivation gates that matter:
 
 * **independent re-derivation** — re-runs the fitter and compares to the registry, so a
   value edited without its citation fails.

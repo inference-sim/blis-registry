@@ -398,7 +398,7 @@ placeholders and transcriptions, not measurements.
 ## 5. Checking a re-derivation
 
 ```bash
-python -m pytest validator/ -q        # schema, scope and provenance gates
+python -m pytest validator/ -q        # derivation / value-preservation gates (schema validation lives in blis-schemas)
 python scripts/validate_against_aisimulate_tables.py   # oracle check against AISimulate's own tables
 ```
 

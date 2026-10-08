@@ -42,11 +42,13 @@ Sets are standalone: there is no `backend` field and no inheritance between sets
 Every coefficient records `value`, `units`, `method` (how the number was obtained),
 `fitted`, and `scope` (the range it holds over), plus optional provenance
 (`sources`, `rationale`, `ci95`, …). The strict rules — which fields are required, the
-allowed enums, and the required-by-method provenance — are defined and enforced by the
-validator in `validator/`, which is the authoritative, maintained specification. The
-validator checks **shape only**; per-backend completeness (that a set carries every
-coefficient a given backend consumes) is enforced by the simulator-side loader, which
-knows what each backend reads.
+allowed enums, and the required-by-method provenance — are defined and enforced by
+**blis-schemas**, the Go schema every consumer loads these files through
+(`blisschemas.LoadCoefficientSet`). The registry keeps no schema validator of its own —
+blis-schemas is the one schema source of truth. The schema checks document **shape and
+provenance**; per-backend completeness (that a set carries every coefficient a given
+backend consumes) is enforced by the simulator-side loader, which knows what each
+backend reads.
 
 A minimal set looks like:
 
@@ -66,16 +68,30 @@ coefficients:
       scope: {hardware: [L40S]}
 ```
 
-To validate the registry (the same check CI runs on every pull request):
+### Validation
+
+There is one source of validation truth: **blis-schemas**. The `schema-validate` CI job
+runs its validator (`cmd/validate-registry`, pinned by SHA) over every committed set on each
+pull request, so a set the real consumer (`blisschemas.LoadCoefficientSet`) could not load —
+a missing required field, an unrecognized enum, an ill-formed or non-finite value, a
+required-by-method provenance gap, or a duplicate `(name, scope)` — fails here, on the PR
+that introduces it. The registry keeps no schema validator of its own.
+
+### Derivation tests
+
+Separately, `validator/` holds the registry's **derivation / value-preservation** tests
+(the directory keeps its historical name). They check that each committed value is
+re-derivable from public data — a family's writer reproduces its committed file byte for
+byte, and no number is imported from a sibling it was not derived from — and that the data
+meets the registry's own value/quality bars (every `measured` entry cites its source,
+every `assumed` entry carries a substantial rationale) that the schema deliberately does
+not impose. This is derivation and quality, not document shape. The `derivation-tests` CI
+job runs them:
 
 ```sh
 pip install -r requirements.txt
-python validator/validate.py            # validate every committed set
-python -m pytest validator/ -q          # run the validator's own test suite
+python -m pytest validator/ -q
 ```
-
-The validator prints one line per problem, each naming the file and the offending entry
-or key, and exits non-zero if any set is rejected.
 
 Real sets live in `coefficients/`: the five `cost-model-*` sets that price a step —
 primitives, collectives, attention, recurrent and host overheads. Those five are exactly

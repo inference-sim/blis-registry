@@ -1,9 +1,13 @@
 name: validate
 
-# Run the validator's own unit tests (which prove the schema checks over many in-test
-# sets) and the strict validator over every committed set in coefficients/ — on every push
-# to main and every pull request. A rejection or a failing test fails the job.
-# coefficients/ may be empty until real sets are transcribed.
+# Two jobs, on every push to main and every pull request:
+#   * derivation-tests — the registry's value-preservation tests (each committed number
+#     re-derives from public data; a family's writer reproduces its file byte for byte).
+#     These check derivation, not document shape.
+#   * schema-validate — the single source of SCHEMA validation: it runs blis-schemas' own
+#     validator over every committed set, so a file the real consumer cannot load fails
+#     here, on the PR. The registry keeps no schema validator of its own.
+# A failing test or a rejected set fails its job.
 
 on:
   push:
@@ -11,7 +15,7 @@ on:
   pull_request:
 
 jobs:
-  validate:
+  derivation-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +27,47 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run validator unit tests
+      - name: Run the derivation / value-preservation tests
         run: python -m pytest validator/ -q
 
-      - name: Validate every committed coefficient set
-        run: python validator/validate.py
+  # The single source of SCHEMA validation: run blis-schemas' own validator over every
+  # committed set. blis-schemas is the Go schema every consumer actually loads these files
+  # through (blis-latency-kernel via blisschemas.LoadCoefficientSet), and it owns the rules
+  # — document shape, the units / method / source enums, finiteness, non-empty scope, the
+  # duplicate-(name, scope) resolver invariant, and the required-by-method provenance rules
+  # migrated into it from the registry's former Python validator. The registry keeps no
+  # schema validator of its own, so a set the consumer could not load fails here, on the PR
+  # that introduces it. (The validator/ derivation tests check value/quality properties the
+  # schema does not impose — e.g. measured entries cite a source — not document schema.)
+  #
+  # blis-schemas has no release tag, so it is pinned by SHA rather than floated on main:
+  # a pinned gate does not redden an unrelated registry PR when the schema changes, and a
+  # schema bump is a deliberate single-line edit here.
+  schema-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the registry
+        uses: actions/checkout@v4
+
+      - name: Check out blis-schemas (pinned)
+        uses: actions/checkout@v4
+        with:
+          # Pinned to the blis-schemas main commit that merged cmd/validate-registry and the
+          # full coefficient-set ruleset (#38). Bump this SHA deliberately on a schema change.
+          repository: inference-sim/blis-schemas
+          ref: ce8d0e5d4dbd57bada748c31e5f117c57ce703c3
+          path: blis-schemas
+
+      # setup-go after the blis-schemas checkout so the version comes from that module's
+      # own go.mod (no hard-coded version to drift) and caching keys on its go.sum.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: blis-schemas/go.mod
+          cache-dependency-path: blis-schemas/go.sum
+
+      - name: Validate every committed set through the Go schema
+        working-directory: blis-schemas
+        # The registry is checked out at $GITHUB_WORKSPACE; cmd/validate-registry discovers
+        # <root>/coefficients/ (recursive, .yaml/.yml, case-insensitive), then
+        # LoadCoefficientSet + Validate each, exiting non-zero on any failure.
+        run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

@@ -360,7 +360,13 @@ def test_hardware_independent_sets_cover_every_catalog_part():
 
 
 def test_every_measured_entry_cites_a_source():
-    """`measured` means someone measured it, and the citation is where."""
+    """`measured` means someone measured it, and the citation is where.
+
+    A registry VALUE/QUALITY property, not a schema rule: blis-schemas requires sources
+    only for `literature`/`vendor_spec` and deliberately allows a `measured` entry to be
+    uncited, so pre-existing measured-but-uncited data can be adopted. This repository holds
+    its own committed data to the stricter bar, which the schema does not enforce.
+    """
     for setname, name, body in ENTRIES:
         if body.get("method") != "measured":
             continue
@@ -372,7 +378,13 @@ def test_every_measured_entry_cites_a_source():
 
 
 def test_every_assumed_entry_explains_itself():
-    """`assumed` is a declared gap, so the rationale carries the whole argument."""
+    """`assumed` is a declared gap, so the rationale carries the whole argument.
+
+    A registry VALUE/QUALITY property: blis-schemas (migrated) requires a rationale to be
+    PRESENT for a non-measured value; the >200-character thoroughness bar — the house style
+    that states the dimension, the magnitude's caveat, and the experiment that would replace
+    it — is this repository's own, and the schema does not impose it.
+    """
     for setname, name, body in ENTRIES:
         if body.get("method") != "assumed":
             continue
@@ -383,21 +395,15 @@ def test_every_assumed_entry_explains_itself():
             f"this set's house style states the dimension, the magnitude's caveat, and "
             f"the experiment that would replace it."
         )
-        assert not body.get("fitted"), (
-            f"{setname}: {name} is assumed AND fitted: true. `fitted` is reserved for "
-            f"a value fitted against its own term."
-        )
 
 
-def test_fitted_implies_measured():
-    """The schema reserves `fitted: true` for `method: measured`."""
-    for setname, name, body in ENTRIES:
-        if body.get("fitted"):
-            assert body.get("method") == "measured", (
-                f"{setname}: {name} is fitted: true with method "
-                f"{body.get('method')!r}."
-            )
-
+# NOTE: schema-shape rules that used to live here — `fitted: true` => `method: measured`,
+# the bare presence of a rationale for a non-measured value, and `assumed` excludes `fitted`
+# (transitively covered by fitted => measured) — were removed when the registry collapsed to
+# a single validator; blis-schemas owns them (migrated in blis-schemas#38). The two checks
+# ABOVE are kept deliberately: they are registry value/quality properties on this repo's own
+# committed data that the schema does NOT enforce (blis-schemas allows measured-uncited and
+# imposes no rationale-length bar), so they are a conscious keep, not a silent drop.
 
 # --------------------------------------------------------------------------------------
 # Kind-specific terms against their part-wide siblings

@@ -28,3 +28,46 @@ jobs:
 
       - name: Validate every committed coefficient set
         run: python validator/validate.py
+
+  # Validate every committed set through blis-schemas — the Go schema every consumer
+  # actually loads these files through (blis-latency-kernel reads them via
+  # blisschemas.LoadCoefficientSet, not through this repo's Python validator). The two
+  # validators check different things, so a set can satisfy one and be rejected by the
+  # other; without this job that divergence surfaces downstream, in another repository,
+  # about a file this one published. This gate catches it on the PR that introduces it.
+  #
+  # Rule ownership — stated so a rule is not added to one validator and silently absent
+  # from the other:
+  #   * blis-schemas (Go) owns document SHAPE and resolver-facing invariants — the
+  #     vocabulary, required fields, finiteness, and the duplicate-(name, scope) rule
+  #     that a resolver's last-wins stacking depends on.
+  #   * this repository's Python validator owns PROVENANCE and evidence policy — the
+  #     richer checks on sources, method, fitted, scope-key vocabulary, and supersession.
+  #
+  # blis-schemas has no release tag, so it is pinned by SHA rather than floated on main:
+  # a pinned gate does not redden an unrelated registry PR when the schema changes, and a
+  # schema bump is a deliberate single-line edit here. The command this runs,
+  # `cmd/validate-registry`, lands in blis-schemas#37; until that merges the pin is a
+  # SHA without the command and this job fails by design.
+  schema-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the registry
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Check out blis-schemas (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: inference-sim/blis-schemas
+          path: blis-schemas
+          ref: f62ae75ce852dbdfd023563a06c5ed30ed403236  # PIN blis-schemas#37; orchestrator sets the #37 head SHA, bumps to the merge SHA before merge
+
+      - name: Validate every committed set through the Go schema
+        working-directory: blis-schemas
+        # The registry is checked out at $GITHUB_WORKSPACE; cmd/validate-registry globs
+        # <root>/coefficients/*.yaml, LoadCoefficientSet + Validate each, nonzero on any failure.
+        run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

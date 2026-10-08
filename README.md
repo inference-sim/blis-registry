@@ -77,6 +77,22 @@ python -m pytest validator/ -q          # run the validator's own test suite
 The validator prints one line per problem, each naming the file and the offending entry
 or key, and exits non-zero if any set is rejected.
 
+### Two validators, by design
+
+CI runs the committed sets through **two** validators, which own different rules:
+
+- The **Python** validator in `validator/` owns **provenance and evidence policy** — the
+  `sources`, `method`, `fitted`, scope-key vocabulary, and supersession checks above.
+- **blis-schemas** (the Go schema every consumer loads these files through —
+  `blis-latency-kernel` reads them via `blisschemas.LoadCoefficientSet`) owns **document
+  shape and resolver-facing invariants** — the vocabulary, required fields, finiteness,
+  and the duplicate-`(name, scope)` rule a resolver's last-wins stacking depends on.
+
+The `schema-validate` CI job runs the Go gate (`blis-schemas` `cmd/validate-registry`,
+pinned by SHA) so a set that would be rejected at the point of use is caught here, on the
+PR that introduces it, rather than downstream in another repository. Stating the split
+keeps a rule from being added to one validator and silently absent from the other.
+
 Real sets live in `coefficients/`: the five `cost-model-*` sets that price a step —
 primitives, collectives, attention, recurrent and host overheads. Those five are exactly
 what `blis-latency-kernel` loads, and nothing in `coefficients/` is unread by it. These

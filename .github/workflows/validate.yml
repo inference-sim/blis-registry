@@ -52,11 +52,10 @@ jobs:
       - name: Check out blis-schemas (pinned)
         uses: actions/checkout@v4
         with:
-          # PIN: blis-schemas PR #38 head (on the fork) — the commit that introduces
-          # cmd/validate-registry. Bump repository -> inference-sim/blis-schemas and
-          # ref -> the main merge SHA once #38 merges.
-          repository: namasl/blis-schemas
-          ref: da583933ebae76e6a062fb2e3081896eb0dc8b90
+          # Pinned to the blis-schemas main commit that merged cmd/validate-registry and the
+          # full coefficient-set ruleset (#38). Bump this SHA deliberately on a schema change.
+          repository: inference-sim/blis-schemas
+          ref: ce8d0e5d4dbd57bada748c31e5f117c57ce703c3
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

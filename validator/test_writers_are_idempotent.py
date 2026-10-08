@@ -60,6 +60,13 @@ WRITERS = [
 # which is what a drift check is actually for.
 VALUE_ONLY = [
     ("relane_recurrent_kda.py", "cost-model-recurrent.yaml", "the KDA chain pair"),
+    # The mamba2 and GDN writers render a generic rationale too, and the committed
+    # mamba2 h100 entry carries hand-authored prose about the missing selective-scan
+    # kernel. Values are asserted; prose is not.
+    ("relane_recurrent_family.py --family mamba2", "cost-model-recurrent.yaml",
+     "the mamba2 convolution pair"),
+    ("relane_recurrent_family.py --family gdn", "cost-model-recurrent.yaml",
+     "the GDN chain pair"),
 ]
 
 
@@ -110,7 +117,10 @@ def test_writer_reproduces_the_committed_values(script, target, what, tmp_path):
 
     env = dict(os.environ, AISIMULATE_DATA=str(DATA))
     r = subprocess.run(
-        [sys.executable, str(scratch / "scripts" / script)],
+        # `script` may carry arguments (e.g. "relane_recurrent_family.py --family gdn"),
+        # because one writer maintains two families and each needs its own gate.
+        [sys.executable, str(scratch / "scripts" / script.split()[0]),
+         *script.split()[1:]],
         capture_output=True, text=True, env=env, cwd=str(scratch), timeout=1800,
     )
     assert r.returncode == 0, f"{script} failed:\n{r.stdout}\n{r.stderr}"
@@ -137,7 +147,8 @@ def test_every_fitted_family_has_a_writer():
     # Both gates count as owning a family: WRITERS asserts byte-identity, VALUE_ONLY
     # asserts value-identity where the prose is deliberately hand-authored. A family in
     # either is covered against drift.
-    writers = {w for w, _ in WRITERS} | {w for w, _, _ in VALUE_ONLY}
+    writers = ({w for w, _ in WRITERS}
+               | {w.split()[0] for w, _, _ in VALUE_ONLY})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -148,6 +159,10 @@ def test_every_fitted_family_has_a_writer():
         "attention_prefill_work_scale": "relane_attention_prefill.py",
         "recurrent_decode_floor_kda": "relane_recurrent_kda.py",
         "recurrent_decode_rate_kda": "relane_recurrent_kda.py",
+        "recurrent_decode_floor_gdn": "relane_recurrent_family.py",
+        "recurrent_decode_rate_gdn": "relane_recurrent_family.py",
+        "recurrent_decode_floor_mamba2": "relane_recurrent_family.py",
+        "recurrent_decode_rate_mamba2": "relane_recurrent_family.py",
         "gemm_eps_max": "relane_gemm_envelope.py",
         "gemm_m_half": "relane_gemm_envelope.py",
         "moe_routing_imbalance_median": "relane_moe_imbalance.py",
@@ -155,13 +170,13 @@ def test_every_fitted_family_has_a_writer():
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {
-        # The mamba2 pair is a documented LOWER BOUND from a single TRT-LLM sweep; it
-        # has a fitter (fit_recurrent.py --model) and one part, and its value cannot
-        # move without the sweep changing.
-        "recurrent_decode_floor_mamba2",
-        "recurrent_decode_rate_mamba2",
         # Collectives are covered by test_generated_from_aisimulate.py, which
         # re-derives floors, rates and the vLLM all-reduce triple directly.
+        #
+        # The mamba2 pair used to be exempt here on the grounds that it had one part and
+        # no writer. It now has six parts and relane_recurrent_family.py, so the
+        # exemption is gone rather than carried forward -- an exemption that outlives its
+        # reason is how a gate quietly stops gating.
     }
 
     unowned: dict[str, int] = {}

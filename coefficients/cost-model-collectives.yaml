@@ -4228,7 +4228,7 @@ coefficients:
       rationale: >
         1.16 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_gather_fp16_8rank_l40s. The sweep had not saturated at its largest message, so this is a lower bound on the asymptote rather than the asymptote; it overstates transfer time, which is the safe direction.
   - collective_transition_rate_all_gather_fp16_8rank_l40s:
-      value: 1000.0
+      value: 675.0
       units: bytes_per_us
       method: measured
       fitted: true
@@ -4408,7 +4408,7 @@ coefficients:
       rationale: >
         0.61 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_fp16_8rank_l40s.
   - collective_transition_rate_all_reduce_fp16_8rank_l40s:
-      value: 1000.0
+      value: 425.0
       units: bytes_per_us
       method: measured
       fitted: true
@@ -4498,7 +4498,7 @@ coefficients:
       rationale: >
         0.99 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_all_reduce_int8_8rank_l40s.
   - collective_transition_rate_all_reduce_int8_8rank_l40s:
-      value: 1000.0
+      value: 725.0
       units: bytes_per_us
       method: measured
       fitted: true
@@ -4588,7 +4588,7 @@ coefficients:
       rationale: >
         1.17 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_alltoall_fp16_8rank_l40s.
   - collective_transition_rate_alltoall_fp16_8rank_l40s:
-      value: 1000.0
+      value: 650.0
       units: bytes_per_us
       method: measured
       fitted: true
@@ -4768,7 +4768,7 @@ coefficients:
       rationale: >
         1.25 GB/s, the maximum of message_size over latency across 21 points. Used as a ceiling on achievable bandwidth rather than as the rate itself: see collective_transition_rate_reduce_scatter_fp16_8rank_l40s. The sweep had not saturated at its largest message, so this is a lower bound on the asymptote rather than the asymptote; it overstates transfer time, which is the safe direction.
   - collective_transition_rate_reduce_scatter_fp16_8rank_l40s:
-      value: 1000.0
+      value: 875.0
       units: bytes_per_us
       method: measured
       fitted: true

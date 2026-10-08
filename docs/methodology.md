@@ -75,9 +75,61 @@ silently changes the row set — it once produced 66,148 rows where the committe
 | source | role | why that role |
 |---|---|---|
 | AISimulate per-operator sweeps | **fitting** | per-kernel, lane-labelled, and the only data that isolates one primitive |
-| HF FPM whole-forward (Apache-2.0) | **validation and model selection** | one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler |
+| HF FPM whole-forward (Apache-2.0) | **validation, model selection, and fitting a COMPOSED term** | one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler |
 | InferenceX measured rows | **evaluation only** | end-to-end with a scheduler and a client; never enters a fit or a selection |
 | InferenceX remaining rows | reporting only | their engine settings are not stated per run |
+
+**What FPM may and may not fit, and why the rule changed.** An earlier revision of this
+table read "validation and model selection" and forbade FPM from entering any fit. The
+reason given was a confound: model and system were perfectly collinear, so a model holdout
+was also a chip holdout and a change across it could be attributed to neither. **That is
+no longer true of the dataset.** Derived from the catalog index rather than recalled:
+
+| model | systems it appears on |
+|---|---|
+| DeepSeek-V4.1-Flash | b200-sxm, b300-sxm, gb200, gb300, h200-sxm |
+| DeepSeek-V4-Pro | b200-sxm, b300-sxm, gb300 |
+| MiniMax-M2.7 | b200-sxm, h200-sxm |
+| GLM-5.2-NVFP4 | b200-sxm, gb200 |
+
+Four of seven models now span multiple systems, and b200-sxm carries six models against
+gb300's three, so **both axes vary independently**. A chip holdout is no longer a model
+holdout. The confound that justified the prohibition has dissolved, and keeping the
+prohibition would now cost accuracy for no methodological gain.
+
+The distinction that remains, and it is a real one, is **what kind of quantity each
+dataset constrains**:
+
+* **AISimulate isolates ONE primitive.** A GEMM sweep varies M with everything else held,
+  so it identifies that primitive's two parameters and nothing else. This is the only
+  data that can fit a per-primitive coefficient, and every `measured` entry in this
+  registry still comes from it.
+* **FPM constrains a COMPOSITION.** One `latency_ms` per `(batch, prefill_tokens,
+  kv_tokens)` is the sum over every layer and every resource. Fitting a per-primitive
+  coefficient against it is under-determined: many assignments across the primitives
+  produce the same total, so the fit would attribute to one term whatever every other
+  term gets wrong. That is not a provenance rule, it is an identifiability fact, and it
+  does not change with the dataset.
+
+So FPM **may** fit a term that is itself about composition — the overlap-band choice
+(`docs/band-selection.md`), the attention-DP funnel factor, a per-step host constant —
+because those are properties of the whole forward pass and FPM measures the whole forward
+pass. It **may not** fit an attention rate or a GEMM asymptote, because nothing in a
+whole-pass total identifies those separately.
+
+Three obligations on any FPM-fitted term, so the looser rule does not become a looser
+standard:
+
+1. **Hold out along a dimension the term must generalise across** — a chip, a model, or a
+   parallelism — and report train and holdout error separately. §4 lists the splits the
+   dataset now supports.
+2. **Cite FPM explicitly**, by dataset revision SHA, since the dataset is rewritten and
+   has no tags.
+3. **Keep the end-to-end check.** FPM is not the evaluation corpus, so a term fitted on it
+   still has to face InferenceX, and the standing rule below still governs.
+
+No committed coefficient cites FPM today. This records what is permitted, so the next
+composed term does not have to argue the rule from scratch.
 
 `scripts/select_overlap_band.py` enforces the last two by refusing any path under an
 `inferencex` or `semianalysis` directory, and a new fitter should import that guard rather
@@ -106,10 +158,18 @@ generalization that was never tested.
 * **FPM regime**: fit on pure-prefill and pure-decode rows, validate on the 67,736 mixed
   rows, whose batch composition varies independently of concurrency.
 
-**A confound to state rather than hide**: in FPM, model and system are perfectly
-collinear — DeepSeek-V4-Pro only on gb300, GLM-5.2 only on b200_sxm, MiniMax-M2.7 only on
-h200_sxm. A model holdout is also a chip holdout, so a change across it cannot be
-attributed to either.
+**A confound that WAS true and no longer is**: an earlier revision recorded model and
+system as perfectly collinear in FPM — DeepSeek-V4-Pro only on gb300, GLM-5.2 only on
+b200_sxm, MiniMax-M2.7 only on h200_sxm — so a model holdout was also a chip holdout. The
+dataset has since grown and that is false: DeepSeek-V4.1-Flash spans five systems,
+DeepSeek-V4-Pro three, MiniMax-M2.7 and GLM-5.2-NVFP4 two each, and b200-sxm carries six
+models. Both axes now vary independently, which is what makes the holdouts above
+attributable and what §3 relies on in permitting FPM to fit a composed term.
+
+The confound is recorded rather than deleted because the figures it produced are still in
+this document's history, and a reader comparing revisions needs to know which claim held
+when. Re-derive the current state from the catalog index rather than trusting either
+version: the dataset is rewritten in place.
 
 Errors are reported for train, validation AND evaluation. A fit quoted only on its
 training data is not a result.

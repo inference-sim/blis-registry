@@ -66,7 +66,8 @@ coefficients:
       scope: {hardware: [L40S]}
 ```
 
-To validate the registry (the same check CI runs on every pull request):
+To run the Python validator locally (the provenance-and-evidence half of what CI checks;
+the Go schema is the other half — see [Two validators, by design](#two-validators-by-design)):
 
 ```sh
 pip install -r requirements.txt

@@ -40,9 +40,9 @@ jobs:
   # that introduces it. (The validator/ derivation tests check value/quality properties the
   # schema does not impose — e.g. measured entries cite a source — not document schema.)
   #
-  # blis-schemas has no release tag, so it is pinned by SHA rather than floated on main:
-  # a pinned gate does not redden an unrelated registry PR when the schema changes, and a
-  # schema bump is a deliberate single-line edit here.
+  # blis-schemas is pinned to a release tag (not floated on main): a pinned gate does not
+  # redden an unrelated registry PR when the schema changes, and a schema bump is a
+  # deliberate single-line edit here. (Mirrors how the project pins blis-catalog by tag.)
   schema-validate:
     runs-on: ubuntu-latest
     steps:
@@ -52,10 +52,11 @@ jobs:
       - name: Check out blis-schemas (pinned)
         uses: actions/checkout@v4
         with:
-          # Pinned to the blis-schemas main commit that merged cmd/validate-registry and the
-          # full coefficient-set ruleset (#38). Bump this SHA deliberately on a schema change.
+          # Pinned to the blis-schemas release that introduced cmd/validate-registry and the
+          # full coefficient-set ruleset (#38, released as v0.2.1). Bump this tag deliberately
+          # on a schema release.
           repository: inference-sim/blis-schemas
-          ref: ce8d0e5d4dbd57bada748c31e5f117c57ce703c3
+          ref: v0.2.1
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

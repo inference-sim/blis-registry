@@ -374,3 +374,73 @@ def test_fitted_implies_measured():
                 f"{setname}: {name} is fitted: true with method "
                 f"{body.get('method')!r}."
             )
+
+
+# --------------------------------------------------------------------------------------
+# Kind-specific terms against their part-wide siblings
+# --------------------------------------------------------------------------------------
+
+# How far a kind-specific decode FLOOR may sit above the same part's part-wide floor.
+#
+# A floor is a launch-and-setup cost. Changing the attention kind changes what the setup
+# reads -- an MLA kernel reads a latent cache, a windowed kernel a bounded block -- which
+# moves the floor by a modest factor. It does not multiply it by six: a figure that large
+# is the signature of a MODULE measurement, one that includes the projection GEMMs the
+# catalog prices as separate nodes in the same layer.
+#
+# THE DEFECT THIS ENCODES. `attention_decode_floor_mla` shipped at 4.7x-6.2x its part's
+# attention floor (51.5-89.5 us against 9.5-14.5 us), fitted cleanly from
+# `mla_generation_module_perf.parquet` and labelled `method: measured, fitted: true`. The
+# fit was sound and measured the wrong quantity: scripts/fit_attention_mla.py had already
+# recorded that the module floor IS the projection weight read (293.6 MB at fp8, 61.2 us
+# at H200's 4.80 TB/s, against a 44.0-63.8 us measured module floor), so the kernel charged
+# it twice. End-to-end on the InferenceX corpus it cost 2.45 points of overall TPOT
+# (14.98% -> 17.43%) and 8.2 points on kimi-k2.5 (6.38% -> 14.57%), flipping the kernel
+# from beating AISimulate to losing to it. scripts/correct_mla_floor.py is the correction.
+#
+# 3.0 rather than something tighter: the measured windowed/full floor ratios span
+# 0.77-1.00, so every legitimate kind-specific floor fitted so far sits at or BELOW its
+# part-wide sibling. The bound only has to separate "a different kernel's setup" from "a
+# different quantity entirely", and the rejected values were above 4.7.
+MAX_KIND_FLOOR_RATIO = 3.0
+
+
+def _by_hardware(prefix: str) -> dict[str, float]:
+    """hardware name -> value, for every entry whose name is exactly `prefix`."""
+    out: dict[str, float] = {}
+    for _, name, body in ENTRIES:
+        if name != prefix:
+            continue
+        for hw in (body.get("scope") or {}).get("hardware", []):
+            out[hw] = body["value"]
+    return out
+
+
+def test_kind_specific_decode_floors_are_not_module_measurements():
+    """A per-kind decode floor must stay near its part's attention-kernel floor.
+
+    A floor many times larger is measuring a different quantity -- a module including its
+    projections -- not a different kernel.
+    """
+    partwide = _by_hardware("attention_decode_floor")
+    assert partwide, "no attention_decode_floor entries; this test would prove nothing"
+
+    checked = 0
+    for setname, name, body in ENTRIES:
+        if not name.startswith("attention_decode_floor_"):
+            continue
+        for hw in (body.get("scope") or {}).get("hardware", []):
+            base = partwide.get(hw)
+            if base is None or base <= 0:
+                continue
+            ratio = body["value"] / base
+            assert ratio <= MAX_KIND_FLOOR_RATIO, (
+                f"{setname}: {name} on {hw} is {body['value']} us, {ratio:.2f}x this "
+                f"part's attention_decode_floor of {base} us. A kind changes what the "
+                f"setup reads, not its order of magnitude; a floor this large is a "
+                f"MODULE measurement including the projection GEMMs the catalog prices "
+                f"as separate nodes, so the kernel would charge them twice. See "
+                f"scripts/correct_mla_floor.py."
+            )
+            checked += 1
+    assert checked, "no kind-specific decode floor was checked against a part-wide floor"

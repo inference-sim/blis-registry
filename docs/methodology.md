@@ -139,10 +139,47 @@ FPM is entirely vLLM — all 85,484 rows carry `backend: vllm` — and splits as
 decode, 5,226 pure prefill, 67,736 mixed prefill+decode.
 
 **The constraint that governs everything else: a better fit to a component benchmark can
-be a worse model.** Five independently verified corrections each improved a per-primitive
+be a worse model.** Six independently verified corrections each improved a per-primitive
 or per-step measurement and made the end-to-end score worse, because the kernel's accuracy
 rests on partially cancelling errors. So **no per-primitive fit ships without an
 end-to-end check**, and a correction whose offsetting term is unidentified waits.
+
+The sixth is the clearest case and is worth stating in full, because it shows the rule
+catching something that every other gate passed. `attention_decode_floor_mla` was fitted
+from AISimulate's `mla_generation_module_perf` tables, committed as `method: measured,
+fitted: true`, and the fit was clean — it reproduced from its own writer, satisfied the
+schema, and sat inside every physical bound then checked. It was also wrong about *which
+quantity it measured*: those tables are MODULE measurements covering the whole MLA block
+including its down-projections, and blis-catalog prices `qkv_proj` and `o_proj` as separate
+`GEMM` nodes in the same layer, so the kernel charged the projection weight read twice.
+`scripts/fit_attention_mla.py` had already recorded the arithmetic (DeepSeek-V3's
+projections are 293.6 MB at fp8, 61.2 µs at H200's 4.80 TB/s, against a 44.0–63.8 µs
+measured module floor) as its reason for being rejected; the pair was nonetheless committed
+later from the same tables.
+
+Only the end-to-end check found it. Scored as a 2×2 over the two terms on the InferenceX
+corpus (573 points, vLLM lane):
+
+| floor | rate | overall TPOT mean\|e\| | kimi-k2.5 TPOT |
+|---|---|---|---|
+| part-wide | fitted | **14.98%** | **6.38%** |
+| part-wide | part-wide | 14.90% | 6.91% |
+| fitted (module) | part-wide | 17.32% | 15.38% |
+| fitted (module) | fitted | 17.43% | 14.57% |
+
+The **rate** is sound — 0.80–1.13× of each part's part-wide rate, the right order for a
+latent-cache read, and the only arm that improves kimi-k2.5 on its own. The **floor** was
+the entire regression: either arm carrying it lands near 15% on kimi-k2.5 and 17.3%
+overall, flipping the kernel from beating AISimulate's 15.39% to losing to it.
+`scripts/correct_mla_floor.py` commits the floor as `assumed` from the same part's measured
+attention-kernel floor, and three gates now hold it: that script's `--check`,
+`relane_attention_mla.py --check-rate` for the half still fitted, and a property test
+bounding any kind-specific floor at 3× its part-wide sibling.
+
+The generalizable lesson is not "distrust module tables" but **a fit can be clean and still
+answer a different question than the coefficient asks**. Provenance of the number is not
+provenance of the quantity, and only a check at the level the model is used at can tell
+them apart.
 
 ## 4. Train, validate, evaluate
 

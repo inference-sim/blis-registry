@@ -49,7 +49,30 @@ WRITERS = [
     ("relane_attention_swa.py", "sliding-window decode floor and rate"),
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
-    ("relane_attention_mla.py", "the MLA decode floor and rate"),
+]
+
+# relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so
+# the omission is not read as an oversight.
+#
+# It writes BOTH halves of the MLA pair from `mla_generation_module_perf.parquet`. The RATE
+# half is sound and committed as fitted. The FLOOR half is not: that table is a MODULE
+# measurement including the down-projections blis-catalog prices as separate GEMM nodes, so
+# a module-derived floor charges them twice -- it cost 2.45 points of overall TPOT and 8.2
+# on kimi-k2.5 end-to-end. `scripts/correct_mla_floor.py` owns the floor now and commits it
+# as `method: assumed`, derived from the same part's measured attention-kernel floor.
+#
+# So the writer no longer reproduces the committed file, and listing it here would assert
+# that it should. Its plain `--check` is expected to disagree about the floor.
+#
+# The two halves are gated separately instead, so neither drifts:
+#   * the RATE by `relane_attention_mla.py --check-rate`, in RATE_ONLY below;
+#   * the FLOOR by `correct_mla_floor.py --check`, plus the property test in
+#     test_coefficient_properties.py::test_kind_specific_decode_floors_are_not_module_measurements.
+
+# Writers where only PART of the pair is still committed from the fitter. The flag checks
+# that part alone; the rest of the pair has its own gate, named in the comment above.
+RATE_ONLY = [
+    ("relane_attention_mla.py --check-rate", "the MLA decode rate"),
 ]
 
 # Writers whose rewrite path renders a GENERIC rationale, over entries that carry
@@ -149,14 +172,20 @@ def test_every_fitted_family_has_a_writer():
     # asserts value-identity where the prose is deliberately hand-authored. A family in
     # either is covered against drift.
     writers = ({w for w, _ in WRITERS}
-               | {w.split()[0] for w, _, _ in VALUE_ONLY})
+               | {w.split()[0] for w, _, _ in VALUE_ONLY}
+               # A split pair's fitted half is gated by its own flag; the writer still
+               # owns that half, so it counts as covered here.
+               | {w.split()[0] for w, _ in RATE_ONLY})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
         "attention_decode_rate": "relane_attention_decode.py",
         "attention_decode_floor_swa": "relane_attention_swa.py",
         "attention_decode_rate_swa": "relane_attention_swa.py",
-        "attention_decode_floor_mla": "relane_attention_mla.py",
+        # The MLA floor is no longer fitted -- correct_mla_floor.py commits it as
+        # `assumed` from the part's own attention floor -- so it never reaches this loop,
+        # which only considers `fitted: true` entries. The RATE is still fitted and still
+        # owned by the module-table writer.
         "attention_decode_rate_mla": "relane_attention_mla.py",
         "attention_prefill_floor": "relane_attention_prefill.py",
         "attention_prefill_work_scale": "relane_attention_prefill.py",
@@ -208,3 +237,41 @@ def test_every_fitted_family_has_a_writer():
     )
     for stem, w in owned.items():
         assert w in writers, f"{stem} claims writer {w}, which is not in WRITERS"
+
+
+def test_the_mla_floor_correction_still_holds():
+    """`correct_mla_floor.py --check`: each MLA floor equals its part's attention floor.
+
+    The floor half of the MLA pair is not fitted, so neither re-derivation gate above
+    covers it. This is its drift check, and it needs no AISimulate tree: the value is
+    derived from a sibling coefficient in the same committed file, so the relation is
+    checkable from the repository alone.
+    """
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "correct_mla_floor.py"), "--check"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=300,
+    )
+    assert r.returncode == 0, (
+        "correct_mla_floor.py --check failed, so a committed attention_decode_floor_mla "
+        "no longer equals its part's measured attention_decode_floor. Either a part-wide "
+        "floor was refitted without re-running the correction, or a module-derived floor "
+        "was reintroduced.\n"
+        f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"
+    )
+
+
+@pytest.mark.parametrize("script,what", RATE_ONLY, ids=[w[0] for w in RATE_ONLY])
+def test_writer_reproduces_the_committed_half_it_still_owns(script, what):
+    """For a split pair, the half still fitted must match its fitter.
+
+    The other half has its own gate; see the RATE_ONLY comment for which.
+    """
+    env = dict(os.environ, AISIMULATE_DATA=str(DATA))
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / script.split()[0])] + script.split()[1:],
+        capture_output=True, text=True, env=env, cwd=str(REPO), timeout=1800,
+    )
+    assert r.returncode == 0, (
+        f"{script} failed, so the committed {what} is not what its fitter produces.\n"
+        f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"
+    )

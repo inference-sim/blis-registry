@@ -230,6 +230,20 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--data", default=DEFAULT_DATA)
     ap.add_argument("--catalog", default=DEFAULT_CATALOG)
     ap.add_argument("--check", action="store_true")
+    # The FLOOR half of this pair is no longer committed from this fitter. The module
+    # tables it reads include the down-projections blis-catalog prices as separate GEMM
+    # nodes, so a module-derived floor charges them twice -- end-to-end it cost 2.45
+    # points of overall TPOT and 8.2 on kimi-k2.5. scripts/correct_mla_floor.py owns the
+    # floor and commits it as `assumed` from the same part's measured attention-kernel
+    # floor. The RATE is unaffected by that argument (0.80x-1.13x of part-wide, the right
+    # order for a latent-cache read) and is still committed from here.
+    #
+    # So plain --check is expected to disagree about the floor, and --check-rate is the
+    # drift gate that still applies: it asserts every committed rate is what this fitter
+    # produces, and says nothing about the floor.
+    ap.add_argument("--check-rate", action="store_true",
+                    help="check only the fitted RATE entries; the floor is owned by "
+                         "scripts/correct_mla_floor.py")
     ap.add_argument("--insert", metavar="CHIP")
     args = ap.parse_args(argv[1:])
 
@@ -261,6 +275,33 @@ def main(argv: list[str]) -> int:
             return 1
         SET_PATH.write_text(after, encoding="utf-8")
         print(f"\n{SET_PATH.name}: inserted {n} {chip} MLA entries")
+        return 0
+
+    if args.check_rate:
+        lines = before.split("\n")
+        bad, seen = [], 0
+        for lo, hi, kind, chip, _ in _spans(lines):
+            if kind != "rate" or chip not in fits:
+                continue
+            got = None
+            for b in lines[lo:hi]:
+                vm = re.match(r"\s+value:\s*([\d.]+)\s*$", b)
+                if vm:
+                    got = float(vm.group(1))
+                    break
+            want = float(fits[chip]["rate"])
+            seen += 1
+            if got is None or got != want:
+                bad.append(f"{chip}: committed rate {got} != fitted {want:,.0f}")
+        for b in bad:
+            print(f"  MISMATCH {b}", file=sys.stderr)
+        if bad:
+            print(f"\n{len(bad)} MLA rate(s) differ from the fitter", file=sys.stderr)
+            return 1
+        if not seen:
+            print("no committed MLA rate matched a fitted part", file=sys.stderr)
+            return 1
+        print(f"\nall {seen} committed MLA rate(s) match the fitter")
         return 0
 
     after, changed = rewrite(before, fits)

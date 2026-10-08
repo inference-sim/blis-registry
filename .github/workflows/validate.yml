@@ -1,9 +1,13 @@
 name: validate
 
-# Run the validator's own unit tests (which prove the schema checks over many in-test
-# sets) and the strict validator over every committed set in coefficients/ — on every push
-# to main and every pull request. A rejection or a failing test fails the job.
-# coefficients/ may be empty until real sets are transcribed.
+# Two jobs, on every push to main and every pull request:
+#   * derivation-tests — the registry's value-preservation tests (each committed number
+#     re-derives from public data; a family's writer reproduces its file byte for byte).
+#     These check derivation, not document shape.
+#   * schema-validate — the single source of SCHEMA validation: it runs blis-schemas' own
+#     validator over every committed set, so a file the real consumer cannot load fails
+#     here, on the PR. The registry defines no validation rules of its own.
+# A failing test or a rejected set fails its job.
 
 on:
   push:
@@ -11,7 +15,7 @@ on:
   pull_request:
 
 jobs:
-  validate:
+  derivation-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,29 +27,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run validator unit tests
+      - name: Run the derivation / value-preservation tests
         run: python -m pytest validator/ -q
 
-      - name: Validate every committed coefficient set
-        run: python validator/validate.py
-
-  # Validate every committed set through blis-schemas — the Go schema every consumer
-  # actually loads these files through (blis-latency-kernel reads them via
-  # blisschemas.LoadCoefficientSet, not through this repo's Python validator). The two
-  # validators check different things, so a set can satisfy one and be rejected by the
-  # other; without this job that divergence surfaces downstream, in another repository,
-  # about a file this one published. This gate catches it on the PR that introduces it.
-  #
-  # Rule ownership — stated so a rule is not added to one validator and silently absent
-  # from the other. The two deliberately overlap on scope; this names the authority for
-  # each class of check, not a promise they never touch the same field:
-  #   * blis-schemas (Go) owns document SHAPE and resolver-facing invariants — required
-  #     fields, the units / method / source-kind / source-role enums, finiteness, a
-  #     non-empty scope, and the duplicate-(name, scope) rule a resolver's last-wins
-  #     stacking depends on. It fixes the scope DIMENSIONS structurally, as typed fields.
-  #   * this repository's Python validator owns PROVENANCE and evidence policy —
-  #     required-by-method sources, rationale, ci95 consistency, supersession — and the
-  #     scope-key allow-list (validator/schema.py SCOPE_KEYS).
+  # The single source of SCHEMA validation: run blis-schemas' own validator over every
+  # committed set. blis-schemas is the Go schema every consumer actually loads these files
+  # through (blis-latency-kernel via blisschemas.LoadCoefficientSet), and it owns the rules
+  # — document shape, the units / method / source enums, finiteness, non-empty scope, the
+  # duplicate-(name, scope) resolver invariant, and the required-by-method provenance rules
+  # migrated into it from the registry's former Python validator. The registry defines no
+  # validation rules of its own, so a set the consumer could not load fails here, on the PR
+  # that introduces it.
   #
   # blis-schemas has no release tag, so it is pinned by SHA rather than floated on main:
   # a pinned gate does not redden an unrelated registry PR when the schema changes, and a
@@ -75,8 +67,7 @@ jobs:
 
       - name: Validate every committed set through the Go schema
         working-directory: blis-schemas
-        # cmd/validate-registry discovers <root>/coefficients/ the same way the Python
-        # validator (validator/validate.py) does — recursive, .yaml/.yml, case-insensitive —
-        # then LoadCoefficientSet + Validate each, nonzero on any failure. The two gates
-        # therefore cover identical files by construction; no guard needed.
+        # The registry is checked out at $GITHUB_WORKSPACE; cmd/validate-registry discovers
+        # <root>/coefficients/ (recursive, .yaml/.yml, case-insensitive), then
+        # LoadCoefficientSet + Validate each, exiting non-zero on any failure.
         run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

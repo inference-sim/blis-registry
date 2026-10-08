@@ -61,9 +61,28 @@ FLAT_REGION_BYTES = 4096
 SATURATION_TOLERANCE = 1.15
 
 # The grid the transition rate is searched over, in bytes per microsecond. One GB/s is
-# 1000 B/us, so this spans 1 to 1200 GB/s in 0.25 GB/s steps — finer than the precision
-# the value is reported to, so the fit is reproducible to the digits committed.
-RATE_GRID = [x * 250.0 for x in range(4, 4801)]
+# 1000 B/us, so this spans 0.025 to 1200 GB/s — finer than the precision the value is
+# reported to, so the fit is reproducible to the digits committed.
+#
+# THE LOWER BOUND IS LOAD-BEARING, and it used to be wrong. The grid began at 4 * 250 =
+# 1000 B/us, which is 1 GB/s, and five L40S 8-rank entries landed exactly there because
+# the search was CLAMPED rather than converged: the optimum was below the grid and the
+# fitter reported its floor. On all_reduce fp16 the true optimum is near 400 B/us at
+# 1.1617x geometric error against 1.4183x at the clamped 1000 — a 22% accuracy loss,
+# invisible to a re-derivation gate because the fitter reproduced its own clamp exactly.
+#
+# An L40S has no NVLink, so an 8-rank all-reduce crosses PCIe and sustains well under
+# 1 GB/s. A grid that cannot express that is a grid that cannot fit the slowest real
+# topology in the tree. The 25 B/us step below 1000 keeps resolution where the slow
+# parts live; the 250 B/us step above it preserves every figure already committed on the
+# NVLink parts, so this widening changes no other value.
+#
+# test_coefficient_properties.py asserts transition <= peak, which is the invariant a
+# clamped fit violates and the reason the defect was found.
+RATE_GRID = (
+    [x * 25.0 for x in range(1, 40)]          # 25 to 975 B/us, step 25
+    + [x * 250.0 for x in range(4, 4801)]     # 1,000 to 1,200,000 B/us, step 250
+)
 
 # AISimulate SKU directory to catalog chip name. Explicit rather than derived: an
 # SKU mapped by guess would attach a measurement to the wrong part.

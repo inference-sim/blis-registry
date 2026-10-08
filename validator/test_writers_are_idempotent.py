@@ -37,8 +37,19 @@ DATA = Path(
 )
 REPO = Path(__file__).resolve().parent.parent
 
+# A directory that EXISTS but is EMPTY must skip too, not run and fail.
+#
+# The tree is read from $AISIMULATE_DATA, which defaults under /tmp and so is reaped: it
+# was found once with 1,427 directories and 0 files. `not DATA.is_dir()` passes for that
+# hollow tree, so twenty re-derivation tests ran and failed with "no fit" / "no parts
+# fitted" -- indistinguishable, at a glance, from a coefficient regression. Probing for
+# one parquet tells the two apart, and the reason string says which state was found.
+_PARQUETS = next(DATA.rglob("*.parquet"), None) if DATA.is_dir() else None
 pytestmark = pytest.mark.skipif(
-    not DATA.is_dir(), reason=f"AISimulate data not present at {DATA}"
+    _PARQUETS is None,
+    reason=(f"AISimulate data not present at {DATA}" if not DATA.is_dir()
+            else f"AISimulate tree at {DATA} holds no parquet: re-fetch with "
+                 f"`git clone https://github.com/ai-dynamo/aisimulate`"),
 )
 
 # Each writer, and what it maintains. The timeout is generous because these shell out
@@ -51,6 +62,30 @@ WRITERS = [
     ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
 ]
 
+# relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so
+# the omission is not read as an oversight.
+#
+# It writes BOTH halves of the MLA pair from `mla_generation_module_perf.parquet`. The RATE
+# half is sound and committed as fitted. The FLOOR half is not: that table is a MODULE
+# measurement including the down-projections blis-catalog prices as separate GEMM nodes, so
+# a module-derived floor charges them twice -- it cost 2.45 points of overall TPOT and 8.2
+# on kimi-k2.5 end-to-end. `scripts/correct_mla_floor.py` owns the floor now and commits it
+# as `method: assumed`, derived from the same part's measured attention-kernel floor.
+#
+# So the writer no longer reproduces the committed file, and listing it here would assert
+# that it should. Its plain `--check` is expected to disagree about the floor.
+#
+# The two halves are gated separately instead, so neither drifts:
+#   * the RATE by `relane_attention_mla.py --check-rate`, in RATE_ONLY below;
+#   * the FLOOR by `correct_mla_floor.py --check`, plus the property test in
+#     test_coefficient_properties.py::test_kind_specific_decode_floors_are_not_module_measurements.
+
+# Writers where only PART of the pair is still committed from the fitter. The flag checks
+# that part alone; the rest of the pair has its own gate, named in the comment above.
+RATE_ONLY = [
+    ("relane_attention_mla.py --check-rate", "the MLA decode rate"),
+]
+
 # Writers whose rewrite path renders a GENERIC rationale, over entries that carry
 # hand-authored prose a fit cannot regenerate. For these, byte-identity is the wrong
 # assertion -- it would demand that the committed file lose a finding. The h200 KDA
@@ -60,6 +95,13 @@ WRITERS = [
 # which is what a drift check is actually for.
 VALUE_ONLY = [
     ("relane_recurrent_kda.py", "cost-model-recurrent.yaml", "the KDA chain pair"),
+    # The mamba2 and GDN writers render a generic rationale too, and the committed
+    # mamba2 h100 entry carries hand-authored prose about the missing selective-scan
+    # kernel. Values are asserted; prose is not.
+    ("relane_recurrent_family.py --family mamba2", "cost-model-recurrent.yaml",
+     "the mamba2 convolution pair"),
+    ("relane_recurrent_family.py --family gdn", "cost-model-recurrent.yaml",
+     "the GDN chain pair"),
 ]
 
 
@@ -110,7 +152,10 @@ def test_writer_reproduces_the_committed_values(script, target, what, tmp_path):
 
     env = dict(os.environ, AISIMULATE_DATA=str(DATA))
     r = subprocess.run(
-        [sys.executable, str(scratch / "scripts" / script)],
+        # `script` may carry arguments (e.g. "relane_recurrent_family.py --family gdn"),
+        # because one writer maintains two families and each needs its own gate.
+        [sys.executable, str(scratch / "scripts" / script.split()[0]),
+         *script.split()[1:]],
         capture_output=True, text=True, env=env, cwd=str(scratch), timeout=1800,
     )
     assert r.returncode == 0, f"{script} failed:\n{r.stdout}\n{r.stderr}"
@@ -137,17 +182,30 @@ def test_every_fitted_family_has_a_writer():
     # Both gates count as owning a family: WRITERS asserts byte-identity, VALUE_ONLY
     # asserts value-identity where the prose is deliberately hand-authored. A family in
     # either is covered against drift.
-    writers = {w for w, _ in WRITERS} | {w for w, _, _ in VALUE_ONLY}
+    writers = ({w for w, _ in WRITERS}
+               | {w.split()[0] for w, _, _ in VALUE_ONLY}
+               # A split pair's fitted half is gated by its own flag; the writer still
+               # owns that half, so it counts as covered here.
+               | {w.split()[0] for w, _ in RATE_ONLY})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
         "attention_decode_rate": "relane_attention_decode.py",
         "attention_decode_floor_swa": "relane_attention_swa.py",
         "attention_decode_rate_swa": "relane_attention_swa.py",
+        # The MLA floor is no longer fitted -- correct_mla_floor.py commits it as
+        # `assumed` from the part's own attention floor -- so it never reaches this loop,
+        # which only considers `fitted: true` entries. The RATE is still fitted and still
+        # owned by the module-table writer.
+        "attention_decode_rate_mla": "relane_attention_mla.py",
         "attention_prefill_floor": "relane_attention_prefill.py",
         "attention_prefill_work_scale": "relane_attention_prefill.py",
         "recurrent_decode_floor_kda": "relane_recurrent_kda.py",
         "recurrent_decode_rate_kda": "relane_recurrent_kda.py",
+        "recurrent_decode_floor_gdn": "relane_recurrent_family.py",
+        "recurrent_decode_rate_gdn": "relane_recurrent_family.py",
+        "recurrent_decode_floor_mamba2": "relane_recurrent_family.py",
+        "recurrent_decode_rate_mamba2": "relane_recurrent_family.py",
         "gemm_eps_max": "relane_gemm_envelope.py",
         "gemm_m_half": "relane_gemm_envelope.py",
         "moe_routing_imbalance_median": "relane_moe_imbalance.py",
@@ -155,13 +213,13 @@ def test_every_fitted_family_has_a_writer():
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {
-        # The mamba2 pair is a documented LOWER BOUND from a single TRT-LLM sweep; it
-        # has a fitter (fit_recurrent.py --model) and one part, and its value cannot
-        # move without the sweep changing.
-        "recurrent_decode_floor_mamba2",
-        "recurrent_decode_rate_mamba2",
         # Collectives are covered by test_generated_from_aisimulate.py, which
         # re-derives floors, rates and the vLLM all-reduce triple directly.
+        #
+        # The mamba2 pair used to be exempt here on the grounds that it had one part and
+        # no writer. It now has six parts and relane_recurrent_family.py, so the
+        # exemption is gone rather than carried forward -- an exemption that outlives its
+        # reason is how a gate quietly stops gating.
     }
 
     unowned: dict[str, int] = {}
@@ -190,3 +248,41 @@ def test_every_fitted_family_has_a_writer():
     )
     for stem, w in owned.items():
         assert w in writers, f"{stem} claims writer {w}, which is not in WRITERS"
+
+
+def test_the_mla_floor_correction_still_holds():
+    """`correct_mla_floor.py --check`: each MLA floor equals its part's attention floor.
+
+    The floor half of the MLA pair is not fitted, so neither re-derivation gate above
+    covers it. This is its drift check, and it needs no AISimulate tree: the value is
+    derived from a sibling coefficient in the same committed file, so the relation is
+    checkable from the repository alone.
+    """
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "correct_mla_floor.py"), "--check"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=300,
+    )
+    assert r.returncode == 0, (
+        "correct_mla_floor.py --check failed, so a committed attention_decode_floor_mla "
+        "no longer equals its part's measured attention_decode_floor. Either a part-wide "
+        "floor was refitted without re-running the correction, or a module-derived floor "
+        "was reintroduced.\n"
+        f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"
+    )
+
+
+@pytest.mark.parametrize("script,what", RATE_ONLY, ids=[w[0] for w in RATE_ONLY])
+def test_writer_reproduces_the_committed_half_it_still_owns(script, what):
+    """For a split pair, the half still fitted must match its fitter.
+
+    The other half has its own gate; see the RATE_ONLY comment for which.
+    """
+    env = dict(os.environ, AISIMULATE_DATA=str(DATA))
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / script.split()[0])] + script.split()[1:],
+        capture_output=True, text=True, env=env, cwd=str(REPO), timeout=1800,
+    )
+    assert r.returncode == 0, (
+        f"{script} failed, so the committed {what} is not what its fitter produces.\n"
+        f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"
+    )

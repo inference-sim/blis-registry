@@ -73,7 +73,21 @@ FRACTION_GRID = [x * 0.02 for x in range(5, 51)]
 # (floor, rate) pairs and the choice would be arbitrary.
 MIN_POINTS = 200
 
-# Kinds whose byte count is computable from the sweep's own columns.
+# Kinds whose byte count is computable from THIS sweep's own columns.
+#
+# `mla` and `sparse_mla` are absent here and that remains correct for this script: the
+# generation_attention tables carry no KV-head or head-dimension column for them, because
+# an MLA kernel's byte count is a property of the checkpoint -- one latent vector per
+# token of width kv_lora_rank + qk_rope_head_dim -- rather than of a head width the sweep
+# varies.
+#
+# It is NOT correct as a statement about the data, and an earlier revision of
+# docs/methodology.md read it that way. The vLLM MLA MODULE tables
+# (mla/vllm/*/mla_generation_module_perf.parquet, 137,874 rows across parts) carry `model`
+# and `architecture`, so the geometry is resolvable from blis-catalog and the fit is
+# well-posed. scripts/fit_attention_mla.py does it and relane_attention_mla.py commits it
+# for six parts. This constant means "not from these columns", not "not from this
+# project's data".
 FITTABLE = ("gqa", "swa")
 
 

@@ -35,8 +35,19 @@ DATA = Path(
 )
 REPO = Path(__file__).resolve().parent.parent
 
+# A directory that EXISTS but is EMPTY must skip too, not run and fail.
+#
+# The tree is read from $AISIMULATE_DATA, which defaults under /tmp and so is reaped: it
+# was found once with 1,427 directories and 0 files. `not DATA.is_dir()` passes for that
+# hollow tree, so twenty re-derivation tests ran and failed with "no fit" / "no parts
+# fitted" -- indistinguishable, at a glance, from a coefficient regression. Probing for
+# one parquet tells the two apart, and the reason string says which state was found.
+_PARQUETS = next(DATA.rglob("*.parquet"), None) if DATA.is_dir() else None
 pytestmark = pytest.mark.skipif(
-    not DATA.is_dir(), reason=f"AISimulate data not present at {DATA}"
+    _PARQUETS is None,
+    reason=(f"AISimulate data not present at {DATA}" if not DATA.is_dir()
+            else f"AISimulate tree at {DATA} holds no parquet: re-fetch with "
+                 f"`git clone https://github.com/ai-dynamo/aisimulate`"),
 )
 
 # (sku, catalog chip, gemm collection, nccl version)
@@ -250,22 +261,71 @@ def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
 
 
 def test_no_coefficient_cites_a_non_nvidia_measurement_source():
-    """The cost-model sets are single-sourced from NVIDIA AISimulate.
+    """Every MEASURED cost-model entry is sourced from NVIDIA AISimulate.
 
     Mixing measurement sources across a set makes cross-SKU comparisons
     confounded, since two sources apply different methodologies. The host-overhead
     set is exempt: its entries are assumed, cite no measurement, and say so.
+
+    SCOPED TO MEASUREMENTS, which is what the confound is about. An `assumed` entry
+    derived from this part's own AISimulate-measured siblings cites those siblings rather
+    than a parquet -- that is the honest citation for a derived quantity, and it introduces
+    no second methodology, so requiring it to name a collection it was not read from would
+    force either a false citation or a deleted one.
+
+    The distinction is load-bearing rather than a convenience: 186 collective entries are
+    extrapolated this way (every rank-width gap closed in a737aff, each holdout-validated
+    against the one part with a measured 16-rank value), and all 186 are
+    `method: assumed, fitted: false`. A measured entry citing something other than
+    AISimulate is still a failure, which is the case this test exists to catch.
     """
     for name in ("cost-model-primitives", "cost-model-collectives"):
         doc = yaml.safe_load((REPO / "coefficients" / f"{name}.yaml").read_text())
         for item in doc["coefficients"]:
             (key, body), = item.items()
+            if body.get("method") != "measured":
+                continue
             for source in body.get("sources", []):
                 cite = source["cite"]
                 assert "AISimulate" in cite or "aisimulate" in cite, (
                     f"{name}/{key} cites {cite!r}, which is not an AISimulate "
                     f"collection; this set is single-sourced"
                 )
+
+
+def test_no_assumed_entry_smuggles_in_a_foreign_measurement():
+    """An `assumed` entry may cite a derivation, but not a rival measurement source.
+
+    This is the half of the single-sourcing guarantee that survives scoping the test above
+    to measured entries. A derived coefficient legitimately cites the siblings it was
+    derived from; what it must not do is import a number measured by someone else, which
+    would reintroduce exactly the methodology confound -- just under an `assumed` label.
+
+    Enforced by naming the rival sources rather than by requiring an AISimulate citation,
+    since a derivation's honest citation names no collection at all.
+    """
+    # Measurement sources that are NOT AISimulate and would confound a cross-SKU
+    # comparison if a value were taken from them. FPM and InferenceX are this project's
+    # other two datasets and are the realistic mistakes: FPM cannot identify a
+    # per-primitive term at all (docs/methodology.md), and InferenceX is evaluation-only.
+    RIVALS = ("fpm", "forward pass model", "inferencex", "semianalysis",
+              "aiconfigurator", "vidur", "datasheet-only")
+    for name in ("cost-model-primitives", "cost-model-collectives"):
+        doc = yaml.safe_load((REPO / "coefficients" / f"{name}.yaml").read_text())
+        for item in doc["coefficients"]:
+            (key, body), = item.items()
+            if body.get("method") == "measured":
+                continue  # covered by the test above
+            for source in body.get("sources", []):
+                low = source["cite"].lower()
+                for rival in RIVALS:
+                    assert rival not in low, (
+                        f"{name}/{key} is method={body.get('method')!r} but cites "
+                        f"{rival!r}: {source['cite']!r}. A derived entry may cite the "
+                        f"siblings it was derived from; importing a value measured by "
+                        f"another source reintroduces the methodology confound this set "
+                        f"is single-sourced to avoid."
+                    )
 
 
 @pytest.mark.parametrize("sku,chip", sorted(

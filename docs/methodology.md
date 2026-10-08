@@ -75,9 +75,61 @@ silently changes the row set — it once produced 66,148 rows where the committe
 | source | role | why that role |
 |---|---|---|
 | AISimulate per-operator sweeps | **fitting** | per-kernel, lane-labelled, and the only data that isolates one primitive |
-| HF FPM whole-forward (Apache-2.0) | **validation and model selection** | one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler |
+| HF FPM whole-forward (Apache-2.0) | **validation, model selection, and fitting a COMPOSED term** | one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler |
 | InferenceX measured rows | **evaluation only** | end-to-end with a scheduler and a client; never enters a fit or a selection |
 | InferenceX remaining rows | reporting only | their engine settings are not stated per run |
+
+**What FPM may and may not fit, and why the rule changed.** An earlier revision of this
+table read "validation and model selection" and forbade FPM from entering any fit. The
+reason given was a confound: model and system were perfectly collinear, so a model holdout
+was also a chip holdout and a change across it could be attributed to neither. **That is
+no longer true of the dataset.** Derived from the catalog index rather than recalled:
+
+| model | systems it appears on |
+|---|---|
+| DeepSeek-V4.1-Flash | b200-sxm, b300-sxm, gb200, gb300, h200-sxm |
+| DeepSeek-V4-Pro | b200-sxm, b300-sxm, gb300 |
+| MiniMax-M2.7 | b200-sxm, h200-sxm |
+| GLM-5.2-NVFP4 | b200-sxm, gb200 |
+
+Four of seven models now span multiple systems, and b200-sxm carries six models against
+gb300's three, so **both axes vary independently**. A chip holdout is no longer a model
+holdout. The confound that justified the prohibition has dissolved, and keeping the
+prohibition would now cost accuracy for no methodological gain.
+
+The distinction that remains, and it is a real one, is **what kind of quantity each
+dataset constrains**:
+
+* **AISimulate isolates ONE primitive.** A GEMM sweep varies M with everything else held,
+  so it identifies that primitive's two parameters and nothing else. This is the only
+  data that can fit a per-primitive coefficient, and every `measured` entry in this
+  registry still comes from it.
+* **FPM constrains a COMPOSITION.** One `latency_ms` per `(batch, prefill_tokens,
+  kv_tokens)` is the sum over every layer and every resource. Fitting a per-primitive
+  coefficient against it is under-determined: many assignments across the primitives
+  produce the same total, so the fit would attribute to one term whatever every other
+  term gets wrong. That is not a provenance rule, it is an identifiability fact, and it
+  does not change with the dataset.
+
+So FPM **may** fit a term that is itself about composition — the overlap-band choice
+(`docs/band-selection.md`), the attention-DP funnel factor, a per-step host constant —
+because those are properties of the whole forward pass and FPM measures the whole forward
+pass. It **may not** fit an attention rate or a GEMM asymptote, because nothing in a
+whole-pass total identifies those separately.
+
+Three obligations on any FPM-fitted term, so the looser rule does not become a looser
+standard:
+
+1. **Hold out along a dimension the term must generalise across** — a chip, a model, or a
+   parallelism — and report train and holdout error separately. §4 lists the splits the
+   dataset now supports.
+2. **Cite FPM explicitly**, by dataset revision SHA, since the dataset is rewritten and
+   has no tags.
+3. **Keep the end-to-end check.** FPM is not the evaluation corpus, so a term fitted on it
+   still has to face InferenceX, and the standing rule below still governs.
+
+No committed coefficient cites FPM today. This records what is permitted, so the next
+composed term does not have to argue the rule from scratch.
 
 `scripts/select_overlap_band.py` enforces the last two by refusing any path under an
 `inferencex` or `semianalysis` directory, and a new fitter should import that guard rather
@@ -87,10 +139,47 @@ FPM is entirely vLLM — all 85,484 rows carry `backend: vllm` — and splits as
 decode, 5,226 pure prefill, 67,736 mixed prefill+decode.
 
 **The constraint that governs everything else: a better fit to a component benchmark can
-be a worse model.** Five independently verified corrections each improved a per-primitive
+be a worse model.** Six independently verified corrections each improved a per-primitive
 or per-step measurement and made the end-to-end score worse, because the kernel's accuracy
 rests on partially cancelling errors. So **no per-primitive fit ships without an
 end-to-end check**, and a correction whose offsetting term is unidentified waits.
+
+The sixth is the clearest case and is worth stating in full, because it shows the rule
+catching something that every other gate passed. `attention_decode_floor_mla` was fitted
+from AISimulate's `mla_generation_module_perf` tables, committed as `method: measured,
+fitted: true`, and the fit was clean — it reproduced from its own writer, satisfied the
+schema, and sat inside every physical bound then checked. It was also wrong about *which
+quantity it measured*: those tables are MODULE measurements covering the whole MLA block
+including its down-projections, and blis-catalog prices `qkv_proj` and `o_proj` as separate
+`GEMM` nodes in the same layer, so the kernel charged the projection weight read twice.
+`scripts/fit_attention_mla.py` had already recorded the arithmetic (DeepSeek-V3's
+projections are 293.6 MB at fp8, 61.2 µs at H200's 4.80 TB/s, against a 44.0–63.8 µs
+measured module floor) as its reason for being rejected; the pair was nonetheless committed
+later from the same tables.
+
+Only the end-to-end check found it. Scored as a 2×2 over the two terms on the InferenceX
+corpus (573 points, vLLM lane):
+
+| floor | rate | overall TPOT mean\|e\| | kimi-k2.5 TPOT |
+|---|---|---|---|
+| part-wide | fitted | **14.98%** | **6.38%** |
+| part-wide | part-wide | 14.90% | 6.91% |
+| fitted (module) | part-wide | 17.32% | 15.38% |
+| fitted (module) | fitted | 17.43% | 14.57% |
+
+The **rate** is sound — 0.80–1.13× of each part's part-wide rate, the right order for a
+latent-cache read, and the only arm that improves kimi-k2.5 on its own. The **floor** was
+the entire regression: either arm carrying it lands near 15% on kimi-k2.5 and 17.3%
+overall, flipping the kernel from beating AISimulate's 15.39% to losing to it.
+`scripts/correct_mla_floor.py` commits the floor as `assumed` from the same part's measured
+attention-kernel floor, and three gates now hold it: that script's `--check`,
+`relane_attention_mla.py --check-rate` for the half still fitted, and a property test
+bounding any kind-specific floor at 3× its part-wide sibling.
+
+The generalizable lesson is not "distrust module tables" but **a fit can be clean and still
+answer a different question than the coefficient asks**. Provenance of the number is not
+provenance of the quantity, and only a check at the level the model is used at can tell
+them apart.
 
 ## 4. Train, validate, evaluate
 
@@ -106,10 +195,18 @@ generalization that was never tested.
 * **FPM regime**: fit on pure-prefill and pure-decode rows, validate on the 67,736 mixed
   rows, whose batch composition varies independently of concurrency.
 
-**A confound to state rather than hide**: in FPM, model and system are perfectly
-collinear — DeepSeek-V4-Pro only on gb300, GLM-5.2 only on b200_sxm, MiniMax-M2.7 only on
-h200_sxm. A model holdout is also a chip holdout, so a change across it cannot be
-attributed to either.
+**A confound that WAS true and no longer is**: an earlier revision recorded model and
+system as perfectly collinear in FPM — DeepSeek-V4-Pro only on gb300, GLM-5.2 only on
+b200_sxm, MiniMax-M2.7 only on h200_sxm — so a model holdout was also a chip holdout. The
+dataset has since grown and that is false: DeepSeek-V4.1-Flash spans five systems,
+DeepSeek-V4-Pro three, MiniMax-M2.7 and GLM-5.2-NVFP4 two each, and b200-sxm carries six
+models. Both axes now vary independently, which is what makes the holdouts above
+attributable and what §3 relies on in permitting FPM to fit a composed term.
+
+The confound is recorded rather than deleted because the figures it produced are still in
+this document's history, and a reader comparing revisions needs to know which claim held
+when. Re-derive the current state from the catalog index rather than trusting either
+version: the dataset is rewritten in place.
 
 Errors are reported for train, validation AND evaluation. A fit quoted only on its
 training data is not a result.
@@ -692,3 +789,99 @@ grows with batch (−12.8% at batch 8 to −31.3% at 512) in a way a 45-point sl
 
 The band CHOICE is unaffected — NoOverlap beats Overlap on every slice measured here, by
 about 7pp on the mixed rows. The claim of near-unbiasedness is withdrawn.
+
+## 10. Sparse MLA: the byte count is the fix, and the rate is not fittable
+
+Commit 587c1be recorded sparse MLA as **unfittable**, and the kernel's `new.go` said
+`sparse_mla` was "deliberately NOT mapped … the registry carries no fit for it", so every
+layer of deepseek-v4-pro was priced as if it read the whole KV cache. Checking that against
+the data rather than inheriting it produced a split answer: the **byte count** was the
+defect and is now fixed in the kernel, while a per-kind **rate** turns out not to be
+identifiable from this dataset at all. Both halves are recorded because the negative one is
+the more useful.
+
+### 10.1 The table that is not a module measurement
+
+The `sparse_attention` family ships **thirteen** tables per part. Twelve floor between
+37.7 µs and 1,186 µs on h200 — at or above the **66.2 µs** it costs to read the `csa4_moe`
+layer's 317.5 MB of projections at 4.80 TB/s, which blis-catalog prices as nine separate
+`GEMM` nodes. Those are module measurements, and fitting a kernel coefficient from one is
+the defect `scripts/correct_mla_floor.py` had to undo (§3, sixth entry).
+
+One is not: `dsv4_hca_attn_module_perf` floors at **9.6 µs** on the `FLASHMLA_SPARSE_DSV4`
+lane — *below* this part's 13.5 µs GQA attention floor and 7× below the projection read.
+35,262 rows across all six NVIDIA parts, and uniquely in the family a `compress_ratio`
+column.
+
+### 10.2 The byte count, chosen by search rather than assumed
+
+Candidate forms were grid-searched against (floor, rate) on three parts. The discriminator
+is whether the optimum is **interior**: a form that under-counts bytes forces the rate to
+the grid ceiling, which is how a wrong byte count announces itself.
+
+| form | h200 error | rate as fraction of peak |
+|---|---|---|
+| full context — *the old fallback* | 1.698 | **1.00 — clamped on every part** |
+| `topk=128` only | 1.309 | 0.07 |
+| `topk=128 + (step−128)/128` | **1.301** | 0.08 |
+| `topk=1024 + (step−1024)/4` | 1.483 | **1.00 — clamped** |
+
+The winner is exactly the geometry blis-catalog declares for `csa128_moe` (`window: 128`,
+`compress_ratio: 128`) — resolved from the catalog, not tuned. **The full-context form
+clamping at 1.00 of datasheet peak on all three parts is the quantitative statement that
+the old fallback could not describe this kernel**: it needed a physically impossible
+bandwidth to cover the measured time.
+
+The physics is directly visible. At batch 1 on h200 latency is flat at 9.8–13.7 µs from
+step 0 to 16,384 and reaches only 30.6 µs at step 1,048,575 — a 1 M-token context costs
+about as much as a 16 K one.
+
+### 10.3 Why a per-kind rate is NOT fittable, which is the finding
+
+A rate was fitted — 0.083–0.111 of datasheet peak across six parts, errors 1.30×–1.36×
+with head and tail balanced — and then **withdrawn**, because the end-to-end check refused
+it:
+
+| configuration | overall TPOT | deepseek-v4-pro TPOT |
+|---|---|---|
+| neither (full context, part-wide rate) | 14.98 % | 10.42 % |
+| **sparse byte count only** | 15.04 % | **8.72 %** |
+| sparse byte count + sparse rate | 14.95 % | 14.36 % |
+
+The byte count earns **1.7 points** on the affected model. The rate costs **5.6**.
+
+The mechanism is not noise, and it is specific. deepseek-v4-pro **alternates two sparse
+geometries** — 30 `csa128_moe` layers (window 128, ratio 128) and 30 `csa4_moe` layers
+(index_topk 1024, ratio 4) — whose selected-token counts differ by **32×** at a 1 M context
+(8,319 against 262,912). The fitted rate came from `dsv4_hca_attn_module_perf`, which states
+`compress_ratio: 128` on every row, so it describes `csa128_moe` alone. Charging it to all
+60 layers applies a rate fitted on the small read to the large one.
+
+**And this dataset cannot supply the missing half.** `compress_ratio: 4` appears only in the
+`dsv4_csa_*` tables, and every one of those is a module measurement (floors 61.4–80.6 µs).
+Fitting a `csa4_moe` rate from them would re-import the projection double-charge. A rate
+covering half a model's layers is not a coefficient — it is a bias with a provenance string,
+so no `attention_decode_rate_sparse_mla` ships.
+
+`scripts/fit_attention_sparse_mla.py` is kept as a negative result, the way
+`fit_attention_mla.py` and `probe_moe_roofline.py` are: the fit is clean, physical, and
+wrong for this cost model, and deleting it would leave the next person to re-derive that.
+
+### 10.4 What shipped instead
+
+The fix is in the kernel, not the registry, and it needs no fitted constant:
+`selectedKVTokens` bounds a sparse layer's decode read **per layer and per request** from
+the catalog's own `index_topk`, `window` and `compress_ratio`. Sparse layers keep the
+part-wide measured floor and rate, now charged against the right number of bytes.
+
+Per-request rather than batch-wide because `min(sum) ≠ sum(min)`: a batch holding one
+request below the top-k and one far above it gets both wrong if the bound is applied to the
+aggregate. Per-layer because the two geometries above differ by 32×.
+
+No schema change was needed — blis-schemas v0.2.0 already carries `index_topk` and
+`compress_ratio`; the kernel's layer plan simply was not reading them.
+
+The generalizable point, and it is the same one §3 makes from the other direction: a
+coefficient can be *measurable* and still not be *identifiable for the thing it will be
+charged against*. Here the quantity was measured cleanly on one of two layer geometries,
+and only the end-to-end check could tell that this made it unusable.

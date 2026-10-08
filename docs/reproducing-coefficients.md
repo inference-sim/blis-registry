@@ -285,6 +285,9 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |
+| `attention_decode_rate_mla` | `relane_attention_mla.py --check-rate` | same; the FLOOR half is owned by `correct_mla_floor.py`, see methodology §3 |
+| `attention_decode_floor_mla` | `correct_mla_floor.py` | derived from each part's own `attention_decode_floor` (the module tables are rejected for it) |
+| `attention_decode_rate_sparse_mla` | `relane_attention_sparse_mla.py` | AISimulate `sparse_attention` → `dsv4_hca_attn_module_perf`, the one attention-only table; see methodology §10 |
 | `attention_prefill_*` | `relane_attention_prefill.py` | AISimulate `attention` context rows |
 | `recurrent_decode_*_kda` | `relane_recurrent_kda.py` | AISimulate `kda`, vLLM lane |
 | `recurrent_decode_*_{gdn,mamba2}` | `relane_recurrent_family.py --family X` | AISimulate `linear_attention` |

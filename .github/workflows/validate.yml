@@ -56,22 +56,6 @@ jobs:
       - name: Check out the registry
         uses: actions/checkout@v4
 
-      # Hold the registry to one flat, lowercase-.yaml set per file — the convention the
-      # README states. The Go gate globs coefficients/*.yaml while the Python validator
-      # discovers coefficients/ recursively (.yaml/.yml, case-insensitive); enforcing the
-      # convention here keeps the two gates' coverage identical, so no set can be checked
-      # by one and silently escape the other.
-      - name: Enforce the flat-.yaml set convention (gate coverage parity)
-        run: |
-          missed=$(comm -23 \
-            <(find coefficients -type f \( -iname '*.yaml' -o -iname '*.yml' \) | sort) \
-            <(find coefficients -maxdepth 1 -type f -name '*.yaml' | sort))
-          if [ -n "$missed" ]; then
-            echo "::error::coefficient set(s) the Python validator checks but the Go schema gate (coefficients/*.yaml) would skip — nested path, .yml, or non-lowercase .yaml:"
-            echo "$missed"
-            exit 1
-          fi
-
       - name: Check out blis-schemas (pinned)
         uses: actions/checkout@v4
         with:
@@ -79,7 +63,7 @@ jobs:
           # cmd/validate-registry. Bump repository -> inference-sim/blis-schemas and
           # ref -> the main merge SHA once #38 merges.
           repository: namasl/blis-schemas
-          ref: 2a27926381b206882e60c591e3831738ce5154d2
+          ref: 6c71fac14fe3ae674e065064a6b41469a7c61696
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's
@@ -91,7 +75,8 @@ jobs:
 
       - name: Validate every committed set through the Go schema
         working-directory: blis-schemas
-        # cmd/validate-registry globs <root>/coefficients/*.yaml, LoadCoefficientSet +
-        # Validate each, nonzero on any failure. The convention guard above keeps that
-        # glob and the Python validator's recursive discovery over the same set of files.
+        # cmd/validate-registry discovers <root>/coefficients/ the same way the Python
+        # validator (validator/validate.py) does — recursive, .yaml/.yml, case-insensitive —
+        # then LoadCoefficientSet + Validate each, nonzero on any failure. The two gates
+        # therefore cover identical files by construction; no guard needed.
         run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

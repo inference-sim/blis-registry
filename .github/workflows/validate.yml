@@ -56,6 +56,22 @@ jobs:
       - name: Check out the registry
         uses: actions/checkout@v4
 
+      # Hold the registry to one flat, lowercase-.yaml set per file — the convention the
+      # README states. The Go gate globs coefficients/*.yaml while the Python validator
+      # discovers coefficients/ recursively (.yaml/.yml, case-insensitive); enforcing the
+      # convention here keeps the two gates' coverage identical, so no set can be checked
+      # by one and silently escape the other.
+      - name: Enforce the flat-.yaml set convention (gate coverage parity)
+        run: |
+          missed=$(comm -23 \
+            <(find coefficients -type f \( -iname '*.yaml' -o -iname '*.yml' \) | sort) \
+            <(find coefficients -maxdepth 1 -type f -name '*.yaml' | sort))
+          if [ -n "$missed" ]; then
+            echo "::error::coefficient set(s) the Python validator checks but the Go schema gate (coefficients/*.yaml) would skip — nested path, .yml, or non-lowercase .yaml:"
+            echo "$missed"
+            exit 1
+          fi
+
       - name: Check out blis-schemas (pinned)
         uses: actions/checkout@v4
         with:
@@ -63,17 +79,19 @@ jobs:
           # cmd/validate-registry. Bump repository -> inference-sim/blis-schemas and
           # ref -> the main merge SHA once #38 merges.
           repository: namasl/blis-schemas
-          ref: ce7e568c679bb05d76515897d8f9da7e77a0635a
+          ref: 2a27926381b206882e60c591e3831738ce5154d2
           path: blis-schemas
 
-      # setup-go after the blis-schemas checkout so module caching can key on its go.sum.
+      # setup-go after the blis-schemas checkout so the version comes from that module's
+      # own go.mod (no hard-coded version to drift) and caching keys on its go.sum.
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version-file: blis-schemas/go.mod
           cache-dependency-path: blis-schemas/go.sum
 
       - name: Validate every committed set through the Go schema
         working-directory: blis-schemas
-        # The registry is checked out at $GITHUB_WORKSPACE; cmd/validate-registry globs
-        # <root>/coefficients/*.yaml, LoadCoefficientSet + Validate each, nonzero on any failure.
+        # cmd/validate-registry globs <root>/coefficients/*.yaml, LoadCoefficientSet +
+        # Validate each, nonzero on any failure. The convention guard above keeps that
+        # glob and the Python validator's recursive discovery over the same set of files.
         run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

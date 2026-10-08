@@ -35,8 +35,19 @@ DATA = Path(
 )
 REPO = Path(__file__).resolve().parent.parent
 
+# A directory that EXISTS but is EMPTY must skip too, not run and fail.
+#
+# The tree is read from $AISIMULATE_DATA, which defaults under /tmp and so is reaped: it
+# was found once with 1,427 directories and 0 files. `not DATA.is_dir()` passes for that
+# hollow tree, so twenty re-derivation tests ran and failed with "no fit" / "no parts
+# fitted" -- indistinguishable, at a glance, from a coefficient regression. Probing for
+# one parquet tells the two apart, and the reason string says which state was found.
+_PARQUETS = next(DATA.rglob("*.parquet"), None) if DATA.is_dir() else None
 pytestmark = pytest.mark.skipif(
-    not DATA.is_dir(), reason=f"AISimulate data not present at {DATA}"
+    _PARQUETS is None,
+    reason=(f"AISimulate data not present at {DATA}" if not DATA.is_dir()
+            else f"AISimulate tree at {DATA} holds no parquet: re-fetch with "
+                 f"`git clone https://github.com/ai-dynamo/aisimulate`"),
 )
 
 # (sku, catalog chip, gemm collection, nccl version)

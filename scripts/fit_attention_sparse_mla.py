@@ -1,5 +1,47 @@
 #!/usr/bin/env python3
-"""Fit the sparse-MLA decode RATE from the one AISimulate table that measures the kernel.
+"""REJECTED. Fits a sparse-MLA decode rate that covers only half of deepseek-v4-pro.
+
+Kept for the negative result, as `fit_attention_mla.py` and `probe_moe_roofline.py` are:
+the fit is clean, physical and wrong for this cost model, and deleting it would leave the
+next person to re-derive that.
+
+THE FINDING. deepseek-v4-pro ALTERNATES two sparse geometries -- 30 csa128_moe layers
+(window 128, compress_ratio 128) and 30 csa4_moe layers (index_topk 1024, compress_ratio
+4) -- and their selected-token counts differ by 32x at a 1M context (8,319 against
+262,912). The only attention-only table, dsv4_hca_attn_module_perf, states
+compress_ratio 128 on every row, so this fit describes csa128_moe ALONE. Charging it to
+all 60 layers applies a rate fitted on the small read to the large one.
+
+The end-to-end check on the InferenceX corpus (573 points) refused it:
+
+    deepseek-v4-pro TPOT    overall TPOT
+    10.42%                  14.98%     neither (full context, part-wide rate)
+     8.72%                  15.04%     sparse byte count only          <- shipped
+    14.36%                  14.95%     sparse byte count + this rate   <- rejected
+
+The byte count is the physics and earns 1.7 points on the affected model. This rate costs
+5.6.
+
+AND THIS DATASET CANNOT SUPPLY THE MISSING HALF. compress_ratio 4 appears only in the
+dsv4_csa_* tables, and every one of those is a MODULE measurement (floors 61.4-80.6us
+against a 13.5us attention floor), so fitting a csa4_moe rate from them would re-import
+the projection double-charge that scripts/correct_mla_floor.py had to undo. A rate
+covering half a model's layers is not a coefficient; it is a bias with a provenance
+string.
+
+WHAT SHIPPED INSTEAD. The fix is in blis-latency-kernel and needs no fitted constant:
+`selectedKVTokens` bounds a sparse layer's decode read per LAYER and per REQUEST from the
+catalog's own index_topk, window and compress_ratio. Sparse layers keep the part-wide
+measured floor and rate, now charged against the right number of bytes. See
+docs/methodology.md section 10.
+
+TO MAKE A PER-KIND RATE FITTABLE: an attention-only table carrying compress_ratio 4 --
+the csa4_moe geometry -- so both halves of the model are measured by the same kind of
+measurement. The fitter below already handles the geometry and needs only the rows.
+
+Original docstring follows.
+
+Fit the sparse-MLA decode RATE from the one AISimulate table that measures the kernel.
 
     python scripts/fit_attention_sparse_mla.py --sku h200_sxm --chip h200
     python scripts/fit_attention_sparse_mla.py --all

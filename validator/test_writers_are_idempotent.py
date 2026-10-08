@@ -73,10 +73,6 @@ WRITERS = [
 # that part alone; the rest of the pair has its own gate, named in the comment above.
 RATE_ONLY = [
     ("relane_attention_mla.py --check-rate", "the MLA decode rate"),
-    # sparse_mla commits a RATE and no floor by design: the fit pins the floor to each
-    # part's measured attention_decode_floor because searching it freely gains under 8%
-    # and would re-open the module-measurement trap. There is no second half to gate.
-    ("relane_attention_sparse_mla.py --check", "the sparse-MLA decode rate"),
 ]
 
 # Writers whose rewrite path renders a GENERIC rationale, over entries that carry
@@ -191,7 +187,6 @@ def test_every_fitted_family_has_a_writer():
         # which only considers `fitted: true` entries. The RATE is still fitted and still
         # owned by the module-table writer.
         "attention_decode_rate_mla": "relane_attention_mla.py",
-        "attention_decode_rate_sparse_mla": "relane_attention_sparse_mla.py",
         "attention_prefill_floor": "relane_attention_prefill.py",
         "attention_prefill_work_scale": "relane_attention_prefill.py",
         "recurrent_decode_floor_kda": "relane_recurrent_kda.py",

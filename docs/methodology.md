@@ -790,31 +790,28 @@ grows with batch (−12.8% at batch 8 to −31.3% at 512) in a way a 45-point sl
 The band CHOICE is unaffected — NoOverlap beats Overlap on every slice measured here, by
 about 7pp on the mixed rows. The claim of near-unbiasedness is withdrawn.
 
-## 10. Sparse MLA: a recorded impossibility that the data does not support
+## 10. Sparse MLA: the byte count is the fix, and the rate is not fittable
 
-Commit 587c1be recorded MLA and sparse MLA as **unfittable**, and the kernel's `new.go`
-still says `sparse_mla` is "deliberately NOT mapped … its byte count is a different
-function of the request and the registry carries no fit for it". Both halves of that have
-now been checked against the data rather than inherited, and both were accurate about the
-tables examined rather than about the dataset.
+Commit 587c1be recorded sparse MLA as **unfittable**, and the kernel's `new.go` said
+`sparse_mla` was "deliberately NOT mapped … the registry carries no fit for it", so every
+layer of deepseek-v4-pro was priced as if it read the whole KV cache. Checking that against
+the data rather than inheriting it produced a split answer: the **byte count** was the
+defect and is now fixed in the kernel, while a per-kind **rate** turns out not to be
+identifiable from this dataset at all. Both halves are recorded because the negative one is
+the more useful.
 
 ### 10.1 The table that is not a module measurement
 
-The `sparse_attention` family ships **thirteen** tables per part. Twelve of them floor
-between 37.7 µs and 1,186 µs on h200 — at or above the **66.2 µs** it costs to read the
-`csa4_moe` layer's 317.5 MB of projections at 4.80 TB/s, which blis-catalog prices as nine
-separate `GEMM` nodes. Those are module measurements, and fitting a kernel coefficient from
-one is the defect `scripts/correct_mla_floor.py` had to undo (§3, sixth entry).
+The `sparse_attention` family ships **thirteen** tables per part. Twelve floor between
+37.7 µs and 1,186 µs on h200 — at or above the **66.2 µs** it costs to read the `csa4_moe`
+layer's 317.5 MB of projections at 4.80 TB/s, which blis-catalog prices as nine separate
+`GEMM` nodes. Those are module measurements, and fitting a kernel coefficient from one is
+the defect `scripts/correct_mla_floor.py` had to undo (§3, sixth entry).
 
-One is not:
-
-| table | lane | h200 floor |
-|---|---|---|
-| `dsv4_hca_attn_module_perf` | `FLASHMLA_SPARSE_DSV4` | **9.6 µs** |
-
-9.6 µs is *below* this part's 13.5 µs GQA attention floor and 7× below the projection
-read, so this table measures the attention kernel. It carries 35,262 rows across all six
-NVIDIA parts and — uniquely in the family — a `compress_ratio` column.
+One is not: `dsv4_hca_attn_module_perf` floors at **9.6 µs** on the `FLASHMLA_SPARSE_DSV4`
+lane — *below* this part's 13.5 µs GQA attention floor and 7× below the projection read.
+35,262 rows across all six NVIDIA parts, and uniquely in the family a `compress_ratio`
+column.
 
 ### 10.2 The byte count, chosen by search rather than assumed
 
@@ -824,73 +821,67 @@ the grid ceiling, which is how a wrong byte count announces itself.
 
 | form | h200 error | rate as fraction of peak |
 |---|---|---|
-| full context — *today's fallback* | 1.698 | **1.00 — clamped on every part** |
+| full context — *the old fallback* | 1.698 | **1.00 — clamped on every part** |
 | `topk=128` only | 1.309 | 0.07 |
 | `topk=128 + (step−128)/128` | **1.301** | 0.08 |
 | `topk=1024 + (step−1024)/4` | 1.483 | **1.00 — clamped** |
 
-The winner is exactly the geometry blis-catalog declares for this checkpoint's
-`csa128_moe` layer (`window: 128`, `compress_ratio: 128`) — resolved from the catalog, not
-tuned. And **the full-context form clamping at 1.00 of datasheet peak on all three parts is
-the quantitative statement that today's fallback cannot describe this kernel at all**: it
-needs a physically impossible bandwidth to cover the measured time.
+The winner is exactly the geometry blis-catalog declares for `csa128_moe` (`window: 128`,
+`compress_ratio: 128`) — resolved from the catalog, not tuned. **The full-context form
+clamping at 1.00 of datasheet peak on all three parts is the quantitative statement that
+the old fallback could not describe this kernel**: it needed a physically impossible
+bandwidth to cover the measured time.
 
-The physics behind it is visible directly: at batch 1 on h200, latency is flat at
-9.8–13.7 µs from step 0 to 16,384 and reaches only 30.6 µs at step 1,048,575. A 1 M-token
-context costs about as much as a 16 K one, because the kernel reads a selected top-k plus a
-compressed remainder rather than the whole prefix.
+The physics is directly visible. At batch 1 on h200 latency is flat at 9.8–13.7 µs from
+step 0 to 16,384 and reaches only 30.6 µs at step 1,048,575 — a 1 M-token context costs
+about as much as a 16 K one.
 
-### 10.3 Only the rate is committed
+### 10.3 Why a per-kind rate is NOT fittable, which is the finding
 
-Searching floor and rate freely puts the floor at 12.6–14.4 µs on every part — a band so
-tight it does not track the committed part-wide floors it would replace (those span
-9.5–14.5 µs and order differently: b300 is the lowest at 9.5 while its free sparse floor is
-12.6). Pinning the floor to each part's own measured attention floor costs 1.0 %–7.8 %:
+A rate was fitted — 0.083–0.111 of datasheet peak across six parts, errors 1.30×–1.36×
+with head and tail balanced — and then **withdrawn**, because the end-to-end check refused
+it:
 
-| chip | free floor | err | pinned | err | cost |
-|---|---|---|---|---|---|
-| h100 | 13.6 | 1.317 | 14.5 | 1.337 | 1.016× |
-| h200 | 12.8 | 1.301 | 13.5 | 1.313 | 1.010× |
-| b200 | 13.6 | 1.259 | 10.5 | 1.314 | 1.044× |
-| b300 | 12.6 | 1.259 | 9.5 | 1.357 | 1.078× |
-| gb200-nvl72 | 14.4 | 1.242 | 11.0 | 1.306 | 1.052× |
-| gb300 | 14.2 | 1.243 | 11.0 | 1.300 | 1.045× |
+| configuration | overall TPOT | deepseek-v4-pro TPOT |
+|---|---|---|
+| neither (full context, part-wide rate) | 14.98 % | 10.42 % |
+| **sparse byte count only** | 15.04 % | **8.72 %** |
+| sparse byte count + sparse rate | 14.95 % | 14.36 % |
 
-So the data does not demand a separate floor, and inventing one would add a parameter for
-under 8 % of fit while re-opening the exact failure mode that cost 2.45 TPOT points on MLA.
-`attention_decode_rate_sparse_mla` ships for six parts at 0.083–0.111 of datasheet peak —
-an order of magnitude below the full-attention rates (0.52–0.88) because a sparse read
-*gathers* scattered pages rather than streaming contiguous ones.
+The byte count earns **1.7 points** on the affected model. The rate costs **5.6**.
 
-### 10.4 What shipping this does not yet do, stated plainly
+The mechanism is not noise, and it is specific. deepseek-v4-pro **alternates two sparse
+geometries** — 30 `csa128_moe` layers (window 128, ratio 128) and 30 `csa4_moe` layers
+(index_topk 1024, ratio 4) — whose selected-token counts differ by **32×** at a 1 M context
+(8,319 against 262,912). The fitted rate came from `dsv4_hca_attn_module_perf`, which states
+`compress_ratio: 128` on every row, so it describes `csa128_moe` alone. Charging it to all
+60 layers applies a rate fitted on the small read to the large one.
 
-The kernel **cannot consume this rate yet**, and the end-to-end score confirms it rather
-than merely asserting it: committing the six entries leaves overall TPOT at 14.98 % and
-deepseek-v4-pro at 10.42 %, both unchanged to the digit.
+**And this dataset cannot supply the missing half.** `compress_ratio: 4` appears only in the
+`dsv4_csa_*` tables, and every one of those is a module measurement (floors 61.4–80.6 µs).
+Fitting a `csa4_moe` rate from them would re-import the projection double-charge. A rate
+covering half a model's layers is not a coefficient — it is a bias with a provenance string,
+so no `attention_decode_rate_sparse_mla` ships.
 
-The reason is that the kernel's decode term is
+`scripts/fit_attention_sparse_mla.py` is kept as a negative result, the way
+`fit_attention_mla.py` and `probe_moe_roofline.py` are: the fit is clean, physical, and
+wrong for this cost model, and deleting it would leave the next person to re-derive that.
 
-```
-attnSeconds += floor + decodeKVTokens * kvBytesPerToken / layers / rate
-```
+### 10.4 What shipped instead
 
-where `decodeKVTokens` is the **full** context. This rate was fitted against *selected*
-bytes, so pairing it with a full-context byte count would be worse than the fallback it
-replaces — fitting a rate on one quantity and charging it against another is the same class
-of error as §3's sixth entry. Three changes are needed, and only the first is in this
-repository:
+The fix is in the kernel, not the registry, and it needs no fitted constant:
+`selectedKVTokens` bounds a sparse layer's decode read **per layer and per request** from
+the catalog's own `index_topk`, `window` and `compress_ratio`. Sparse layers keep the
+part-wide measured floor and rate, now charged against the right number of bytes.
 
-1. **the rate** — done, here;
-2. **`IndexTopK` carried into the kernel's layer plan.** blis-schemas already models
-   `index_topk` and *validates* that sparse MLA requires it
-   (`spec/model/validate.go`: "sparse MLA requires a positive index_topk"), but
-   `internal/price/plan.go` carries only `AttnWindow`, so the value is loaded and dropped;
-3. **`compress_ratio` added to blis-schemas.** blis-catalog states it on deepseek-v4-pro's
-   two sparse_mla layers (4 and 128) but no schema field exists, so it is silently dropped
-   at load. The glm-5 family needs none — those layers state `index_topk: 2048` with no
-   compressed tier — so this blocks deepseek-v4-pro only.
+Per-request rather than batch-wide because `min(sum) ≠ sum(min)`: a batch holding one
+request below the top-k and one far above it gets both wrong if the bound is applied to the
+aggregate. Per-layer because the two geometries above differ by 32×.
 
-Committing the measured rate ahead of its consumer is deliberate: it is the quantity the
-data identifies, it is reproducible from `scripts/fit_attention_sparse_mla.py`, and the
-alternative is leaving a fitted value in a scratch file while the coefficient the kernel
-will need stays unversioned.
+No schema change was needed — blis-schemas v0.2.0 already carries `index_topk` and
+`compress_ratio`; the kernel's layer plan simply was not reading them.
+
+The generalizable point, and it is the same one §3 makes from the other direction: a
+coefficient can be *measurable* and still not be *identifiable for the thing it will be
+charged against*. Here the quantity was measured cleanly on one of two layer geometries,
+and only the end-to-end check could tell that this made it unusable.

@@ -44,8 +44,8 @@ Every coefficient records `value`, `units`, `method` (how the number was obtaine
 (`sources`, `rationale`, `ci95`, …). The strict rules — which fields are required, the
 allowed enums, and the required-by-method provenance — are defined and enforced by
 **blis-schemas**, the Go schema every consumer loads these files through
-(`blisschemas.LoadCoefficientSet`). The registry does not define or maintain its own
-validation rules; there is one source of truth. The schema checks document **shape and
+(`blisschemas.LoadCoefficientSet`). The registry keeps no schema validator of its own —
+blis-schemas is the one schema source of truth. The schema checks document **shape and
 provenance**; per-backend completeness (that a set carries every coefficient a given
 backend consumes) is enforced by the simulator-side loader, which knows what each
 backend reads.
@@ -75,15 +75,18 @@ runs its validator (`cmd/validate-registry`, pinned by SHA) over every committed
 pull request, so a set the real consumer (`blisschemas.LoadCoefficientSet`) could not load —
 a missing required field, an unrecognized enum, an ill-formed or non-finite value, a
 required-by-method provenance gap, or a duplicate `(name, scope)` — fails here, on the PR
-that introduces it. The registry defines no validation rules of its own.
+that introduces it. The registry keeps no schema validator of its own.
 
 ### Derivation tests
 
 Separately, `validator/` holds the registry's **derivation / value-preservation** tests
 (the directory keeps its historical name). They check that each committed value is
 re-derivable from public data — a family's writer reproduces its committed file byte for
-byte, and no number is imported from a sibling it was not derived from — which is about
-derivation, not document shape. The `derivation-tests` CI job runs them:
+byte, and no number is imported from a sibling it was not derived from — and that the data
+meets the registry's own value/quality bars (every `measured` entry cites its source,
+every `assumed` entry carries a substantial rationale) that the schema deliberately does
+not impose. This is derivation and quality, not document shape. The `derivation-tests` CI
+job runs them:
 
 ```sh
 pip install -r requirements.txt

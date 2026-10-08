@@ -6,7 +6,7 @@ name: validate
 #     These check derivation, not document shape.
 #   * schema-validate — the single source of SCHEMA validation: it runs blis-schemas' own
 #     validator over every committed set, so a file the real consumer cannot load fails
-#     here, on the PR. The registry defines no validation rules of its own.
+#     here, on the PR. The registry keeps no schema validator of its own.
 # A failing test or a rejected set fails its job.
 
 on:
@@ -35,9 +35,10 @@ jobs:
   # through (blis-latency-kernel via blisschemas.LoadCoefficientSet), and it owns the rules
   # — document shape, the units / method / source enums, finiteness, non-empty scope, the
   # duplicate-(name, scope) resolver invariant, and the required-by-method provenance rules
-  # migrated into it from the registry's former Python validator. The registry defines no
-  # validation rules of its own, so a set the consumer could not load fails here, on the PR
-  # that introduces it.
+  # migrated into it from the registry's former Python validator. The registry keeps no
+  # schema validator of its own, so a set the consumer could not load fails here, on the PR
+  # that introduces it. (The validator/ derivation tests check value/quality properties the
+  # schema does not impose — e.g. measured entries cite a source — not document schema.)
   #
   # blis-schemas has no release tag, so it is pinned by SHA rather than floated on main:
   # a pinned gate does not redden an unrelated registry PR when the schema changes, and a

@@ -49,6 +49,7 @@ WRITERS = [
     ("relane_attention_swa.py", "sliding-window decode floor and rate"),
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
+    ("relane_attention_mla.py", "the MLA decode floor and rate"),
 ]
 
 # Writers whose rewrite path renders a GENERIC rationale, over entries that carry
@@ -155,6 +156,8 @@ def test_every_fitted_family_has_a_writer():
         "attention_decode_rate": "relane_attention_decode.py",
         "attention_decode_floor_swa": "relane_attention_swa.py",
         "attention_decode_rate_swa": "relane_attention_swa.py",
+        "attention_decode_floor_mla": "relane_attention_mla.py",
+        "attention_decode_rate_mla": "relane_attention_mla.py",
         "attention_prefill_floor": "relane_attention_prefill.py",
         "attention_prefill_work_scale": "relane_attention_prefill.py",
         "recurrent_decode_floor_kda": "relane_recurrent_kda.py",

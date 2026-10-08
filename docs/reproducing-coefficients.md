@@ -270,6 +270,44 @@ order-of-magnitude anchor only — the values there were fitted against a differ
 functional form, and a coefficient is valid only for the form it was fitted against. The
 citations name the git SHA where that file can still be read.
 
+### Every committed value, and the one command that regenerates it
+
+The table below is the reproducibility contract: each family names the script that owns
+it, and each of those scripts takes `--check`, which re-runs its own fitter and exits
+non-zero if the committed file would change. `validator/test_writers_are_idempotent.py`
+runs them all, and `test_every_fitted_family_has_a_writer` fails if a fitted family
+appears with no owner — so a value that cannot be regenerated cannot be added.
+
+| family | writer | source |
+|---|---|---|
+| `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
+| `moe_routing_imbalance_*` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
+| `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
+| `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
+| `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |
+| `attention_prefill_*` | `relane_attention_prefill.py` | AISimulate `attention` context rows |
+| `recurrent_decode_*_kda` | `relane_recurrent_kda.py` | AISimulate `kda`, vLLM lane |
+| `recurrent_decode_*_{gdn,mamba2}` | `relane_recurrent_family.py --family X` | AISimulate `linear_attention` |
+| `collective_*` (measured widths) | `emit_collectives.py`, `fit_collectives_vllm.py` | AISimulate `comm` |
+| `collective_*` (new part) | `insert_collectives_part.py` | same, per operator per lane |
+| `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
+| descriptors (`vendor_spec`) | `emit_primitives.py` | NVIDIA `systems/<sku>.yaml` |
+| host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
+
+**Derived entries carry their own reproduction too.** Two scripts write `method: assumed`
+values, and both state the predictor, its holdout error and the parts it was derived
+from, inside the entry:
+
+| script | what it derives | predictor, and how it was chosen |
+|---|---|---|
+| `extrapolate_by_generation.py` | a family absent for one part | same-generation median, or a kernel-matched within-part ratio; both chosen by leave-one-part-out holdout against every part that *is* fitted |
+| `extrapolate_collective_width.py` | a 16-rank collective triple | `floor(n) = a + b(n−1)` on that part's own {2,4,8}, holdout-validated against gb200-nvl72, the one part with a measured 16-rank floor |
+
+Neither script will write a value it cannot defend: they refuse a part whose generation
+has no fitted sibling, a prediction below the measured 8-rank floor, a set of fit widths
+spanning two lanes, and a lane with no same-lane holdout. A refusal is the correct output
+when the data does not support an estimate.
+
 ### Adding a part — the GB300 worked example
 
 Every fitted family has a writer with `--check` (it re-runs its own fitter and exits

@@ -35,8 +35,31 @@ import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parent.parent
-CATALOG = Path(os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog"))
+
+# The chip descriptors these properties check against, vendored under
+# validator/testdata/catalog so they are present wherever the suite runs.
+#
+# This default used to be /Users/sri/Documents/Projects/blis-catalog, a path that exists on
+# one machine. In CI `chip_facts` returned None for every chip, so
+# `test_no_bandwidth_rate_exceeds_its_parts_datasheet_peak` examined ZERO rate/chip pairs
+# and only its own `checked >= 10` guard turned that into a failure rather than a
+# vacuous pass. The companion fraction-of-peak test had the same blind spot, and the
+# hardware-coverage test below skipped outright. A physical bound that does not run is
+# worse than no bound: it reports the invariant as protected.
+#
+# 40 KB for the nine chips the committed coefficients scope to, pinned to blis-catalog
+# 747a2213e13030ae675f9872c3e2a76b6b770d50 (2026-10-07) -- the same commit
+# blis-latency-kernel vendors. BLIS_CATALOG still overrides, so a working copy can be
+# checked against a live catalog; a chip rename there is SUPPOSED to break these tests,
+# which is why the copy tracks a commit rather than a branch.
+#
+# `or` rather than a two-argument `os.environ.get`: an EMPTY BLIS_CATALOG must fall back to
+# the vendored copy, not be honoured as a root. `BLIS_CATALOG= pytest ...` is the natural
+# way to ask for the default, and get() treats the empty string as a real value -- which
+# resolves every chip path relative to nothing, returns None for all of them, and lands
+# back in the vacuous-pass state this vendoring exists to prevent.
+CATALOG = Path(os.environ.get("BLIS_CATALOG")
+               or REPO / "validator" / "testdata" / "catalog")
 
 
 def committed() -> list[tuple[str, str, dict]]:

@@ -52,11 +52,13 @@ jobs:
       - name: Check out blis-schemas (pinned)
         uses: actions/checkout@v4
         with:
-          # Pinned to the blis-schemas release that introduced cmd/validate-registry and the
-          # full coefficient-set ruleset (#38, released as v0.2.1). Bump this tag deliberately
-          # on a schema release.
+          # Pinned to a blis-schemas release tag. cmd/validate-registry and the full
+          # coefficient-set ruleset arrived in v0.2.1 (#38); v0.2.2 adds deployment-side
+          # layout checks and DCP/PCP knobs and leaves the coefficient-set rules unchanged,
+          # so the bump is non-breaking for this repository. Bump this tag deliberately on a
+          # schema release.
           repository: inference-sim/blis-schemas
-          ref: v0.2.1
+          ref: v0.2.2
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

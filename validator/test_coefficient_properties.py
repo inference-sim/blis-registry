@@ -348,14 +348,16 @@ def test_hardware_independent_sets_cover_every_catalog_part():
         # cost-model-primitives and is a genuinely PER-PART figure -- NVIDIA's descriptor
         # states a different PCIe or NVLink-C2C rate per platform -- so it is scoped to
         # one chip by design and must not be swept into this rule by its name prefix.
-        if setname != "cost-model-host-overheads.yaml":
+        # cost-model-memory holds engine-structural memory terms with no per-part value in
+        # their sources, scoped to every part for the same reason the host set is.
+        if setname not in ("cost-model-host-overheads.yaml", "cost-model-memory.yaml"):
             continue
         scoped = set((body.get("scope") or {}).get("hardware", []))
         missing = sorted(cat - scoped)
         assert not missing, (
             f"{setname}: {name} does not scope {missing}, so it resolves to NOTHING "
-            f"there and host cost is priced at zero. Every term in this set is CPU work "
-            f"with no per-part value, so the scope must list every catalog part."
+            f"there and the term is priced at zero. Every term in this set has no "
+            f"per-part value in its source, so the scope must list every catalog part."
         )
 
 
@@ -473,3 +475,83 @@ def test_kind_specific_decode_floors_are_not_module_measurements():
             )
             checked += 1
     assert checked, "no kind-specific decode floor was checked against a part-wide floor"
+
+
+# --------------------------------------------------------------------------------------
+# Memory occupancy: activation multiples and CUDA-graph capture
+# --------------------------------------------------------------------------------------
+
+def _memory(name: str) -> float:
+    for setname, n, body in ENTRIES:
+        if setname == "cost-model-memory.yaml" and n == name:
+            return body["value"]
+    raise AssertionError(f"cost-model-memory.yaml carries no {name}")
+
+
+# vLLM's CUDAGraphMode members (vllm/config/compilation.py). A consumer is handed one of
+# these as a deployment's cudagraph_mode, so each must resolve to an entry: a missing one
+# would read as "no capture cost" on exactly the deployment that pays it.
+CUDAGRAPH_MODES = ("none", "piecewise", "full", "full_decode_only", "full_and_piecewise")
+
+
+def test_every_cudagraph_mode_has_a_capture_entry():
+    for mode in CUDAGRAPH_MODES:
+        _memory(f"cudagraph_capture_bytes_{mode}")
+
+
+def test_capture_bytes_respect_the_pool_overlay():
+    """No mode may cost more than FULL_AND_PIECEWISE, and only NONE may cost nothing.
+
+    vLLM captures FULL_AND_PIECEWISE as the PIECEWISE set plus the FULL decode set in one
+    overlaid pool (gpu_model_runner.profile_cudagraph_memory), so every other capturing
+    mode records a subset of its graphs and cannot exceed it for the same deployment.
+    """
+    bound = _memory("cudagraph_capture_bytes_full_and_piecewise")
+    assert _memory("cudagraph_capture_bytes_none") == 0
+    for mode in ("piecewise", "full", "full_decode_only"):
+        v = _memory(f"cudagraph_capture_bytes_{mode}")
+        assert 0 < v <= bound, (
+            f"cudagraph_capture_bytes_{mode} is {v}, outside (0, {bound}]: a mode that "
+            f"captures a subset of FULL_AND_PIECEWISE's graphs into the same pool cannot "
+            f"cost more, and a capturing mode cannot cost nothing.")
+    # A capture is a fraction of a GiB to a few GiB on every part the samples cover; a
+    # value outside this is a unit slip (MiB read as GiB, or bytes as KiB).
+    assert 64 * 2**20 <= bound <= 16 * 2**30
+
+
+def test_activation_multiples_fall_with_width_and_moe_carries_more():
+    """The live-buffer multiple shrinks as tensor parallelism shards the buffers, and an
+    MoE layer holds more of them than a dense one at every width."""
+    widths = (1, 2, 4, 8)
+    for family in ("dense", "moe"):
+        row = [_memory(f"activation_buffer_count_{family}_{n}rank") for n in widths]
+        assert all(a >= b for a, b in zip(row, row[1:])), (
+            f"activation_buffer_count_{family} rises with width: {row}")
+        assert all(v >= 1 for v in row), f"activation_buffer_count_{family}: {row}"
+    for n in widths:
+        assert (_memory(f"activation_buffer_count_moe_{n}rank")
+                >= _memory(f"activation_buffer_count_dense_{n}rank"))
+    floor = _memory("activation_scratch_floor_bytes")
+    assert 2**20 <= floor <= 2**30, f"activation_scratch_floor_bytes {floor} is not MiB-scale"
+
+
+def test_capture_bytes_re_derive_from_the_committed_samples():
+    """The capture half of emit_memory.py, re-run from the committed CSV.
+
+    Needs no AISimulate tree, so unlike the writer gate it runs in CI: an edited CSV or a
+    hand-edited value fails here.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "emit_memory", REPO / "scripts" / "emit_memory.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    text = (REPO / "coefficients" / "cost-model-memory.yaml").read_text()
+    entries = mod.capture_entries()
+    assert len(entries) == len(CUDAGRAPH_MODES)
+    for e in entries:
+        assert e in text, (
+            "cost-model-memory.yaml no longer carries what emit_memory.py renders from "
+            "docs/vllm-cudagraph-capture-samples.csv:\n" + e[:400])

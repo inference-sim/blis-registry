@@ -13,7 +13,7 @@ factor and never a per-model correction. Each entry carries:
 |---|---|
 | `value` | the number |
 | `units` | stated explicitly, because the single commonest error in this project is a unit slip |
-| `method` | `measured`, `vendor_spec`, or `assumed` |
+| `method` | `measured`, `vendor_spec`, `assumed`, or `not_charged` (a deliberate zero) |
 | `fitted` | whether a script produced it |
 | `scope` | the deployment dimensions it applies to: hardware, model, TP, EP, nodes |
 | `sources` | the exact file the value came from, with row counts |
@@ -21,12 +21,14 @@ factor and never a per-model correction. Each entry carries:
 
 Two rules follow from `method`:
 
-* An `assumed` coefficient is a **declared gap**, not a measurement. Six of them exist
-  (`host_admission_per_token`, `host_output_token`, `host_completion`,
-  `host_launch_eager_per_layer`, `host_replay_graph_per_step`, `host_launch_per_kernel`).
-  Any claim resting on one has to say so.
+* An `assumed` coefficient is a **declared gap**, not a measurement. §6.0 counts them by
+  kind; the ones nothing in this project's data could replace are the seven host
+  overheads and the four CUDA-graph capture sizes (§11). Any claim resting on one has to
+  say so.
 * A `vendor_spec` coefficient is NVIDIA's observation, not this project's. `hbm_derate`
   at 0.8 is the example.
+* A `not_charged` coefficient is a deliberate zero, so a consumer can tell "no cost" from
+  "cost unknown". `cudagraph_capture_bytes_none` is the one instance.
 
 **A value and its citation move together.** Editing one without the other is how a
 registry comes to describe a fit nobody ran, and the validator re-derives values from the
@@ -78,6 +80,7 @@ silently changes the row set — it once produced 66,148 rows where the committe
 | HF FPM whole-forward (Apache-2.0) | **validation, model selection, and fitting a COMPOSED term** | one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler |
 | InferenceX measured rows | **evaluation only** | end-to-end with a scheduler and a client; never enters a fit or a selection |
 | InferenceX remaining rows | reporting only | their engine settings are not stated per run |
+| vLLM start-up logs in the vLLM issue tracker | **anchoring an `assumed` magnitude only** | vLLM's own measurement of CUDA-graph capture memory, on uncontrolled deployments; the only public record of that quantity (§11) |
 
 **What FPM may and may not fit, and why the rule changed.** An earlier revision of this
 table read "validation and model selection" and forbade FPM from entering any fit. The
@@ -285,6 +288,8 @@ the same collection they print the same numbers, and the validator re-runs them.
     scripts/fit_gemm_envelope.py <data>/<sku>/gemm/<lane>
     scripts/fit_gemm_shape_ramp.py [--emit] <sku>:<chip>
     scripts/probe_cudagraph_dispatch.py --settings S --corpus C
+    scripts/emit_memory.py [--check]
+    scripts/mine_vllm_cudagraph_memory.py {fetch,extract} CACHE_DIR
 
 Two traps these scripts exist to avoid, both of which produced wrong answers by hand:
 
@@ -297,30 +302,42 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 
 ### 6.0 What is reproducible, and what is not
 
-Three kinds of value live in this registry, and only the first is reproducible
-from a dataset. Counted from the coefficient files themselves:
+Four kinds of value live in this registry. Counted from the coefficient files
+themselves (1,121 entries in six sets):
 
-| `method` | entries | reproducible by | 
+| `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 654 | a named fitter in `scripts/`, re-run by the validator |
-| `vendor_spec` | 64 | a datasheet citation |
-| `assumed` | 7 | nothing — each states its reasoning and what would replace it |
+| `measured` | 816 | a named fitter in `scripts/`, re-run by the validator |
+| `vendor_spec` | 81 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
+| `assumed` | 223 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
+| `not_charged` | 1 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`) |
 
-All seven `assumed` entries are host overheads in
-`cost-model-host-overheads.yaml`: `host_admission_per_request`,
-`host_admission_per_token`, `host_output_token`, `host_completion`,
-`host_launch_eager_per_layer`, `host_replay_graph_per_step` and
-`host_launch_per_kernel`. No dataset in this project measures client-observed
-host time: AISimulate times kernels, FPM times one synchronized forward pass
-(all 42 of its columns were enumerated — there is no `ttft`, `e2e`, `client`,
-`queue` or `host` column), and InferenceX is evaluation-only.
+The 223 `assumed` entries are of two different kinds, and the difference matters
+to a reader weighing one:
 
-So a reader can re-derive 718 of 725 entries and must take 7 on the reasoning
-written into them. Each of those seven carries the measurement that would
-replace it; `host_admission_per_request` names the exact experiment, a
-client-observed TTFT measurement at 1-token and 1,024-token prompts against a
-running vLLM server at concurrency 1 with a warm cache, whose intercept is the
-coefficient with no evaluation data involved.
+* **Derived from this project's own measurements** — 212 entries, each
+  regenerated by a script. 204 collective triples close rank-width and part gaps
+  (`extrapolate_collective_width.py`, `extrapolate_by_generation.py`, each
+  holdout-validated, §8.5); A100's two sliding-window attention entries scale
+  its own measured full-attention floor and rate by its kernel sibling's
+  windowed/full ratio (`extrapolate_by_generation.py`); six `attention_decode_floor_mla` entries are set from
+  the part's own measured attention floor (`correct_mla_floor.py`, §3).
+* **Not derivable from any dataset this project reads** — 11 entries. The seven
+  host overheads in `cost-model-host-overheads.yaml`: no dataset measures
+  client-observed host time (AISimulate times kernels, FPM times one synchronized
+  forward pass — all 42 of its columns were enumerated, and there is no `ttft`,
+  `e2e`, `client`, `queue` or `host` column — and InferenceX is evaluation-only).
+  And the four capturing `cudagraph_capture_bytes_<mode>` entries in
+  `cost-model-memory.yaml`, whose magnitude is anchored on vLLM's own start-up
+  logs (§11); their anchor is reproducible from a committed CSV, but the samples
+  are uncontrolled deployments, which is why the method stays `assumed`.
+
+Each of those eleven carries the measurement that would replace it.
+`host_admission_per_request` names the exact experiment, a client-observed TTFT
+measurement at 1-token and 1,024-token prompts against a running vLLM server at
+concurrency 1 with a warm cache, whose intercept is the coefficient with no
+evaluation data involved. The capture entries name one log line from one
+start-up of the target deployment.
 
 This boundary is stated rather than smoothed over because the largest single
 accuracy movement in this work — TTFT mape 52.94% to 31.47% on the measured
@@ -408,6 +425,11 @@ through; see the registry README), not here. The derivation gates that matter:
 * **single-sourced citations** — every source in the AISimulate sets must cite AISimulate.
 * **lane pinning** — the all-reduce test pins the `vllm_graph` lane specifically, because
   eager is SLOWER than NCCL and accepting either would accept a 3.4x mispricing.
+* **memory occupancy** — `emit_memory.py --check` re-renders `cost-model-memory.yaml` byte for
+  byte when the AISimulate tree is present; its capture half re-derives from the committed
+  CSV in CI with no tree at all, and property tests hold every vLLM `cudagraph_mode` to an
+  entry, no capturing mode above `FULL_AND_PIECEWISE`, and the activation multiple
+  non-increasing with width and at least as large for MoE as for dense (§11).
 * **skips are explicit** — a gate that cannot run says why. The three-factor GEMM ramp's
   gate skips while the registry carries the one-factor form, and activates the moment the
   coefficients land.
@@ -887,3 +909,113 @@ The generalizable point, and it is the same one §3 makes from the other directi
 coefficient can be *measurable* and still not be *identifiable for the thing it will be
 charged against*. Here the quantity was measured cleanly on one of two layer geometries,
 and only the end-to-end check could tell that this made it unusable.
+
+## 11. Memory occupancy: what composes, and where each term comes from
+
+`cost-model-memory.yaml` exists because a consumer was carrying three per-rank memory
+magnitudes as constants in its own source — CUDA-graph capture at 512 MiB, collective
+buffers at 392 MiB, activation scratch at "a few live buffers" (×4) — where no provenance
+readout could see them (inference-sim/blis-registry#33). They set how many sequences
+fit, so they are not soft numbers.
+
+### 11.1 The composition, taken from NVIDIA's capacity path
+
+AISimulate's KV-capacity estimate (`aisimulate_core/sdk/memory.py`) charges, per rank and
+outside the KV budget:
+
+    weights + activation + nccl_communicator_bytes_<N>rank + engine_workspace_bytes
+            + cudagraph_capture_bytes_<mode>
+
+Every term **adds**. Two questions the consumer could not answer from its side are
+settled by the source rather than by preference:
+
+* `nccl_communicator_bytes_<N>rank` is the **whole** collective-buffer reservation.
+  `base_backend.py` sums `nccl_mem` and `other_mem`; neither contains the other.
+* `engine_workspace_bytes` (`misc.other_mem`) does **not** include CUDA-graph capture.
+  This registry's own rationale previously said it did; AISimulate annotates `other_mem`
+  as "excludes CUDA graph reservation" (`support/config_profile.py`) and takes the graph
+  reservation as a separate argument (`capacity.py`, `cuda_graph_reserved_bytes`). Adding
+  a capture term on top therefore does not double-count. The rationale is corrected in
+  `emit_primitives.py` and in all nine committed entries.
+
+### 11.2 Activation scratch — `vendor_spec`, NVIDIA's table
+
+    activation = max(activation_buffer_count_<family>_<N>rank · max_num_batched_tokens · h · 2,
+                     activation_scratch_floor_bytes)
+
+The multiple is AISimulate's `ACTIVATION_COEFFICIENTS`, which the vLLM backend reuses from
+TRT-LLM's; `emit_memory.py` reads it from the source with `ast` and refuses if vLLM stops
+aliasing it. Two rows are registered because the kernel can tell only whether a model
+routes to experts: dense (the LLAMA row, 11 / 6.5 / 5 / 5 at 1 / 2 / 4 / 8 ranks) and MoE
+(22 / 13 / 10 / 10). `h` is `num_attention_heads × head_dim`, equal to `hidden_size`
+unless a config declares a different `head_dim`; `N` is `min(tp, 8)`.
+
+Three scoping decisions, each a finding rather than a convenience:
+
+* **The `2` is the model dtype, not the served one.** The issue proposed sizing scratch at
+  the served width (1 byte for fp8). vLLM's quantized linears return
+  `out_dtype=x.dtype` (`vllm/model_executor/kernels/linear/scaled_mm/cutlass.py`): the fp8
+  operand is a transient copy, and the residual stream stays bf16. Halving it would
+  understate an fp8 deployment.
+* **Not scoped by graph mode.** vLLM measures the activation peak in an eager profile run
+  and the capture separately (`gpu_worker.py`); a mode-scoped multiple would charge
+  capture twice.
+* **Not scoped by hardware**, because the source states no per-part value; the scope lists
+  every catalog part, under the same coverage test as the host set.
+
+**Engine.** These are the vLLM figures. SGLang's table is about 1.3× higher with a further
+15% overhead, and SGLang does not charge activations inside its static pool. A deployment
+states no engine identity and the consumer prices vLLM, so no SGLang row is registered.
+
+**Not registered: the MoE dispatch workspace.** AISimulate adds
+`tokens · h · num_experts · top_k / ep / 128 · 4` bytes for its DeepSeek-derived families
+and Kimi-K2.5 — 3,758,096,384 bytes for DeepSeek-V3 at 8,192 tokens and ep 1. That is a
+formula over catalog facts and the fp8 block size, not a learned magnitude, so it belongs
+to the consumer's composition; it is recorded here so it is not lost.
+
+### 11.3 CUDA-graph capture — `assumed`, anchored on vLLM's own measurements
+
+No dataset this project reads measures it. AISimulate takes it from the caller with a zero
+default; the FPM dataset records each run's `cudagraph_mode` and capture sizes in its
+resolved configs but no memory figure (all 417 of its JSON, text and TSV files under 3.5 MB at
+revision `68fa3add` were read), and its SGLang raw evidence was collected with prefill capture off.
+
+vLLM measures it on every start-up and logs it, and users paste those logs into issues.
+`mine_vllm_cudagraph_memory.py` collected 506 samples from 677 vLLM issues into
+`docs/vllm-cudagraph-capture-samples.csv`, which is committed so the anchor is reproducible
+offline. The medians on catalog parts are 0.80 GiB for `PIECEWISE` (n = 18) and 1.08 GiB
+for `FULL_AND_PIECEWISE` (n = 22); the replaced constant was 0.50 GiB. The **dimension**
+is vLLM's profiler (`gpu_model_runner.profile_cudagraph_memory`): one first capture per
+mode, sized by the largest shape, plus at least 1 MiB per further graph, with `PIECEWISE`
+and `FULL` overlaid in one pool. So the cost is dominated by the largest captured shape,
+not proportional to the number of shapes.
+
+`FULL` and `FULL_DECODE_ONLY` have too few samples (one and four logs, only one of them on a catalog
+part),
+so they are charged the `FULL_AND_PIECEWISE` figure as an **upper bound** — they capture a
+subset of its graphs into the same pool — with the direction declared. `NONE` is
+`not_charged` at zero.
+
+**Why this source is admissible here and nowhere else.** §3's separation is about fitting:
+an uncontrolled sample cannot identify a per-primitive constant. These entries are not
+fitted and are not `measured`; they are `assumed` entries whose magnitude is oriented by
+the only public record of the quantity, in the pattern `host_admission_per_request` set.
+None of the samples is from InferenceX or FPM, and the single-sourcing tests
+(`test_generated_from_aisimulate.py`) still govern the primitive and collective sets,
+which this set is kept out of for exactly that reason.
+
+### 11.4 What it changes on the issue's fixture
+
+On `deepseek-v3-h200-fp8-sglang-tp8` (tp 8, `hidden_size` 7168, 8,192 batched tokens,
+`PIECEWISE`), resolved through `blis-latency-kernel`'s own `resolve.Load`:
+
+| term | hardcoded | registry |
+|---|---|---|
+| activation scratch | 469,762,048 (×4) | 1,174,405,120 (MoE 8-rank ×10) |
+| CUDA-graph capture | 536,870,912 | 858,783,744 |
+| collective buffers | 411,041,792 | 411,041,792 (`nccl_communicator_bytes_8rank`) |
+| engine workspace | not charged | 3,758,096,384 |
+| **total** | **1,417,674,752** | **6,202,327,040** |
+
+The set is committed **ahead of its reader**: the kernel reads none of it yet, and
+inference-sim/blis-latency-kernel#22 is sequenced to land after it.

@@ -60,6 +60,11 @@ WRITERS = [
     ("relane_attention_swa.py", "sliding-window decode floor and rate"),
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
+    # Not a fitter -- it transcribes AISimulate's activation table and anchors the capture
+    # bytes on a committed CSV -- but it renders a whole file, so byte-identity is the right
+    # gate. The capture half needs no AISimulate tree and is also gated in CI by
+    # test_coefficient_properties.py::test_capture_bytes_re_derive_from_the_committed_samples.
+    ("emit_memory.py", "the activation multiples and CUDA-graph capture bytes"),
 ]
 
 # relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so

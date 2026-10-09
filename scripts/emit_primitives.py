@@ -12,8 +12,7 @@ Two kinds of number, both from NVIDIA and nothing else:
 The declared group matters as much as the fitted one. Those are numbers NVIDIA
 ships with its own simulator, annotated there as corrections based on observation,
 and three of them replace figures this model previously carried as assumptions: the
-communicator buffer size, the CUDA-graph and workspace allowance, and the host
-link rate.
+communicator buffer size, the runtime workspace allowance, and the host link rate.
 
 Usage:
     python scripts/emit_primitives.py <aisimulate>/systems <catalog-root> > \
@@ -353,17 +352,34 @@ def descriptor_entries(root: Path, sku: str, chip: str) -> list[str]:
             f"Bytes a rank reserves for NCCL communicator buffers at {ranks} "
             f"ranks, from NVIDIA's descriptor. It enters the memory breakdown's "
             f"CommBuffers term, and it is a real per-rank-count figure rather than "
-            f"the order-of-magnitude constant this model previously carried.",
+            f"the order-of-magnitude constant this model previously carried. It is "
+            f"the WHOLE of a rank's collective-buffer reservation in NVIDIA's "
+            f"composition: engine_workspace_bytes is a separate allowance that adds "
+            f"to it, not part of it (AISimulate sdk/backends/base_backend.py sums "
+            f"nccl_mem and other_mem; cost-model-memory.yaml states the full sum). "
+            f"The descriptor declares 0 at one rank, which is why no 1-rank entry "
+            f"exists, and AISimulate takes the 8-rank figure for any wider group, "
+            f"clamping at min(tp, 8).",
         ))
     if (other := misc.get("other_mem")) is not None:
         out.append(entry(
             "engine_workspace_bytes", other, "bytes_per_rank", "vendor_spec", chip,
             cite,
             f"{other / 1e9:.1f} GB of non-weight, non-KV occupancy NVIDIA's "
-            f"descriptor reserves, described there as covering CUDA-graph capture, "
-            f"workspace and the inaccuracy of the rest of the memory calculation. "
-            f"It is a lumped allowance rather than a decomposition, so the memory "
-            f"breakdown reports it as one term and does not claim to split it.",
+            f"descriptor reserves, which AISimulate's memory model labels as CUDA "
+            f"context, cuBLAS and the like (\"cuda, cublas, etc.\", "
+            f"sdk/backends/base_backend.py) and the descriptor annotates as a safety "
+            f"reserve that also covers part of the inaccuracy of the rest of its "
+            f"memory calculation. It does NOT include CUDA-graph capture: "
+            f"AISimulate annotates other_mem as "
+            f"excluding the graph reservation (support/config_profile.py) and takes "
+            f"that reservation as a separate argument (capacity.py, "
+            f"cuda_graph_reserved_bytes), so cudagraph_capture_bytes_<mode> in "
+            f"cost-model-memory.yaml adds to this rather than sitting inside it. Nor "
+            f"is it part of the collective reservation: NVIDIA's composition sums it "
+            f"with nccl_communicator_bytes_<N>rank. It is a lumped allowance rather "
+            f"than a decomposition, so a memory breakdown reports it as one term and "
+            f"does not claim to split it.",
         ))
     return out
 

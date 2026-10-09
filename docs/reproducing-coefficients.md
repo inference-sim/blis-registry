@@ -263,12 +263,35 @@ apart rather than together.
 
 ### `cost-model-host-overheads.yaml` — not derived from either dataset
 
-All six entries are `method: assumed` and none is `fitted`. These are host-side costs
+All seven entries are `method: assumed` and none is `fitted`. These are host-side costs
 that neither dataset isolates — the script header notes that several could move to
 `measured` without cluster time, and should. Three of them cite the removed `trained-physics` set as an
 order-of-magnitude anchor only — the values there were fitted against a different
 functional form, and a coefficient is valid only for the form it was fitted against. The
 citations name the git SHA where that file can still be read.
+
+### `cost-model-memory.yaml` — AISimulate's memory model, and vLLM's own logs
+
+`scripts/emit_memory.py` writes the whole file, and `--check` gates it.
+
+* The activation multiples and floor are `vendor_spec`, read with `ast` from AISimulate's
+  `aisimulate_core/sdk/backends/` (located from `$AISIMULATE_DATA`, two directories up).
+  Verified against AISimulate `70305030`.
+* The CUDA-graph capture bytes are `assumed`, the median per mode of the committed
+  `docs/vllm-cudagraph-capture-samples.csv`. That CSV is regenerated from the vLLM issue
+  tracker, which needs an authenticated `gh` and changes as issues are filed — so a
+  re-mine is a deliberate data update, committed with its diff, not part of `--check`:
+
+```bash
+python scripts/mine_vllm_cudagraph_memory.py fetch   /tmp/vllm-cg-cache
+python scripts/mine_vllm_cudagraph_memory.py extract /tmp/vllm-cg-cache \
+    > docs/vllm-cudagraph-capture-samples.csv
+python scripts/emit_memory.py            # then review the value diff
+```
+
+The capture half needs no AISimulate tree, so
+`test_capture_bytes_re_derive_from_the_committed_samples` runs it in CI. Methodology §11
+gives the composition these terms enter and why each is scoped as it is.
 
 ### Every committed value, and the one command that regenerates it
 
@@ -296,6 +319,8 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) | `emit_primitives.py` | NVIDIA `systems/<sku>.yaml` |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
+| `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
+| `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |
 
 **Derived entries carry their own reproduction too.** Two scripts write `method: assumed`
 values, and both state the predictor, its holdout error and the parts it was derived
@@ -358,9 +383,17 @@ per-family writers; they are what `--check` guards.
 
 ## 4. Why the registry holds only what the kernel reads
 
-`blis-latency-kernel` requests exactly five sets — `cost-model-primitives`,
+`blis-latency-kernel` requests five sets — `cost-model-primitives`,
 `cost-model-collectives`, `cost-model-host-overheads`, `cost-model-attention`,
-`cost-model-recurrent` — and `coefficients/` now holds exactly those, 724 entries.
+`cost-model-recurrent` — and when the removals below were made `coefficients/` held exactly
+those, 724 entries.
+
+A sixth, `cost-model-memory`, is the one deliberate exception, and it is committed **ahead
+of its reader** rather than without one: it supplies magnitudes the kernel was hardcoding
+(inference-sim/blis-registry#33), and the kernel change that reads them,
+inference-sim/blis-latency-kernel#22, is sequenced to land after it. Until then no scenario
+lists it. The rule this section states still applies: if that reader does not land, the
+set should go.
 
 Four sets were removed because nothing in BLIS read them; they are recoverable from git history, where they last appear at 8d78ff8:
 

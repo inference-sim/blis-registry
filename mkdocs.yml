@@ -1,0 +1,120 @@
+site_name: blis-registry
+site_description: The learned coefficients behind a BLIS latency estimate, each with its provenance and scope
+site_url: https://inference-sim.github.io/blis-registry/
+repo_url: https://github.com/inference-sim/blis-registry
+repo_name: inference-sim/blis-registry
+edit_uri: edit/main/docs/
+copyright: Apache-2.0 · part of <a href="https://inference-sim.github.io/inference-sim/">BLIS</a>
+
+# Data files kept in docs/ for the scripts that read and write them. They are published
+# as downloads; only the Markdown pages are rendered.
+exclude_docs: |
+  *.py
+
+theme:
+  name: material
+  custom_dir: overrides
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.sections
+    - navigation.footer
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.action.view
+    - toc.follow
+
+hooks:
+  - docs_hooks/registry.py
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+validation:
+  links:
+    anchors: warn
+    unrecognized_links: warn
+
+plugins:
+  - search
+
+extra:
+  version:
+    provider: mike
+    default: latest
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/inference-sim/blis-registry
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Using:
+      - using/index.md
+      - Releases and pinning: using/releases.md
+  - Contributing:
+      - contributing/index.md
+      - Releases and these docs: contributing/releasing.md
+  - Concepts:
+      - concepts/index.md
+      - Coefficients: concepts/coefficients.md
+      - Where the numbers come from: concepts/evidence.md
+  - Reference:
+      - reference/index.md
+      - Coefficient sets:
+          - cost-model-primitives: reference/sets/cost-model-primitives.md
+          - cost-model-collectives: reference/sets/cost-model-collectives.md
+          - cost-model-attention: reference/sets/cost-model-attention.md
+          - cost-model-recurrent: reference/sets/cost-model-recurrent.md
+          - cost-model-host-overheads: reference/sets/cost-model-host-overheads.md
+          - cost-model-memory: reference/sets/cost-model-memory.md
+      - File format: reference/format.md
+      - Validation: reference/validation.md
+  - Methodology:
+      - research/index.md
+      - Methodology: methodology.md
+      - Reproducing the coefficients: reproducing-coefficients.md
+      - Choosing the overlap band: band-selection.md

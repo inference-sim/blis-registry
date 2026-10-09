@@ -19,7 +19,7 @@ factor and never a per-model correction. Each entry carries:
 | `sources` | the exact file the value came from, with row counts |
 | `rationale` | why this value, what it replaced, and what rejecting it would cost |
 
-Two rules follow from `method`:
+Three rules follow from `method`:
 
 * An `assumed` coefficient is a **declared gap**, not a measurement. §6.0 counts them by
   kind; the ones nothing in this project's data could replace are the seven host
@@ -216,7 +216,11 @@ training data is not a result.
 
 ## 5. Per-part provenance
 
-Coefficient counts by citation lane, as committed:
+> Counts in this section were taken when it was written. The current counts, generated
+> from `coefficients/` on every documentation build, are on the
+> [reference pages](reference/index.md).
+
+Coefficient counts by citation lane:
 
 | chip | total | nccl | vllm | trtllm | sglang | other |
 |---|---|---|---|---|---|---|
@@ -561,6 +565,10 @@ reader can tell at a glance which engine's measurements each coefficient rests o
 which four are borrowed because no alternative exists.
 
 ### 8.1 The census
+
+> Counts in this section were taken when it was written. The current counts, generated
+> from `coefficients/` on every documentation build, are on the
+> [reference pages](reference/index.md).
 
 | lane | n | share | what it is |
 |---|---|---|---|

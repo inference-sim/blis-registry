@@ -1,107 +1,93 @@
 # blis-registry
 
-The performance **registry** for [BLIS](https://github.com/inference-sim/inference-sim):
-the *learned* numbers a latency estimate depends on — the coefficients a latency model
-fits or assumes — each recording **where it came from** and **where it holds**. These are
-numbers a measurement would revise.
+The learned numbers behind a [BLIS](https://github.com/inference-sim/inference-sim) latency
+estimate: the coefficients a cost model fits from measurements or, where no measurement
+exists, assumes. Each coefficient records how it was obtained and which hardware it
+applies to, so an estimate can be traced back to the evidence it rests on.
+
+**Documentation: <https://inference-sim.github.io/blis-registry/>**
 
 ## Where it fits in BLIS
 
-BLIS separates the numbers behind an estimate by who owns them:
+BLIS keeps different kinds of number in different repositories:
 
-- **Vendor facts** — the declared properties of hardware and models — are held in the
+- **Declared facts**, the properties a vendor states about models and hardware, are in
   [blis-catalog](https://github.com/inference-sim/blis-catalog).
-- **Learned numbers** — the coefficients an estimate fits or assumes — live **here**, in
-  the registry.
-- **Deployment choices** — the knobs a particular run selects — are stated at run time,
-  not committed anywhere.
+- **Learned numbers**, the coefficients an estimate fits or assumes, are here.
+- **Deployment choices**, the GPU, parallelism and engine settings of a run, are stated
+  per run in a scenario and committed nowhere.
 
-Keeping the learned numbers in their own repository is what lets each one carry its
-provenance (how it was obtained) and its scope (the range it holds over), so an estimate
-can say not just *what* it computed but *on what evidence*.
+[blis-schemas](https://github.com/inference-sim/blis-schemas) defines and validates the
+file format. [blis-latency-kernel](https://github.com/inference-sim/blis-latency-kernel)
+reads the sets a scenario names and prices each step with them, and inference-sim calls
+the kernel once per simulated step.
 
-## What this repository holds
+## What is here
 
-A **coefficient set** is a standalone, immutable collection of coefficients that feeds one
-latency model. Each coefficient records its value alongside the provenance and scope that
-make it auditable, so a reader can tell a measured number from an assumed one and know the
-range it was established over. Each set is a self-identifying document, complete on its own
-— there is no inheritance between sets.
+| Path | Contents |
+|---|---|
+| `coefficients/` | The coefficient sets, one YAML file each. |
+| `scripts/` | The fitters and writers that produce them from public data. |
+| `validator/` | Property and re-derivation tests over the committed sets. |
+| `docs/` | The documentation site, including the methodology. |
 
-The repository validates its own contents: the committed data is checked against the
-schema so that missing provenance, unrecognized fields, or ill-formed values are rejected
-— each failure pointing at the specific place it occurred — before the data is relied on.
+Six sets are committed. Five price a forward pass and are the ones blis-latency-kernel's
+scenarios load: `cost-model-primitives`, `cost-model-collectives`,
+`cost-model-attention`, `cost-model-recurrent` and `cost-model-host-overheads`. The
+sixth, `cost-model-memory`, holds memory-occupancy magnitudes and is committed ahead of
+its reader. The [reference pages](https://inference-sim.github.io/blis-registry/latest/reference/)
+list every entry, generated from these files.
 
-## Authoring and validating a set
-
-A coefficient set is one YAML file under `coefficients/`. It declares `kind:
-CoefficientSet`, a unique `name` (the set's identity — e.g. `cost-model-attention`), and a
-`coefficients` list. Each list entry is a single-key map keyed by the coefficient name.
-Sets are standalone: there is no `backend` field and no inheritance between sets.
-
-Every coefficient records `value`, `units`, `method` (how the number was obtained),
-`fitted`, and `scope` (the range it holds over), plus optional provenance
-(`sources`, `rationale`, `ci95`, …). The strict rules — which fields are required, the
-allowed enums, and the required-by-method provenance — are defined and enforced by
-**blis-schemas**, the Go schema every consumer loads these files through
-(`blisschemas.LoadCoefficientSet`). The registry keeps no schema validator of its own —
-blis-schemas is the one schema source of truth. The schema checks document **shape and
-provenance**; per-backend completeness (that a set carries every coefficient a given
-backend consumes) is enforced by the simulator-side loader, which knows what each
-backend reads.
-
-A minimal set looks like:
+## A coefficient
 
 ```yaml
 kind: CoefficientSet
-name: example-set
+name: cost-model-primitives
 coefficients:
-  - mfu_prefill:
-      value: 0.32
-      units: dimensionless
-      method: literature
-      fitted: false
+  - gemm_m_half_bf16:
+      value: 94
+      units: tokens
+      method: measured
+      fitted: true
+      scope: {hardware: [a100-80, a100-sxm]}
       sources:
-        - {kind: discussion, cite: "inference-sim#589", role: primary}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/a100_sxm/gemm/vllm/0.14.0/gemm_perf.parquet ...", role: primary}
       rationale: >
-        L40S prefill MFU discount; see #589.
-      scope: {hardware: [L40S]}
+        The token count at which the ramp reaches half its asymptote ...
 ```
 
-### Validation
+Every entry states its `value`, `units`, `method` (`measured`, `vendor_spec`,
+`assumed`, …), whether it was `fitted`, and its `scope`; most also carry `sources` and a
+`rationale`. The [file format](https://inference-sim.github.io/blis-registry/latest/reference/format/)
+gives the full rules.
 
-There is one source of validation truth: **blis-schemas**. The `schema-validate` CI job
-runs its validator (`cmd/validate-registry`, pinned by SHA) over every committed set on each
-pull request, so a set the real consumer (`blisschemas.LoadCoefficientSet`) could not load —
-a missing required field, an unrecognized enum, an ill-formed or non-finite value, a
-required-by-method provenance gap, or a duplicate `(name, scope)` — fails here, on the PR
-that introduces it. The registry keeps no schema validator of its own.
-
-### Derivation tests
-
-Separately, `validator/` holds the registry's **derivation / value-preservation** tests
-(the directory keeps its historical name). They check that each committed value is
-re-derivable from public data — a family's writer reproduces its committed file byte for
-byte, and no number is imported from a sibling it was not derived from — and that the data
-meets the registry's own value/quality bars (every `measured` entry cites its source,
-every `assumed` entry carries a substantial rationale) that the schema deliberately does
-not impose. This is derivation and quality, not document shape. The `derivation-tests` CI
-job runs them:
+## Checks
 
 ```sh
 pip install -r requirements.txt
-python -m pytest validator/ -q
+python -m pytest validator/ -q -rs
 ```
 
-Real sets live in `coefficients/`: the five `cost-model-*` sets that price a step —
-primitives, collectives, attention, recurrent and host overheads. Those five are exactly
-what `blis-latency-kernel` loads, and nothing in `coefficients/` is unread by it. These
-committed sets are what CI validates on every run, and every value in them is re-derivable
-from public data — see
-[`docs/reproducing-coefficients.md`](docs/reproducing-coefficients.md).
+CI runs three jobs on every pull request:
 
-## Usage
+- **schema-validate** runs blis-schemas' validator (`cmd/validate-registry`, pinned by
+  tag) over every set, the same rules a consumer applies when it loads one.
+- **derivation-tests** runs `validator/`. The property tests always run. The
+  re-derivation tests need a local clone of AISimulate and skip in CI; run them locally,
+  with `AISIMULATE_DATA` set, before changing a fitted value.
+- **docs** builds the documentation in strict mode.
 
-This repository holds and validates the coefficient data; it does not run simulations.
-For how BLIS *reads* and *uses* these coefficients as part of producing an estimate, see
-[inference-sim](https://github.com/inference-sim/inference-sim).
+## Documentation
+
+```sh
+pip install -r requirements-docs.txt
+mkdocs serve
+```
+
+The site is published from `main` as `dev` and from each release as its version, with
+`latest` pointing at the newest release. See
+[Releases and pinning](https://inference-sim.github.io/blis-registry/latest/using/releases/).
+
+## Licence
+
+Apache 2.0.

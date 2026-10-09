@@ -1,0 +1,5 @@
+# Documentation build. Pinned exactly so a page renders the same on every machine and in
+# CI; bump deliberately. The versions match inference-sim's documentation build.
+mkdocs-material==9.7.3
+mike==2.1.3
+PyYAML>=6.0,<7.0

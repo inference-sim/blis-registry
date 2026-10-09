@@ -1,0 +1,147 @@
+name: docs
+
+# Builds the documentation site and publishes it to the gh-pages branch with mike.
+#
+#   pull request       build with --strict; publish nothing
+#   push to main       publish as version "dev"
+#   release published  publish as version X.Y.Z (from tag vX.Y.Z); move "latest" to it if
+#                      it is the highest release. A pre-release, or a patch to an older
+#                      line, gets its own version and leaves "latest" alone
+#   manual, with tag   republish an existing release from main's pages, after checking
+#                      that coefficients/ on main is identical to the tag
+#
+# Every PR builds, not only those touching docs/: the reference pages are generated from
+# coefficients/, so a data change can break the build (a new set with no page, say).
+#
+# Versions are the full X.Y.Z rather than X.Y. A patch release may change coefficient
+# values, and the pages for a version must show that version's numbers.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to republish, e.g. v0.1.1"
+        required: true
+
+# One publisher at a time: each deploy is a commit to gh-pages.
+concurrency:
+  group: docs-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the build names the newest release tag
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-docs.txt pytest
+
+      - name: Test the page generator
+        run: python -m pytest docs_hooks/ -q
+
+      - name: Build (strict)
+        env:
+          DOCS_SOURCE_REF: ${{ github.event.pull_request.head.sha }}
+        run: mkdocs build --strict
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A release builds from its tag; everything else from the triggering ref.
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-docs.txt
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Decide what to publish
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            push)
+              echo "version=dev" >> "$GITHUB_OUTPUT"
+              echo "title=dev (main)" >> "$GITHUB_OUTPUT"
+              echo "alias=" >> "$GITHUB_OUTPUT"
+              echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+              exit 0 ;;
+            release)          tag="$RELEASE_TAG" ;;
+            workflow_dispatch) tag="$INPUT_TAG"; PRERELEASE=false ;;
+          esac
+          if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$tag' is not a release tag of the form vX.Y.Z[-suffix]"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+          suffix="${BASH_REMATCH[2]}"
+          git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null \
+            || { echo "::error::tag $tag does not exist"; exit 1; }
+          if [[ "$EVENT" == workflow_dispatch ]] \
+              && ! git diff --quiet "$tag" HEAD -- coefficients/; then
+            echo "::error::coefficients/ on this branch differs from $tag:"
+            git diff --stat "$tag" HEAD -- coefficients/
+            exit 1
+          fi
+          # "latest" goes to the highest final release only, so a patch to an older line
+          # or a pre-release cannot take it.
+          highest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          alias=
+          if [[ "$PRERELEASE" != true && -z "$suffix" && "$tag" == "$highest" ]]; then
+            alias=latest
+          fi
+          echo "Publishing $tag as $version (highest release: $highest; alias: ${alias:-none})"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "title=$version" >> "$GITHUB_OUTPUT"
+          echo "alias=$alias" >> "$GITHUB_OUTPUT"
+          echo "ref=$tag" >> "$GITHUB_OUTPUT"
+          echo "release=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          TITLE: ${{ steps.plan.outputs.title }}
+          ALIAS: ${{ steps.plan.outputs.alias }}
+          DOCS_SOURCE_REF: ${{ steps.plan.outputs.ref }}
+          DOCS_RELEASE: ${{ steps.plan.outputs.release }}
+        run: |
+          set -euo pipefail
+          [[ -n "$DOCS_RELEASE" ]] || unset DOCS_RELEASE
+          git fetch origin gh-pages:gh-pages 2>/dev/null || true
+          mike deploy --push --update-aliases --title "$TITLE" "$VERSION" $ALIAS
+          if [[ "$ALIAS" == latest ]]; then
+            mike set-default --push latest
+          fi

@@ -1,0 +1,2724 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="The learned coefficients behind a BLIS latency estimate, each with its provenance and scope">
+      
+      
+      
+        <link rel="canonical" href="https://inference-sim.github.io/blis-registry/0.1.1/reproducing-coefficients/">
+      
+      
+        <link rel="prev" href="../methodology/">
+      
+      
+        <link rel="next" href="../band-selection/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Reproducing the coefficients - blis-registry</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#reproducing-every-coefficient-from-the-original-datasets" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  These pages describe a version of the registry other than the newest release.
+  <a href="../.."><strong>Go to the latest release.</strong></a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="blis-registry" class="md-header__button md-logo" aria-label="blis-registry" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            blis-registry
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reproducing the coefficients
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inference-sim/blis-registry" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inference-sim/blis-registry
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../using/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Using
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../contributing/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../research/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Methodology
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="blis-registry" class="md-nav__button md-logo" aria-label="blis-registry" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    blis-registry
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inference-sim/blis-registry" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inference-sim/blis-registry
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../using/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using/releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases and pinning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../contributing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../concepts/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/coefficients/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coefficients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/evidence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where the numbers come from
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coefficient sets
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Coefficient sets
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-primitives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-primitives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-collectives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-attention/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-attention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-recurrent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-recurrent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-host-overheads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-host-overheads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../research/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methodology
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducing the coefficients
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducing the coefficients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-two-datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The two datasets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. The two datasets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aisimulate-per-operator-sweeps-and-system-descriptors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AISimulate — per-operator sweeps and system descriptors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fpm-whole-forward-pass-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FPM — whole-forward-pass measurements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-each-datasets-units-are" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What each dataset's units are
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-regenerating-each-coefficient-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Regenerating each coefficient set
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Regenerating each coefficient set">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-primitivesyaml-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-primitives.yaml — generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-collectivesyaml-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-collectives.yaml — generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-attentionyaml-fitted-per-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-attention.yaml — fitted per part
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-recurrentyaml-fitted-per-family" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-recurrent.yaml — fitted per family
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sliding-window-attention-_swa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sliding-window attention — *_swa
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-host-overheads.yaml — not derived from either dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-memoryyaml-aisimulates-memory-model-and-vllms-own-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-memory.yaml — AISimulate's memory model, and vLLM's own logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#every-committed-value-and-the-one-command-that-regenerates-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every committed value, and the one command that regenerates it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-part-the-gb300-worked-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a part — the GB300 worked example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-why-the-registry-holds-only-what-the-kernel-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Why the registry holds only what the kernel reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-checking-a-re-derivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Checking a re-derivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-reproducing-the-evaluation-figures-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Reproducing the evaluation figures exactly
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Reproducing the evaluation figures exactly">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-the-scorer-is-not-on-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 The scorer is not on main
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-registry-defaults-to-the-sibling-checkout-not-to-your-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 -registry defaults to the sibling checkout, not to your work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-the-three-flags-each-change-every-figure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 The three flags each change every figure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-which-tier-to-weigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 Which tier to weigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65-rebuild-the-kernel-between-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5 Rebuild the kernel between runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../band-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing the overlap band
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-the-two-datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. The two datasets
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. The two datasets">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#aisimulate-per-operator-sweeps-and-system-descriptors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AISimulate — per-operator sweeps and system descriptors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fpm-whole-forward-pass-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FPM — whole-forward-pass measurements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-what-each-datasets-units-are" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. What each dataset's units are
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-regenerating-each-coefficient-set" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Regenerating each coefficient set
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Regenerating each coefficient set">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-primitivesyaml-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-primitives.yaml — generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-collectivesyaml-generated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-collectives.yaml — generated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-attentionyaml-fitted-per-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-attention.yaml — fitted per part
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-recurrentyaml-fitted-per-family" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-recurrent.yaml — fitted per family
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sliding-window-attention-_swa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sliding-window attention — *_swa
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-host-overheads.yaml — not derived from either dataset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cost-model-memoryyaml-aisimulates-memory-model-and-vllms-own-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cost-model-memory.yaml — AISimulate's memory model, and vLLM's own logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#every-committed-value-and-the-one-command-that-regenerates-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every committed value, and the one command that regenerates it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-part-the-gb300-worked-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a part — the GB300 worked example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-why-the-registry-holds-only-what-the-kernel-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Why the registry holds only what the kernel reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-checking-a-re-derivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Checking a re-derivation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-reproducing-the-evaluation-figures-exactly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Reproducing the evaluation figures exactly
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Reproducing the evaluation figures exactly">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-the-scorer-is-not-on-main" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 The scorer is not on main
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-registry-defaults-to-the-sibling-checkout-not-to-your-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 -registry defaults to the sibling checkout, not to your work
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-the-three-flags-each-change-every-figure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 The three flags each change every figure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-which-tier-to-weigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4 Which tier to weigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65-rebuild-the-kernel-between-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5 Rebuild the kernel between runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+    
+      
+    
+    <a href="https://github.com/inference-sim/blis-registry/raw/main/docs/reproducing-coefficients.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="reproducing-every-coefficient-from-the-original-datasets">Reproducing every coefficient from the original datasets<a class="headerlink" href="#reproducing-every-coefficient-from-the-original-datasets" title="Permanent link">&para;</a></h1>
+<p>This guide takes a reader from two public datasets to the coefficient values this
+registry ships. It exists because a fitted constant whose fit cannot be re-run is not a
+measurement, it is a number someone wrote down. Two earlier sets in this registry — the
+per-GPU <code>roofline-*</code> MFU sets and <code>trained-physics</code> — were removed precisely because they
+could not be re-derived: <code>trained-physics</code> carried fifteen entries, eleven of them
+<code>fitted: true</code>, with <strong>no <code>sources</code> block on any entry</strong> and no fitter in <code>scripts/</code>; the
+five <code>roofline-*</code> sets carried two <code>method: literature</code> entries each, citing an issue
+number rather than a dataset. Both are recoverable from git history if ever needed.</p>
+<p>For <em>why</em> the coefficients take the forms they do, and for the train/validate separation
+that governs which dataset may be used for what, read
+<a href="../methodology/"><code>methodology.md</code></a> first. This document is the mechanical companion: where
+the data comes from, and which command regenerates which file.</p>
+<h2 id="1-the-two-datasets">1. The two datasets<a class="headerlink" href="#1-the-two-datasets" title="Permanent link">&para;</a></h2>
+<h3 id="aisimulate-per-operator-sweeps-and-system-descriptors">AISimulate — per-operator sweeps and system descriptors<a class="headerlink" href="#aisimulate-per-operator-sweeps-and-system-descriptors" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repository</td>
+<td><a href="https://github.com/ai-dynamo/aisimulate">https://github.com/ai-dynamo/aisimulate</a></td>
+</tr>
+<tr>
+<td>Docs</td>
+<td><a href="https://ai-dynamo.org/aisimulate/">https://ai-dynamo.org/aisimulate/</a></td>
+</tr>
+<tr>
+<td>Licence</td>
+<td>Apache-2.0, with one MIT third-party file carved out in the <code>LICENSE</code> NOTICE and attributed in <code>THIRD_PARTY_NOTICES.md</code>. GitHub's license API reports <code>NOASSERTION</code> because of that preamble; the text itself says "Except for the third-party material identified in that notice file, this codebase is licensed under the Apache License 2.0", and source files carry <code>SPDX-License-Identifier: Apache-2.0</code>.</td>
+</tr>
+<tr>
+<td>Provenance</td>
+<td>Successor to <a href="https://github.com/ai-dynamo/aiconfigurator"><code>ai-dynamo/aiconfigurator</code></a>; method described in arXiv:2601.06288.</td>
+</tr>
+<tr>
+<td>Fetch</td>
+<td><code>git clone https://github.com/ai-dynamo/aisimulate</code> — the sweeps are checked into git as Parquet. Git LFS is needed only for retained legacy <code>.txt</code> assets, which no fit in this registry reads. <code>pip install aisimulate</code> also ships the tree inside the wheel.</td>
+</tr>
+</tbody>
+</table>
+<p>The two trees the fits read are <strong>not</strong> at the repository root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python/aisimulate/src/aisimulate_core/systems/&lt;sku&gt;.yaml          # system descriptors
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python/aisimulate/src/aisimulate_core/systems/data/&lt;sku&gt;/&lt;op&gt;/&lt;framework&gt;/&lt;version&gt;/*.parquet
+</code></pre></div>
+<p>Export that second path once; every script below honours it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems/data
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>&lt;path-to-blis-catalog&gt;
+</code></pre></div>
+<p><strong>Dataset SKU directories are not catalog chip names.</strong> The sweeps use
+<code>h200_sxm</code>, <code>h100_sxm</code>, <code>b200_sxm</code>, <code>b300_sxm</code>, <code>gb200</code>, <code>a100_sxm</code>, <code>l40s</code>; the catalog
+calls the same parts <code>h200</code>, <code>h100</code>, <code>b200</code>, <code>b300</code>, <code>gb200-nvl72</code>, <code>a100-sxm</code>, <code>l40s</code>.
+The mapping lives in each fitter's <code>SKUS</code> table and is passed as <code>sku:chip</code> pairs. There
+is no <code>gb200_nvl72</code> directory.</p>
+<p>Framework lanes present in the data tree are <code>vllm</code>, <code>sglang</code>, <code>trtllm</code> and, for <code>comm</code>,
+<code>nccl</code>. Which lane is admissible for which operator is a methodology question, not a
+mechanical one — see the lane table in <a href="../methodology/"><code>methodology.md</code></a>.</p>
+<h3 id="fpm-whole-forward-pass-measurements">FPM — whole-forward-pass measurements<a class="headerlink" href="#fpm-whole-forward-pass-measurements" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dataset</td>
+<td><a href="https://huggingface.co/datasets/nvidia/aisimulate-fpm-dataset">https://huggingface.co/datasets/nvidia/aisimulate-fpm-dataset</a> ("AISimulate FPM Dataset"; FPM = Forward Pass Model)</td>
+</tr>
+<tr>
+<td>Licence</td>
+<td>Apache-2.0, same NVIDIA text and MIT carve-out as the code repository</td>
+</tr>
+<tr>
+<td>Pinning</td>
+<td><strong>By commit SHA — the dataset has no tags</strong> and its history is actively rewritten. Cite a SHA, never <code>main</code>.</td>
+</tr>
+<tr>
+<td>Fetch</td>
+<td><code>huggingface_hub.snapshot_download(repo_id="nvidia/aisimulate-fpm-dataset", repo_type="dataset", revision=&lt;sha&gt;)</code></td>
+</tr>
+</tbody>
+</table>
+<p>Layout is
+<code>data/&lt;org&gt;--&lt;model&gt;/&lt;system&gt;/&lt;framework&gt;/&lt;version&gt;/&lt;parallelism&gt;/{manifest.json,fpm/,measurements/}</code>.
+The per-leaf measurement Parquets under <code>measurements/</code> are what this registry validates
+against; the three configs the HuggingFace datasets-server exposes
+(<code>catalog/configurations</code>, <code>fpm/files</code>, <code>measurements/files</code>, 326 rows in total) are
+<strong>file indexes, not measurements</strong> — a reader who stops at those will conclude the dataset
+is three hundred rows.</p>
+<p>At the revision this registry validated against, the measurement Parquets hold <strong>85,484
+rows, every one <code>backend: vllm</code></strong>, splitting by the KV axis into 12,522 pure decode
+(<code>total_prefill_tokens == 0</code>), 5,226 pure prefill (<code>total_kv_read_tokens == 0</code>) and 67,736
+mixed. Derive these counts rather than quoting them: the dataset is rewritten, and the
+<code>workload_kind</code> column labels any row carrying prefill tokens as <code>prefill</code>, which is a
+coarser split than the one fitting needs.</p>
+<p>FPM is used for validation and model selection. It may fit only a term that is itself a
+property of the whole forward pass, never a per-primitive constant, and no committed
+coefficient cites it. <a href="../methodology/"><code>methodology.md</code></a> §3 gives the argument, including
+why an earlier, stricter rule was relaxed.</p>
+<h2 id="2-what-each-datasets-units-are">2. What each dataset's units are<a class="headerlink" href="#2-what-each-datasets-units-are" title="Permanent link">&para;</a></h2>
+<p>Two traps, both of which have produced wrong numbers in this project before:</p>
+<ul>
+<li><strong><code>latency</code> in every AISimulate Parquet is MILLISECONDS.</strong> Reading it as seconds gives a
+  1000× error that happens to look plausible on some parts.</li>
+<li><strong>FPM's <code>total_kv_read_tokens</code> is summed OVER THE BATCH</strong>, while the kernel takes a
+  per-request context length. Dividing by <code>batch_size</code> is required.</li>
+</ul>
+<h2 id="3-regenerating-each-coefficient-set">3. Regenerating each coefficient set<a class="headerlink" href="#3-regenerating-each-coefficient-set" title="Permanent link">&para;</a></h2>
+<p>Run from the repository root with <code>AISIMULATE_DATA</code> and <code>BLIS_CATALOG</code> exported. Two sets
+are fully generated and are compared by diff; the rest are fitted per part, and each
+printed value should match the committed entry.</p>
+<p>Entry counts quoted in this section were taken when each passage was written, and sets
+have grown since. The current count of every set, by method, is on the
+<a href="../reference/">reference pages</a>, which are generated from the committed files.</p>
+<h3 id="cost-model-primitivesyaml-generated"><code>cost-model-primitives.yaml</code> — generated<a class="headerlink" href="#cost-model-primitivesyaml-generated" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>scripts/emit_primitives.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$BLIS_CATALOG</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>coefficients/cost-model-primitives.yaml
+</code></pre></div>
+<p>Note the argument is the <code>systems</code> directory, not <code>systems/data</code>: this generator reads both
+the descriptors and the sweeps. Its 122 entries split into 58 <code>measured</code> (the GEMM
+efficiency envelope per dtype and the MoE routing-imbalance order statistics, fitted from
+the sweeps) and 64 <code>vendor_spec</code> (read from AISimulate's own descriptors — the keys are
+<code>mem_bw_empirical_scaling_factor</code>, <code>mem_empirical_constant_latency</code>, <code>pcie_bw</code>,
+<code>p2p_latency</code>, and the <code>misc.nccl_mem</code> rank-count→bytes map; NVIDIA annotates several of
+them in-file as "nonofficial correction based on observations").</p>
+<p>The GEMM envelope alone can be re-derived, and checked against the committed value, with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>scripts/fit_gemm_envelope.py<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h200_sxm/gemm/trtllm/1.3.0rc20<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span>--moe<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h200_sxm/moe/trtllm/1.3.0rc20
+</code></pre></div>
+<h3 id="cost-model-collectivesyaml-generated"><code>cost-model-collectives.yaml</code> — generated<a class="headerlink" href="#cost-model-collectivesyaml-generated" title="Permanent link">&para;</a></h3>
+<p>This set is generated in two passes, because its entries come from two different lanes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>scripts/emit_collectives.py<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>/tmp/collectives-nccl.yaml
+</code></pre></div>
+<p>That regenerates the NCCL-sourced entries. Checked against the committed file, <strong>all 435
+entries that cite an NCCL collection reproduce with no value difference.</strong> The generator
+is pinned to the collections those entries cite (<code>PINNED_NCCL</code>: 2.27.3 for A100 and L40S,
+2.29.2 elsewhere) rather than taking the newest directory. That pin matters: AISimulate has
+since added NCCL 2.30.7, which carries 60 rows under a narrower schema with no <code>device</code> or
+<code>version</code> column where 2.29.2 carries 504 under the full one, so "newest wins" would both
+crash and silently re-cite the entries. Set <code>NCCL_COLLECTION</code> to move a fit deliberately.</p>
+<p>The remaining 45 entries are all <code>all_reduce</code>, and they do <strong>not</strong> come from NCCL. vLLM
+uses its own one-shot/two-shot kernel for any tensor-parallel all-reduce that fits the
+custom kernel's size limit, which AISimulate measures separately; on matched
+<code>(num_gpus, message_size)</code> pairs the custom kernel under CUDA graph is the faster by a
+median factor of 0.635, so an NCCL-derived coefficient over-charges a graph-mode
+all-reduce by about 1.6×. Those 45 ship from the vLLM lane:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>scripts/fit_collectives_vllm.py<span class="w"> </span>--all<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>
+</code></pre></div>
+<p>Re-running the NCCL pass alone will therefore differ from the committed file on exactly
+those 45 entries, and on nothing else. A reproducer should expect that.</p>
+<p>Every entry is <code>method: measured</code>. The 208 with <code>fitted: true</code> are curve fits; the
+remainder are order statistics — a floor is the minimum over the size-independent region,
+not a regression — which is why they are <code>fitted: false</code> while still being measurements
+with their own Parquet citation.</p>
+<p>The 72 <code>_a100_80</code> entries are the one group the NCCL pass cannot emit from this checkout:
+<code>a100_pcie</code> ships no <code>comm/</code> tree. They are scoped to <code>a100-80</code> and carry the A100-SXM
+measurement — 63 citing <code>a100_sxm/comm/nccl/2.27.3</code>, the other 9 the vLLM custom-all-reduce
+sweep — so each names the sweep it actually comes from rather than claiming an A100-PCIe
+measurement that does not exist. Treating the two A100 80GB parts as one for collectives is
+a modelling choice, recorded in each entry's rationale.</p>
+<h3 id="cost-model-attentionyaml-fitted-per-part"><code>cost-model-attention.yaml</code> — fitted per part<a class="headerlink" href="#cost-model-attentionyaml-fitted-per-part" title="Permanent link">&para;</a></h3>
+<p>Decode (<code>attention_decode_floor</code>, <code>attention_decode_rate</code>), fitted on the vLLM lane:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>scripts/fit_attention.py<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h200_sxm/attention/vllm/0.25.0<span class="w"> </span>--chip<span class="w"> </span>h200
+</code></pre></div>
+<p>which prints <code>attention_decode_floor 13.5 us</code> and <code>0.54 of 4.800 TB/s</code> — that is the
+committed <code>attention_decode_rate</code> of 2,592,000 bytes/µs — over 34,818 full-attention
+points, the count its citation records.</p>
+<p>Prefill (<code>attention_prefill_floor</code>, <code>attention_prefill_work_scale</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Five parts have a vLLM 0.25.0 context-attention sweep.</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>python<span class="w"> </span>scripts/fit_attention_prefill.py<span class="w"> </span>--collection<span class="w"> </span>vllm/0.25.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span>h200_sxm:h200<span class="w"> </span>h100_sxm:h100<span class="w"> </span>b200_sxm:b200<span class="w"> </span>b300_sxm:b300<span class="w"> </span>gb200:gb200-nvl72
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># L40S and A100 do not. Each ships from the newest vLLM lane that has one,</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># which is what their `sources` entries cite.</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>python<span class="w"> </span>scripts/fit_attention_prefill.py<span class="w"> </span>--collection<span class="w"> </span>vllm/0.24.0<span class="w"> </span>l40s:l40s
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>python<span class="w"> </span>scripts/fit_attention_prefill.py<span class="w"> </span>--collection<span class="w"> </span>vllm/0.14.0<span class="w"> </span>a100_sxm:a100-sxm
+</code></pre></div>
+<p>Expected output, matching the committed entries and the point counts in their citations:</p>
+<table>
+<thead>
+<tr>
+<th>part</th>
+<th>lane</th>
+<th>floor µs</th>
+<th>work_scale</th>
+<th>points</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>h200</td>
+<td>vllm/0.25.0</td>
+<td>18.5</td>
+<td>0.44</td>
+<td>27,693</td>
+</tr>
+<tr>
+<td>h100</td>
+<td>vllm/0.25.0</td>
+<td>19.5</td>
+<td>0.44</td>
+<td>27,693</td>
+</tr>
+<tr>
+<td>b200</td>
+<td>vllm/0.25.0</td>
+<td>16.5</td>
+<td>0.38</td>
+<td>27,574</td>
+</tr>
+<tr>
+<td>b300</td>
+<td>vllm/0.25.0</td>
+<td>15.0</td>
+<td>0.44</td>
+<td>27,574</td>
+</tr>
+<tr>
+<td>gb200-nvl72</td>
+<td>vllm/0.25.0</td>
+<td>17.0</td>
+<td>0.38</td>
+<td>27,574</td>
+</tr>
+<tr>
+<td>l40s</td>
+<td>vllm/0.24.0</td>
+<td>13.0</td>
+<td>0.50</td>
+<td>26,267</td>
+</tr>
+<tr>
+<td>a100-sxm</td>
+<td>vllm/0.14.0</td>
+<td>19.5</td>
+<td>0.50</td>
+<td>5,457</td>
+</tr>
+</tbody>
+</table>
+<p><code>--collection</code> defaults to <code>trtllm/1.3.0rc20</code>, the lane an earlier revision of these
+coefficients was fitted on, so that fit also stays reproducible; pass the lane explicitly
+for the values currently committed. Only full attention is fitted — rows with a non-zero
+<code>window_size</code> read a bounded number of bytes, and fitting them together would fit one
+curve to two byte counts.</p>
+<h3 id="cost-model-recurrentyaml-fitted-per-family"><code>cost-model-recurrent.yaml</code> — fitted per family<a class="headerlink" href="#cost-model-recurrentyaml-fitted-per-family" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># KDA (Kimi-K3), h100 / h200 / gb300. Re-derives all six entries and diffs them</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1"># against the committed file; --insert CHIP adds a part the set does not carry yet.</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>python<span class="w"> </span>scripts/relane_recurrent_kda.py<span class="w"> </span>--check
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># MAMBA2 (Nemotron-3-Ultra). The model filter is required to reproduce the committed</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># values: this sweep carries six geometries and pooling them fits none of them.</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>python<span class="w"> </span>scripts/fit_recurrent.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h100_sxm/linear_attention/trtllm/1.3.0rc20/mamba2_perf.parquet<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span>--model<span class="w"> </span>nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-NVFP4
+</code></pre></div>
+<p>The second prints <code>n=11 floor=3.5us rate=8.50 tok/us geo-err 1.120x</code>, which is both
+committed <code>*_mamba2</code> value and the error its rationale states. Without <code>--model</code> the same
+command pools 66 rows across six models and prints 4.2/23.25 — a number that is in the
+file's history nowhere and should not be mistaken for a refit.</p>
+<p>The KDA command prints <code>h100 3.8us/0.235</code>, <code>h200 4.3us/0.237</code> and <code>gb300 7.4us/0.457</code>,
+which are the committed values. <strong>Do not fit KDA from <code>kda/sglang/0.5.16</code> or take the
+<code>kda_fused_decode</code> row</strong>: an earlier revision of this guide did, and both are wrong.
+<code>fused_kda_decode</code> is AMD-only — <code>vllm/models/kimi_k3/amd/ops/kda_decode.py</code> gates on
+<code>gfx942</code>/<code>gfx950</code> — so it runs on no CUDA deployment, and vLLM's NVIDIA path
+(<code>nvidia/kda.py:980-993</code>) runs <code>causal_conv1d_update</code> <em>then</em>
+<code>fused_recurrent_kda_packed_decode</code>, so a layer costs the <strong>sum</strong>. The superseded recipe
+gives floor 5.1 µs and rate 1.50 tok/µs, a rate 6.4× too fast.</p>
+<p>What this data does and does not cover matters more here than anywhere else in the
+registry, and the script's header says it: KDA (Kimi-K3) is complete, carrying the
+convolution and the recurrent scan separately plus a fused decode variant. MAMBA2 is
+<strong>not</strong> — the sweep has only <code>causal_conv1d_fn</code> and <code>causal_conv1d_update</code>, so the
+committed <code>*_mamba2</code> pair is the convolution alone and is a documented LOWER BOUND on a
+Mamba2 layer, not its cost. The selective-scan kernel is in no collection in the tree.</p>
+<h3 id="sliding-window-attention-_swa">Sliding-window attention — <code>*_swa</code><a class="headerlink" href="#sliding-window-attention-_swa" title="Permanent link">&para;</a></h3>
+<p>The windowed entries are fitted by a separate script, because a windowed kernel reads a
+number of bytes bounded by the window rather than by the context.
+<code>scripts/relane_attention_swa.py</code> owns them and reads its values from
+<code>scripts/fit_attention_by_kind.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python<span class="w"> </span>scripts/relane_attention_swa.py<span class="w"> </span>--collection<span class="w"> </span>vllm/0.25.0<span class="w"> </span>--check
+</code></pre></div>
+<p>The windowed entries were relaned from TRT-LLM to vLLM (methodology §7.1), and each
+entry's citation names the collection it was fitted on: <code>vllm/0.25.0</code> on the Hopper and
+Blackwell parts, <code>vllm/0.24.0</code> on L40S, whose newest vLLM collection that is. Pass the
+collection the entry cites; the A100 pair is <code>assumed</code> and is written by
+<code>extrapolate_by_generation.py</code> instead.</p>
+<p>Using the context length for both kinds is what made an early windowed fit land at 2.00 of
+datasheet peak — a physically impossible rate, and the reason the two kinds are fitted
+apart rather than together.</p>
+<h3 id="cost-model-host-overheadsyaml-not-derived-from-either-dataset"><code>cost-model-host-overheads.yaml</code> — not derived from either dataset<a class="headerlink" href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" title="Permanent link">&para;</a></h3>
+<p>All seven entries are <code>method: assumed</code> and none is <code>fitted</code>. These are host-side costs
+that neither dataset isolates — the script header notes that several could move to
+<code>measured</code> without cluster time, and should. Three of them cite the removed <code>trained-physics</code> set as an
+order-of-magnitude anchor only — the values there were fitted against a different
+functional form, and a coefficient is valid only for the form it was fitted against. The
+citations name the git SHA where that file can still be read.</p>
+<h3 id="cost-model-memoryyaml-aisimulates-memory-model-and-vllms-own-logs"><code>cost-model-memory.yaml</code> — AISimulate's memory model, and vLLM's own logs<a class="headerlink" href="#cost-model-memoryyaml-aisimulates-memory-model-and-vllms-own-logs" title="Permanent link">&para;</a></h3>
+<p><code>scripts/emit_memory.py</code> writes the whole file, and <code>--check</code> gates it.</p>
+<ul>
+<li>The activation multiples and floor are <code>vendor_spec</code>, read with <code>ast</code> from AISimulate's
+  <code>aisimulate_core/sdk/backends/</code> (located from <code>$AISIMULATE_DATA</code>, two directories up).
+  Verified against AISimulate <code>70305030</code>.</li>
+<li>The CUDA-graph capture bytes are <code>assumed</code>, the median per mode of the committed
+  <code>docs/vllm-cudagraph-capture-samples.csv</code>. That CSV is regenerated from the vLLM issue
+  tracker, which needs an authenticated <code>gh</code> and changes as issues are filed — so a
+  re-mine is a deliberate data update, committed with its diff, not part of <code>--check</code>:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>fetch<span class="w">   </span>/tmp/vllm-cg-cache
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>extract<span class="w"> </span>/tmp/vllm-cg-cache<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span>&gt;<span class="w"> </span>docs/vllm-cudagraph-capture-samples.csv
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>python<span class="w"> </span>scripts/emit_memory.py<span class="w">            </span><span class="c1"># then review the value diff</span>
+</code></pre></div>
+<p>The capture half needs no AISimulate tree, so
+<code>test_capture_bytes_re_derive_from_the_committed_samples</code> runs it in CI. Methodology §11
+gives the composition these terms enter and why each is scoped as it is.</p>
+<h3 id="every-committed-value-and-the-one-command-that-regenerates-it">Every committed value, and the one command that regenerates it<a class="headerlink" href="#every-committed-value-and-the-one-command-that-regenerates-it" title="Permanent link">&para;</a></h3>
+<p>The table below is the reproducibility contract: each family names the script that owns
+it, and each of those scripts takes <code>--check</code>, which re-runs its own fitter and exits
+non-zero if the committed file would change. <code>validator/test_writers_are_idempotent.py</code>
+runs them all, and <code>test_every_fitted_family_has_a_writer</code> fails if a fitted family
+appears with no owner — so a value that cannot be regenerated cannot be added.</p>
+<table>
+<thead>
+<tr>
+<th>family</th>
+<th>writer</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gemm_eps_max_*</code>, <code>gemm_m_half_*</code></td>
+<td><code>relane_gemm_envelope.py</code></td>
+<td>AISimulate <code>gemm</code>, vLLM lane</td>
+</tr>
+<tr>
+<td><code>moe_routing_imbalance_*</code></td>
+<td><code>relane_moe_imbalance.py</code></td>
+<td>AISimulate <code>moe</code>, vLLM lane</td>
+</tr>
+<tr>
+<td><code>attention_decode_{floor,rate}</code></td>
+<td><code>relane_attention_decode.py</code></td>
+<td>AISimulate <code>attention</code>, vLLM lane</td>
+</tr>
+<tr>
+<td><code>attention_decode_*_swa</code></td>
+<td><code>relane_attention_swa.py</code></td>
+<td>same, windowed rows</td>
+</tr>
+<tr>
+<td><code>attention_decode_*_mla</code></td>
+<td><code>relane_attention_mla.py</code></td>
+<td>AISimulate <code>mla</code> module tables</td>
+</tr>
+<tr>
+<td><code>attention_decode_rate_mla</code></td>
+<td><code>relane_attention_mla.py --check-rate</code></td>
+<td>same; the FLOOR half is owned by <code>correct_mla_floor.py</code>, see methodology §3</td>
+</tr>
+<tr>
+<td><code>attention_decode_floor_mla</code></td>
+<td><code>correct_mla_floor.py</code></td>
+<td>derived from each part's own <code>attention_decode_floor</code> (the module tables are rejected for it)</td>
+</tr>
+<tr>
+<td><code>attention_decode_*_sparse_mla</code></td>
+<td>none — <strong>not fitted</strong>, see methodology §10</td>
+<td>a rate is identifiable for only one of deepseek-v4-pro's two sparse geometries; the fix is the kernel's per-layer byte count, which needs no coefficient</td>
+</tr>
+<tr>
+<td><code>attention_prefill_*</code></td>
+<td><code>relane_attention_prefill.py</code></td>
+<td>AISimulate <code>attention</code> context rows</td>
+</tr>
+<tr>
+<td><code>recurrent_decode_*_kda</code></td>
+<td><code>relane_recurrent_kda.py</code></td>
+<td>AISimulate <code>kda</code>, vLLM lane</td>
+</tr>
+<tr>
+<td><code>recurrent_decode_*_{gdn,mamba2}</code></td>
+<td><code>relane_recurrent_family.py --family X</code></td>
+<td>AISimulate <code>linear_attention</code></td>
+</tr>
+<tr>
+<td><code>collective_*</code> (measured widths)</td>
+<td><code>emit_collectives.py</code>, <code>fit_collectives_vllm.py</code></td>
+<td>AISimulate <code>comm</code></td>
+</tr>
+<tr>
+<td><code>collective_*</code> (new part)</td>
+<td><code>insert_collectives_part.py</code></td>
+<td>same, per operator per lane</td>
+</tr>
+<tr>
+<td><code>collective_*</code> (wide groups)</td>
+<td><code>insert_collectives_wide.py</code></td>
+<td>same, widths 8 and 16</td>
+</tr>
+<tr>
+<td>descriptors (<code>vendor_spec</code>)</td>
+<td><code>emit_primitives.py</code></td>
+<td>NVIDIA <code>systems/&lt;sku&gt;.yaml</code></td>
+</tr>
+<tr>
+<td>host overheads (<code>assumed</code>)</td>
+<td>none — see that file's header</td>
+<td>not measured by either dataset</td>
+</tr>
+<tr>
+<td><code>activation_buffer_count_*</code>, <code>activation_scratch_floor_bytes</code></td>
+<td><code>emit_memory.py</code></td>
+<td>AISimulate <code>sdk/backends</code> source (<code>vendor_spec</code>)</td>
+</tr>
+<tr>
+<td><code>cudagraph_capture_bytes_*</code></td>
+<td><code>emit_memory.py</code></td>
+<td><code>docs/vllm-cudagraph-capture-samples.csv</code>, from <code>mine_vllm_cudagraph_memory.py</code> (<code>assumed</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Derived entries carry their own reproduction too.</strong> Two scripts write <code>method: assumed</code>
+values, and both state the predictor, its holdout error and the parts it was derived
+from, inside the entry:</p>
+<table>
+<thead>
+<tr>
+<th>script</th>
+<th>what it derives</th>
+<th>predictor, and how it was chosen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>extrapolate_by_generation.py</code></td>
+<td>a family absent for one part</td>
+<td>same-generation median, or a kernel-matched within-part ratio; both chosen by leave-one-part-out holdout against every part that <em>is</em> fitted</td>
+</tr>
+<tr>
+<td><code>extrapolate_collective_width.py</code></td>
+<td>a 16-rank collective triple</td>
+<td><code>floor(n) = a + b(n−1)</code> on that part's own {2,4,8}, holdout-validated against gb200-nvl72, the one part with a measured 16-rank floor</td>
+</tr>
+</tbody>
+</table>
+<p>Neither script will write a value it cannot defend: they refuse a part whose generation
+has no fitted sibling, a prediction below the measured 8-rank floor, a set of fit widths
+spanning two lanes, and a lane with no same-lane holdout. A refusal is the correct output
+when the data does not support an estimate.</p>
+<h3 id="adding-a-part-the-gb300-worked-example">Adding a part — the GB300 worked example<a class="headerlink" href="#adding-a-part-the-gb300-worked-example" title="Permanent link">&para;</a></h3>
+<p>Every fitted family has a writer with <code>--check</code> (it re-runs its own fitter and exits
+non-zero if the committed file would change) and <code>--insert CHIP</code> (it appends a part the
+set does not carry yet, through the same renderer, so an inserted entry is byte-identical
+to what a later re-run produces). The order matters in one place: prefill attention reads
+the bf16 GEMM ramp <strong>from the registry</strong>, so the envelope must be committed first.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems/data
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>&lt;path-to-blis-catalog&gt;
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># 1. descriptors (vendor_spec, from NVIDIA's own systems/gb300.yaml)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1">#    emit_primitives.py owns this family; its GEMM/MoE path is superseded — see below.</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># 2. GEMM ramp, then MoE imbalance</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>python<span class="w"> </span>scripts/relane_gemm_envelope.py<span class="w">  </span>--insert<span class="w"> </span>gb300
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>python<span class="w"> </span>scripts/relane_moe_imbalance.py<span class="w">  </span>--insert<span class="w"> </span>gb300
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># 3. attention: decode, then prefill (needs the ramp from step 2), then windowed</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>python<span class="w"> </span>scripts/relane_attention_decode.py<span class="w">  </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>python<span class="w"> </span>scripts/relane_attention_prefill.py<span class="w"> </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>python<span class="w"> </span>scripts/relane_attention_swa.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># 4. recurrent</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>python<span class="w"> </span>scripts/relane_recurrent_kda.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="c1"># 5. collectives, per operator from the lane each belongs on</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>python<span class="w"> </span>scripts/insert_collectives_part.py<span class="w"> </span>--chip<span class="w"> </span>gb300<span class="w"> </span>--sku<span class="w"> </span>gb300
+</code></pre></div>
+<p>Then assert idempotence, which is what makes the result auditable:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">for</span><span class="w"> </span>s<span class="w"> </span><span class="k">in</span><span class="w"> </span>relane_gemm_envelope<span class="w"> </span>relane_moe_imbalance<span class="w"> </span>relane_attention_decode<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">         </span>relane_attention_prefill<span class="w"> </span>relane_attention_swa<span class="w"> </span>relane_recurrent_kda<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span>python<span class="w"> </span>scripts/<span class="nv">$s</span>.py<span class="w"> </span>--check<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$s</span><span class="s2"> DRIFTED"</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">done</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q
+</code></pre></div>
+<p><strong>Do not run <code>emit_primitives.py</code> or <code>emit_collectives.py</code> to regenerate a whole set.</strong>
+Both predate lane decisions that moved families off them. <code>emit_primitives.py</code>'s
+<code>COLLECTIONS</code> table still pins <code>trtllm/1.3.0rc20</code> while every committed <code>gemm_*</code> entry
+cites a vLLM lane (5be809b), and regenerating <code>cost-model-collectives.yaml</code> from NCCL
+gives 144 removals and 36 changes — all 36 being the <code>all_reduce</code> entries 2f71dd6 moved to
+vLLM's custom kernel, so it would silently re-introduce a 3.4× mispricing. Use the
+per-family writers; they are what <code>--check</code> guards.</p>
+<h2 id="4-why-the-registry-holds-only-what-the-kernel-reads">4. Why the registry holds only what the kernel reads<a class="headerlink" href="#4-why-the-registry-holds-only-what-the-kernel-reads" title="Permanent link">&para;</a></h2>
+<p><code>blis-latency-kernel</code> requests five sets — <code>cost-model-primitives</code>,
+<code>cost-model-collectives</code>, <code>cost-model-host-overheads</code>, <code>cost-model-attention</code>,
+<code>cost-model-recurrent</code> — and when the removals below were made <code>coefficients/</code> held exactly
+those, 724 entries.</p>
+<p>A sixth, <code>cost-model-memory</code>, is the one deliberate exception, and it is committed <strong>ahead
+of its reader</strong> rather than without one: it supplies magnitudes the kernel was hardcoding
+(inference-sim/blis-registry#33), and the kernel change that reads them,
+inference-sim/blis-latency-kernel#22, is sequenced to land after it. Until then no scenario
+lists it. The rule this section states still applies: if that reader does not land, the
+set should go.</p>
+<p>Four sets were removed because nothing in BLIS read them; they are recoverable from git history, where they last appear at 8d78ff8:</p>
+<table>
+<thead>
+<tr>
+<th>set</th>
+<th>what it held</th>
+<th>why it went</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>communication-coefficients.yaml</code></td>
+<td>10 named TP/MoE collectives</td>
+<td>the kernel prices collectives from <code>cost-model-collectives</code>; 9 of its 10 entries were <code>assumed</code>/<code>copied</code> placeholders, 7 of them the value <code>1.0</code></td>
+</tr>
+<tr>
+<td><code>pd-transfer-estimates.yaml</code></td>
+<td>PD KV-transfer base latency, fabric overhead</td>
+<td><code>PDTransferTime</code> prices from catalog facts instead</td>
+</tr>
+<tr>
+<td><code>legacy-kv-transfer.yaml</code></td>
+<td>pre-#1590 CPU↔GPU transfer defaults</td>
+<td><code>TierTime</code> prices from catalog facts instead</td>
+</tr>
+<tr>
+<td><code>lora-adapter-costs.yaml</code></td>
+<td>Digital-Twin adapter terms</td>
+<td>no consumer</td>
+</tr>
+</tbody>
+</table>
+<p>The kernel's <code>TierTime</code> and <code>PDTransferTime</code> take their numbers from blis-catalog hardware
+facts — <code>StorageDevice</code> read/write bandwidths and base latency, <code>IntraNodeBwGBps</code>,
+<code>InterNodeBwGBps</code> — using only <code>host_link_bandwidth</code> from <code>cost-model-primitives</code> as a
+host-link ceiling. <code>inference-sim</code> does not read any of the four either; its own
+<code>defaults.yaml</code> carries the values its backends use.</p>
+<p><strong>The removal was verified to change nothing measurable.</strong> Scored against the InferenceX
+measured tier (<code>-config-tier measured -framework vllm -length-range-ratio 1.0</code>), the
+before and after reports are identical after stripping timestamps — every summary table,
+every GPU family, every model, the same <code>n</code>:</p>
+<table>
+<thead>
+<tr>
+<th>registry</th>
+<th>TPOT shape</th>
+<th>TPOT mape</th>
+<th>TTFT shape</th>
+<th>TTFT mape</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>747 entries, 9 sets</td>
+<td>11.60%</td>
+<td>13.52%</td>
+<td>15.32%</td>
+<td>50.68%</td>
+</tr>
+<tr>
+<td>724 entries, 5 sets</td>
+<td>11.60%</td>
+<td>13.52%</td>
+<td>15.32%</td>
+<td>50.68%</td>
+</tr>
+</tbody>
+</table>
+<p>Both runs used one binary, one catalog revision and one kernel revision, varying only the
+registry — the figures move with the catalog, so a comparison across catalog revisions
+proves nothing. <code>n</code> is 292/360/288/356.</p>
+<p>Anyone extending the kernel to price offload tiers, PD transfer or LoRA should expect to
+calibrate those terms rather than recover them from history: the removed values were
+placeholders and transcriptions, not measurements.</p>
+<h2 id="5-checking-a-re-derivation">5. Checking a re-derivation<a class="headerlink" href="#5-checking-a-re-derivation" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w">        </span><span class="c1"># derivation / value-preservation gates (schema validation lives in blis-schemas)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>python<span class="w"> </span>scripts/validate_against_aisimulate_tables.py<span class="w">   </span><span class="c1"># oracle check against AISimulate's own tables</span>
+</code></pre></div>
+<p>A re-fit that lands on a different number is not automatically a correction. This registry
+has recorded six independently verified per-primitive improvements that each made
+end-to-end accuracy worse, because the composed model's accuracy rests on partially
+cancelling errors. No per-primitive refit ships on the strength of its own fit quality
+alone; see the standing rule in <a href="../methodology/"><code>methodology.md</code></a>.</p>
+<h2 id="6-reproducing-the-evaluation-figures-exactly">6. Reproducing the evaluation figures exactly<a class="headerlink" href="#6-reproducing-the-evaluation-figures-exactly" title="Permanent link">&para;</a></h2>
+<p>The accuracy numbers quoted for this registry are reproducible, but three details
+decide whether a reader gets the same figures, and each has silently produced
+wrong numbers during this work.</p>
+<h3 id="61-the-scorer-is-not-on-main">6.1 The scorer is not on <code>main</code><a class="headerlink" href="#61-the-scorer-is-not-on-main" title="Permanent link">&para;</a></h3>
+<p><code>cmd/metricscore</code> exists on inference-sim's <code>kernel-exclusive</code> branch only. It is
+on neither <code>main</code> nor <code>modeling</code>. A checkout of either will fail with
+<code>stat cmd/metricscore: directory not found</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>-C<span class="w"> </span>inference-sim<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>/tmp/blis-scorer<span class="w"> </span>kernel-exclusive
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>/tmp/blis-scorer
+</code></pre></div>
+<h3 id="62-registry-defaults-to-the-sibling-checkout-not-to-your-work">6.2 <code>-registry</code> defaults to the sibling checkout, not to your work<a class="headerlink" href="#62-registry-defaults-to-the-sibling-checkout-not-to-your-work" title="Permanent link">&para;</a></h3>
+<p>The flag's default is <code>/Users/sri/Documents/Projects/blis-registry</code> — the main
+checkout. Scoring a branch or worktree without passing <code>-registry</code> explicitly
+scores the <em>other</em> registry and reports figures that do not belong to the tree
+under test. Always pass it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>go<span class="w"> </span>run<span class="w"> </span>./cmd/metricscore<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>-config-tier<span class="w"> </span>measured<span class="w"> </span>-framework<span class="w"> </span>vllm<span class="w"> </span>-length-range-ratio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span>-registry<span class="w"> </span>/path/to/the/registry/under/test
+</code></pre></div>
+<h3 id="63-the-three-flags-each-change-every-figure">6.3 The three flags each change every figure<a class="headerlink" href="#63-the-three-flags-each-change-every-figure" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>flag</th>
+<th>omitted</th>
+<th>passed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-config-tier measured</code></td>
+<td>mixes measured and resolved configurations in one average</td>
+<td>only the 68 sweeps whose engine settings come from the run's own command line</td>
+</tr>
+<tr>
+<td><code>-framework vllm</code></td>
+<td>scores every framework, which only the published arms can do</td>
+<td>the subset BLIS models</td>
+</tr>
+<tr>
+<td><code>-length-range-ratio 1.0</code></td>
+<td>AISimulate's one-sided <code>[0.8·len, len]</code> sampling</td>
+<td>constant prompt lengths, which is what vLLM's client produces with no <code>--random-range-ratio</code></td>
+</tr>
+</tbody>
+</table>
+<p>On the main-checkout kernel (<code>a9b60e1</code>) and registry (<code>ea08479</code>), the same
+command with and without <code>-length-range-ratio 1.0</code> gives 11.62/12.05/15.23/52.94
+and 11.22/12.19/16.22/57.13 respectively. Neither is wrong; they answer different
+questions, and a figure quoted without its flags cannot be checked.</p>
+<h3 id="64-which-tier-to-weigh">6.4 Which tier to weigh<a class="headerlink" href="#64-which-tier-to-weigh" title="Permanent link">&para;</a></h3>
+<p><code>inferencex_engine_settings.json</code> records 68 sweeps with a captured engine-args
+log and 136 without, each of the latter listed in its <code>incomplete</code> array with
+<code>reason: "no engine-args log"</code>. For the 136 the engine configuration is inferred
+from vLLM's defaults rather than observed, so an error on those points is as
+likely to be a wrong assumed configuration as a wrong model. The measured tier is
+the only one where the simulated deployment is ground truth, and it is the tier
+on which a coefficient change can be attributed to the model.</p>
+<h3 id="65-rebuild-the-kernel-between-runs">6.5 Rebuild the kernel between runs<a class="headerlink" href="#65-rebuild-the-kernel-between-runs" title="Permanent link">&para;</a></h3>
+<p><code>go run</code> recompiles, but a pre-built binary does not. A stale binary has
+invalidated a result during this work. When scoring repeatedly, build once per
+kernel revision and name the binary after it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../methodology/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Methodology">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Methodology
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../band-selection/" class="md-footer__link md-footer__link--next" aria-label="Next: Choosing the overlap band">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Choosing the overlap band
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Apache-2.0 · part of <a href="https://inference-sim.github.io/inference-sim/">BLIS</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/inference-sim/blis-registry" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.indexes", "navigation.sections", "navigation.footer", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "content.action.view", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

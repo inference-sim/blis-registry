@@ -1,0 +1,4099 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="The learned coefficients behind a BLIS latency estimate, each with its provenance and scope">
+      
+      
+      
+        <link rel="canonical" href="https://inference-sim.github.io/blis-registry/dev/methodology/">
+      
+      
+        <link rel="prev" href="../research/">
+      
+      
+        <link rel="next" href="../reproducing-coefficients/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>Methodology - blis-registry</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-a-coefficient-in-this-registry-is-defined-fitted-and-checked" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  These pages describe a version of the registry other than the newest release.
+  <a href="../.."><strong>Go to the latest release.</strong></a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="blis-registry" class="md-header__button md-logo" aria-label="blis-registry" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            blis-registry
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Methodology
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inference-sim/blis-registry" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inference-sim/blis-registry
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../using/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Using
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../contributing/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../research/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Methodology
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="blis-registry" class="md-nav__button md-logo" aria-label="blis-registry" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    blis-registry
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inference-sim/blis-registry" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inference-sim/blis-registry
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../using/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Using
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Using
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../using/releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases and pinning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../contributing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../concepts/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/coefficients/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coefficients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/evidence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Where the numbers come from
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_5_2" id="__nav_5_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coefficient sets
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Coefficient sets
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-primitives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-primitives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-collectives/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-attention/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-attention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-recurrent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-recurrent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-host-overheads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-host-overheads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-memory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-memory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    File format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../research/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methodology
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-a-coefficient-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What a coefficient is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-lane-rule-fit-the-engine-you-predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The lane rule: fit the engine you predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-three-level-data-separation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The three-level data separation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-train-validate-evaluate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Train, validate, evaluate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-per-part-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Per-part provenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Per-part provenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#version-pins-stated-rather-than-averaged-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version pins, stated rather than averaged away
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a100-80-is-an-alias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A100-80 is an alias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deliberate-absences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deliberate absences
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-reproducing-any-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Reproducing any value
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Reproducing any value">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#60-what-is-reproducible-and-what-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.0 What is reproducible, and what is not
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#61-reproducing-the-end-to-end-evaluation-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Reproducing the end-to-end evaluation tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#611-the-scorers-kernel-is-pinned-and-the-pin-is-not-this-registrys-concern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1.1 The scorer's kernel is pinned, and the pin is not this registry's concern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-which-tier-to-weigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Which tier to weigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-validation-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Validation gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-held-out-validation-of-the-lane-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Held-out validation of the lane decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Held-out validation of the lane decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-sliding-window-attention-hold-out-one-window-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Sliding-window attention: hold out one window width
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-kda-hold-out-the-head-count-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 KDA: hold out the head-count geometry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-gemm-ramp-hold-out-whole-k-values-and-the-largest-m-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 GEMM ramp: hold out whole K values, and the largest M values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-what-fpm-could-and-could-not-adjudicate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 What FPM could and could not adjudicate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-lane-provenance-every-coefficient-family-and-every-remaining-borrow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Lane provenance: every coefficient family, and every remaining borrow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Lane provenance: every coefficient family, and every remaining borrow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-the-census" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 The census
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-per-family-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Per-family detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-the-four-borrows-and-why-each-is-unavoidable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 The four borrows, and why each is unavoidable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#84-what-validates-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.4 What validates what
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#85-rack-scale-rank-widths-and-the-one-place-this-registry-extrapolates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.5 Rack-scale rank widths, and the one place this registry extrapolates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-the-fpm-mixed-rows-and-what-they-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. The FPM mixed rows, and what they found
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. The FPM mixed rows, and what they found">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-what-the-coordinates-mean-verified-in-aisimulates-own-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 What the coordinates mean, verified in AISimulate's own source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#92-six-cells-scored-and-the-error-is-strongly-topology-dependent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.2 Six cells scored, and the error is strongly topology-dependent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#93-the-mechanism-attention-dp-funnels-every-ranks-tokens-into-the-experts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.3 The mechanism: attention-DP funnels every rank's tokens into the experts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#94-a-committed-figure-this-corrected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.4 A committed figure this corrected
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-sparse-mla-the-byte-count-is-the-fix-and-the-rate-is-not-fittable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Sparse MLA: the byte count is the fix, and the rate is not fittable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Sparse MLA: the byte count is the fix, and the rate is not fittable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-the-table-that-is-not-a-module-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 The table that is not a module measurement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-the-byte-count-chosen-by-search-rather-than-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 The byte count, chosen by search rather than assumed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-why-a-per-kind-rate-is-not-fittable-which-is-the-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 Why a per-kind rate is NOT fittable, which is the finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#104-what-shipped-instead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.4 What shipped instead
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-memory-occupancy-what-composes-and-where-each-term-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Memory occupancy: what composes, and where each term comes from
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Memory occupancy: what composes, and where each term comes from">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111-the-composition-taken-from-nvidias-capacity-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 The composition, taken from NVIDIA's capacity path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-activation-scratch-vendor_spec-nvidias-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 Activation scratch — vendor_spec, NVIDIA's table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113-cuda-graph-capture-assumed-anchored-on-vllms-own-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.3 CUDA-graph capture — assumed, anchored on vLLM's own measurements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114-what-it-changes-on-the-issues-fixture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.4 What it changes on the issue's fixture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reproducing-coefficients/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproducing the coefficients
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../band-selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing the overlap band
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-a-coefficient-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What a coefficient is
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-lane-rule-fit-the-engine-you-predict" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The lane rule: fit the engine you predict
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-three-level-data-separation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The three-level data separation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-train-validate-evaluate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Train, validate, evaluate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-per-part-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Per-part provenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Per-part provenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#version-pins-stated-rather-than-averaged-away" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version pins, stated rather than averaged away
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a100-80-is-an-alias" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A100-80 is an alias
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deliberate-absences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deliberate absences
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-reproducing-any-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Reproducing any value
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Reproducing any value">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#60-what-is-reproducible-and-what-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.0 What is reproducible, and what is not
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#61-reproducing-the-end-to-end-evaluation-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Reproducing the end-to-end evaluation tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#611-the-scorers-kernel-is-pinned-and-the-pin-is-not-this-registrys-concern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1.1 The scorer's kernel is pinned, and the pin is not this registry's concern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-which-tier-to-weigh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 Which tier to weigh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-validation-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Validation gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-held-out-validation-of-the-lane-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Held-out validation of the lane decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Held-out validation of the lane decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-sliding-window-attention-hold-out-one-window-width" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1 Sliding-window attention: hold out one window width
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-kda-hold-out-the-head-count-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2 KDA: hold out the head-count geometry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-gemm-ramp-hold-out-whole-k-values-and-the-largest-m-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3 GEMM ramp: hold out whole K values, and the largest M values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-what-fpm-could-and-could-not-adjudicate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4 What FPM could and could not adjudicate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-lane-provenance-every-coefficient-family-and-every-remaining-borrow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Lane provenance: every coefficient family, and every remaining borrow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Lane provenance: every coefficient family, and every remaining borrow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#81-the-census" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.1 The census
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#82-per-family-detail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Per-family detail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#83-the-four-borrows-and-why-each-is-unavoidable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.3 The four borrows, and why each is unavoidable
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#84-what-validates-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.4 What validates what
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#85-rack-scale-rank-widths-and-the-one-place-this-registry-extrapolates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.5 Rack-scale rank widths, and the one place this registry extrapolates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-the-fpm-mixed-rows-and-what-they-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. The FPM mixed rows, and what they found
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. The FPM mixed rows, and what they found">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#91-what-the-coordinates-mean-verified-in-aisimulates-own-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.1 What the coordinates mean, verified in AISimulate's own source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#92-six-cells-scored-and-the-error-is-strongly-topology-dependent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.2 Six cells scored, and the error is strongly topology-dependent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#93-the-mechanism-attention-dp-funnels-every-ranks-tokens-into-the-experts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.3 The mechanism: attention-DP funnels every rank's tokens into the experts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#94-a-committed-figure-this-corrected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9.4 A committed figure this corrected
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-sparse-mla-the-byte-count-is-the-fix-and-the-rate-is-not-fittable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Sparse MLA: the byte count is the fix, and the rate is not fittable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Sparse MLA: the byte count is the fix, and the rate is not fittable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-the-table-that-is-not-a-module-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 The table that is not a module measurement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-the-byte-count-chosen-by-search-rather-than-assumed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 The byte count, chosen by search rather than assumed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-why-a-per-kind-rate-is-not-fittable-which-is-the-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 Why a per-kind rate is NOT fittable, which is the finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#104-what-shipped-instead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.4 What shipped instead
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-memory-occupancy-what-composes-and-where-each-term-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. Memory occupancy: what composes, and where each term comes from
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="11. Memory occupancy: what composes, and where each term comes from">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#111-the-composition-taken-from-nvidias-capacity-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.1 The composition, taken from NVIDIA's capacity path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#112-activation-scratch-vendor_spec-nvidias-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.2 Activation scratch — vendor_spec, NVIDIA's table
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#113-cuda-graph-capture-assumed-anchored-on-vllms-own-measurements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.3 CUDA-graph capture — assumed, anchored on vLLM's own measurements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#114-what-it-changes-on-the-issues-fixture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11.4 What it changes on the issue's fixture
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+    
+      
+    
+    <a href="https://github.com/inference-sim/blis-registry/raw/main/docs/methodology.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 18c.56 0 1 .44 1 1s-.44 1-1 1-1-.44-1-1 .44-1 1-1m0-3c-2.73 0-5.06 1.66-6 4 .94 2.34 3.27 4 6 4s5.06-1.66 6-4c-.94-2.34-3.27-4-6-4m0 6.5a2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.5 2.5 2.5 0 0 1 2.5 2.5 2.5 2.5 0 0 1-2.5 2.5M9.27 20H6V4h7v5h5v4.07c.7.08 1.36.25 2 .49V8l-6-6H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h4.5a8.2 8.2 0 0 1-1.23-2"/></svg>
+    </a>
+  
+
+
+<h1 id="how-a-coefficient-in-this-registry-is-defined-fitted-and-checked">How a coefficient in this registry is defined, fitted and checked<a class="headerlink" href="#how-a-coefficient-in-this-registry-is-defined-fitted-and-checked" title="Permanent link">&para;</a></h1>
+<p>This document states the rules. <code>band-selection.md</code> records one model-selection decision
+made under them; <code>vllm/docs/perf-model/hypothesis-log.md</code> records the measurements, the
+negative results and the retractions.</p>
+<h2 id="1-what-a-coefficient-is">1. What a coefficient is<a class="headerlink" href="#1-what-a-coefficient-is" title="Permanent link">&para;</a></h2>
+<p>A coefficient is a <strong>measured constant of a law the kernel evaluates</strong> — never a fudge
+factor and never a per-model correction. Each entry carries:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>value</code></td>
+<td>the number</td>
+</tr>
+<tr>
+<td><code>units</code></td>
+<td>stated explicitly, because the single commonest error in this project is a unit slip</td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td><code>measured</code>, <code>vendor_spec</code>, <code>assumed</code>, or <code>not_charged</code> (a deliberate zero)</td>
+</tr>
+<tr>
+<td><code>fitted</code></td>
+<td>whether a script produced it</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>the deployment dimensions it applies to: hardware, model, TP, EP, nodes</td>
+</tr>
+<tr>
+<td><code>sources</code></td>
+<td>the exact file the value came from, with row counts</td>
+</tr>
+<tr>
+<td><code>rationale</code></td>
+<td>why this value, what it replaced, and what rejecting it would cost</td>
+</tr>
+</tbody>
+</table>
+<p>Three rules follow from <code>method</code>:</p>
+<ul>
+<li>An <code>assumed</code> coefficient is a <strong>declared gap</strong>, not a measurement. §6.0 counts them by
+  kind; the ones nothing in this project's data could replace are the seven host
+  overheads and the four CUDA-graph capture sizes (§11). Any claim resting on one has to
+  say so.</li>
+<li>A <code>vendor_spec</code> coefficient is NVIDIA's observation, not this project's. <code>hbm_derate</code>
+  at 0.8 is the example.</li>
+<li>A <code>not_charged</code> coefficient is a deliberate zero, so a consumer can tell "no cost" from
+  "cost unknown". <code>cudagraph_capture_bytes_none</code> is the one instance.</li>
+</ul>
+<p><strong>A value and its citation move together.</strong> Editing one without the other is how a
+registry comes to describe a fit nobody ran, and the validator re-derives values from the
+sweep its citation names, so a stale citation fails rather than lies.</p>
+<p><strong>A coefficient with no reader is not live.</strong> <code>dtypeFit</code> in the kernel can return only
+three dtype suffixes — <code>bf16</code>, <code>fp8</code>, <code>nvfp4</code> — so the 12 <code>gemm_*_fp8_block</code> entries are
+unreachable. That was discovered by grepping the kernel for the key, not the registry.
+Check both.</p>
+<h2 id="2-the-lane-rule-fit-the-engine-you-predict">2. The lane rule: fit the engine you predict<a class="headerlink" href="#2-the-lane-rule-fit-the-engine-you-predict" title="Permanent link">&para;</a></h2>
+<p>AISimulate ships five framework lanes (<code>vllm</code> 332 files, <code>sglang</code> 313, <code>trtllm</code> 217,
+<code>nccl</code> 23, <code>oneccl</code> 2). The lane is part of the path, so choosing it is explicit — and
+the lanes are not interchangeable:</p>
+<table>
+<thead>
+<tr>
+<th>operator</th>
+<th>finding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>decode attention</td>
+<td>vLLM/TRT-LLM differ 1.30-1.35x on Hopper and 0.83-0.85x on Blackwell. The SIGN flips, because <code>vllm/v1/attention/backends/fa_utils.py:99-107</code> dispatches on compute capability — FA3 at major 9, FA4 at major 10.</td>
+</tr>
+<tr>
+<td>prefill attention</td>
+<td>vLLM runs at 0.79-0.81x of TRT-LLM's on all five parts, concentrated at short prompts: 0.505x at <code>isl=1</code> against a ~0.87x plateau above 128.</td>
+</tr>
+<tr>
+<td>MoE</td>
+<td>1.38-1.41x Hopper, 0.86-0.90x Blackwell, with entirely disjoint <code>kernel_source</code> values.</td>
+</tr>
+<tr>
+<td>GEMM</td>
+<td>the lanes AGREE to 0.4-3.6% over 100,668-130,156 shared shapes — same cuBLAS/CUTLASS kernels — so GEMM stays on the larger TRT-LLM sweep.</td>
+</tr>
+<tr>
+<td>all_gather, reduce_scatter, broadcast</td>
+<td>NCCL <strong>is</strong> the vLLM path. <code>CustomAllreduce</code> implements all-reduce only; <code>should_custom_all_gather</code> and <code>should_custom_reduce_scatter</code> gate and fall through. AISimulate has no vLLM data for them because there is nothing to measure.</td>
+</tr>
+</tbody>
+</table>
+<p>So "use the vLLM lane" is a conclusion to be tested per operator, not a blanket rule.
+Of 654 lane-citing coefficients, 572 are not on the vLLM lane and most of those are
+RIGHT:</p>
+<table>
+<thead>
+<tr>
+<th>citation</th>
+<th>n</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nccl, all_gather / reduce_scatter / all_to_all</td>
+<td>414</td>
+<td>correct — not implemented by <code>CustomAllreduce</code></td>
+</tr>
+<tr>
+<td>nccl, all_reduce</td>
+<td>84</td>
+<td>the vLLM lane exists; applied where it helps (see §5)</td>
+</tr>
+<tr>
+<td>trtllm, gemm</td>
+<td>42</td>
+<td>correct — lanes agree to 0.4-3.6%</td>
+</tr>
+<tr>
+<td>trtllm, attention</td>
+<td>12</td>
+<td>sliding-window and L40S/A100 gaps; see the absences in §5</td>
+</tr>
+<tr>
+<td>trtllm, moe</td>
+<td>12</td>
+<td>the vLLM lane differs by architecture; untried</td>
+</tr>
+<tr>
+<td>sglang / trtllm, recurrent</td>
+<td>4</td>
+<td>vLLM <code>kda</code> and <code>linear_attention</code> data exists; untried</td>
+</tr>
+<tr>
+<td>sglang, gemm / moe</td>
+<td>4</td>
+<td>A100's only lane for those families</td>
+</tr>
+<tr>
+<td><strong>vllm</strong></td>
+<td><strong>82</strong></td>
+<td>decode and prefill attention, all five served parts, plus A100</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One collection per part, per family.</strong> Globbing collections mixes engine versions and
+silently changes the row set — it once produced 66,148 rows where the committed fit used
+40,367. A difference between two parts should be the silicon, not a software release.</p>
+<h2 id="3-the-three-level-data-separation">3. The three-level data separation<a class="headerlink" href="#3-the-three-level-data-separation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>source</th>
+<th>role</th>
+<th>why that role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AISimulate per-operator sweeps</td>
+<td><strong>fitting</strong></td>
+<td>per-kernel, lane-labelled, and the only data that isolates one primitive</td>
+</tr>
+<tr>
+<td>HF FPM whole-forward (Apache-2.0)</td>
+<td><strong>validation, model selection, and fitting a COMPOSED term</strong></td>
+<td>one synchronized forward pass at a known batch and KV composition — the quantity the kernel composes, with no scheduler</td>
+</tr>
+<tr>
+<td>InferenceX measured rows</td>
+<td><strong>evaluation only</strong></td>
+<td>end-to-end with a scheduler and a client; never enters a fit or a selection</td>
+</tr>
+<tr>
+<td>InferenceX remaining rows</td>
+<td>reporting only</td>
+<td>their engine settings are not stated per run</td>
+</tr>
+<tr>
+<td>vLLM start-up logs in the vLLM issue tracker</td>
+<td><strong>anchoring an <code>assumed</code> magnitude only</strong></td>
+<td>vLLM's own measurement of CUDA-graph capture memory, on uncontrolled deployments; the only public record of that quantity (§11)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What FPM may and may not fit, and why the rule changed.</strong> An earlier revision of this
+table read "validation and model selection" and forbade FPM from entering any fit. The
+reason given was a confound: model and system were perfectly collinear, so a model holdout
+was also a chip holdout and a change across it could be attributed to neither. <strong>That is
+no longer true of the dataset.</strong> Derived from the catalog index rather than recalled:</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>systems it appears on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DeepSeek-V4.1-Flash</td>
+<td>b200-sxm, b300-sxm, gb200, gb300, h200-sxm</td>
+</tr>
+<tr>
+<td>DeepSeek-V4-Pro</td>
+<td>b200-sxm, b300-sxm, gb300</td>
+</tr>
+<tr>
+<td>MiniMax-M2.7</td>
+<td>b200-sxm, h200-sxm</td>
+</tr>
+<tr>
+<td>GLM-5.2-NVFP4</td>
+<td>b200-sxm, gb200</td>
+</tr>
+</tbody>
+</table>
+<p>Four of seven models now span multiple systems, and b200-sxm carries six models against
+gb300's three, so <strong>both axes vary independently</strong>. A chip holdout is no longer a model
+holdout. The confound that justified the prohibition has dissolved, and keeping the
+prohibition would now cost accuracy for no methodological gain.</p>
+<p>The distinction that remains, and it is a real one, is <strong>what kind of quantity each
+dataset constrains</strong>:</p>
+<ul>
+<li><strong>AISimulate isolates ONE primitive.</strong> A GEMM sweep varies M with everything else held,
+  so it identifies that primitive's two parameters and nothing else. This is the only
+  data that can fit a per-primitive coefficient, and every <code>measured</code> entry in this
+  registry still comes from it.</li>
+<li><strong>FPM constrains a COMPOSITION.</strong> One <code>latency_ms</code> per <code>(batch, prefill_tokens,
+  kv_tokens)</code> is the sum over every layer and every resource. Fitting a per-primitive
+  coefficient against it is under-determined: many assignments across the primitives
+  produce the same total, so the fit would attribute to one term whatever every other
+  term gets wrong. That is not a provenance rule, it is an identifiability fact, and it
+  does not change with the dataset.</li>
+</ul>
+<p>So FPM <strong>may</strong> fit a term that is itself about composition — the overlap-band choice
+(<code>docs/band-selection.md</code>), the attention-DP funnel factor, a per-step host constant —
+because those are properties of the whole forward pass and FPM measures the whole forward
+pass. It <strong>may not</strong> fit an attention rate or a GEMM asymptote, because nothing in a
+whole-pass total identifies those separately.</p>
+<p>Three obligations on any FPM-fitted term, so the looser rule does not become a looser
+standard:</p>
+<ol>
+<li><strong>Hold out along a dimension the term must generalise across</strong> — a chip, a model, or a
+   parallelism — and report train and holdout error separately. §4 lists the splits the
+   dataset now supports.</li>
+<li><strong>Cite FPM explicitly</strong>, by dataset revision SHA, since the dataset is rewritten and
+   has no tags.</li>
+<li><strong>Keep the end-to-end check.</strong> FPM is not the evaluation corpus, so a term fitted on it
+   still has to face InferenceX, and the standing rule below still governs.</li>
+</ol>
+<p>No committed coefficient cites FPM today. This records what is permitted, so the next
+composed term does not have to argue the rule from scratch.</p>
+<p><code>scripts/select_overlap_band.py</code> enforces the last two by refusing any path under an
+<code>inferencex</code> or <code>semianalysis</code> directory, and a new fitter should import that guard rather
+than restate it.</p>
+<p>FPM is entirely vLLM — all 85,484 rows carry <code>backend: vllm</code> — and splits as 12,522 pure
+decode, 5,226 pure prefill, 67,736 mixed prefill+decode.</p>
+<p><strong>The constraint that governs everything else: a better fit to a component benchmark can
+be a worse model.</strong> Six independently verified corrections each improved a per-primitive
+or per-step measurement and made the end-to-end score worse, because the kernel's accuracy
+rests on partially cancelling errors. So <strong>no per-primitive fit ships without an
+end-to-end check</strong>, and a correction whose offsetting term is unidentified waits.</p>
+<p>The sixth is the clearest case and is worth stating in full, because it shows the rule
+catching something that every other gate passed. <code>attention_decode_floor_mla</code> was fitted
+from AISimulate's <code>mla_generation_module_perf</code> tables, committed as <code>method: measured,
+fitted: true</code>, and the fit was clean — it reproduced from its own writer, satisfied the
+schema, and sat inside every physical bound then checked. It was also wrong about <em>which
+quantity it measured</em>: those tables are MODULE measurements covering the whole MLA block
+including its down-projections, and blis-catalog prices <code>qkv_proj</code> and <code>o_proj</code> as separate
+<code>GEMM</code> nodes in the same layer, so the kernel charged the projection weight read twice.
+<code>scripts/fit_attention_mla.py</code> had already recorded the arithmetic (DeepSeek-V3's
+projections are 293.6 MB at fp8, 61.2 µs at H200's 4.80 TB/s, against a 44.0–63.8 µs
+measured module floor) as its reason for being rejected; the pair was nonetheless committed
+later from the same tables.</p>
+<p>Only the end-to-end check found it. Scored as a 2×2 over the two terms on the InferenceX
+corpus (573 points, vLLM lane):</p>
+<table>
+<thead>
+<tr>
+<th>floor</th>
+<th>rate</th>
+<th>overall TPOT mean|e|</th>
+<th>kimi-k2.5 TPOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>part-wide</td>
+<td>fitted</td>
+<td><strong>14.98%</strong></td>
+<td><strong>6.38%</strong></td>
+</tr>
+<tr>
+<td>part-wide</td>
+<td>part-wide</td>
+<td>14.90%</td>
+<td>6.91%</td>
+</tr>
+<tr>
+<td>fitted (module)</td>
+<td>part-wide</td>
+<td>17.32%</td>
+<td>15.38%</td>
+</tr>
+<tr>
+<td>fitted (module)</td>
+<td>fitted</td>
+<td>17.43%</td>
+<td>14.57%</td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>rate</strong> is sound — 0.80–1.13× of each part's part-wide rate, the right order for a
+latent-cache read, and the only arm that improves kimi-k2.5 on its own. The <strong>floor</strong> was
+the entire regression: either arm carrying it lands near 15% on kimi-k2.5 and 17.3%
+overall, flipping the kernel from beating AISimulate's 15.39% to losing to it.
+<code>scripts/correct_mla_floor.py</code> commits the floor as <code>assumed</code> from the same part's measured
+attention-kernel floor, and three gates now hold it: that script's <code>--check</code>,
+<code>relane_attention_mla.py --check-rate</code> for the half still fitted, and a property test
+bounding any kind-specific floor at 3× its part-wide sibling.</p>
+<p>The generalizable lesson is not "distrust module tables" but <strong>a fit can be clean and still
+answer a different question than the coefficient asks</strong>. Provenance of the number is not
+provenance of the quantity, and only a check at the level the model is used at can tell
+them apart.</p>
+<h2 id="4-train-validate-evaluate">4. Train, validate, evaluate<a class="headerlink" href="#4-train-validate-evaluate" title="Permanent link">&para;</a></h2>
+<p>Fitting splits are taken along a dimension generalization actually has to cross, not at
+random — a random row split puts near-duplicate shapes on both sides and reports a
+generalization that was never tested.</p>
+<ul>
+<li><strong>GEMM shape ramp</strong>: whole <code>k</code> VALUES held out, so a test shape has a reduction depth
+  the fit never saw. Train and test agree to within 0.04x on every part and dtype.</li>
+<li><strong>FPM topology</strong>: MiniMax-M2.7 on h200_sxm spans six topologies (<code>dep/tp1/ep2</code>,
+  <code>dep/tp1/ep4</code>, <code>pure_tp/tp2/ep1</code>, <code>pure_tp/tp4/ep1</code>, <code>tep/tp2/ep2</code>, <code>tep/tp4/ep4</code>), so a
+  parallelism-dependent term can be validated with model and chip fixed.</li>
+<li><strong>FPM regime</strong>: fit on pure-prefill and pure-decode rows, validate on the 67,736 mixed
+  rows, whose batch composition varies independently of concurrency.</li>
+</ul>
+<p><strong>A confound that WAS true and no longer is</strong>: an earlier revision recorded model and
+system as perfectly collinear in FPM — DeepSeek-V4-Pro only on gb300, GLM-5.2 only on
+b200_sxm, MiniMax-M2.7 only on h200_sxm — so a model holdout was also a chip holdout. The
+dataset has since grown and that is false: DeepSeek-V4.1-Flash spans five systems,
+DeepSeek-V4-Pro three, MiniMax-M2.7 and GLM-5.2-NVFP4 two each, and b200-sxm carries six
+models. Both axes now vary independently, which is what makes the holdouts above
+attributable and what §3 relies on in permitting FPM to fit a composed term.</p>
+<p>The confound is recorded rather than deleted because the figures it produced are still in
+this document's history, and a reader comparing revisions needs to know which claim held
+when. Re-derive the current state from the catalog index rather than trusting either
+version: the dataset is rewritten in place.</p>
+<p>Errors are reported for train, validation AND evaluation. A fit quoted only on its
+training data is not a result.</p>
+<h2 id="5-per-part-provenance">5. Per-part provenance<a class="headerlink" href="#5-per-part-provenance" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>Counts in this section were taken when it was written. The current counts, generated
+from <code>coefficients/</code> on every documentation build, are on the
+<a href="../reference/">reference pages</a>.</p>
+</blockquote>
+<p>Coefficient counts by citation lane:</p>
+<table>
+<thead>
+<tr>
+<th>chip</th>
+<th>total</th>
+<th>nccl</th>
+<th>vllm</th>
+<th>trtllm</th>
+<th>sglang</th>
+<th>other</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>h200</td>
+<td>100</td>
+<td>63 @ 2.29.2</td>
+<td>13 @ 0.24.0/0.25.0</td>
+<td>10 @ 1.3.0rc20</td>
+<td>—</td>
+<td>14</td>
+</tr>
+<tr>
+<td>h100</td>
+<td>104</td>
+<td>63 @ 2.29.2</td>
+<td>13 @ 0.24.0/0.25.0</td>
+<td>12 @ 1.3.0rc20</td>
+<td>2 @ 0.5.16</td>
+<td>14</td>
+</tr>
+<tr>
+<td>b200</td>
+<td>102</td>
+<td>63 @ 2.29.2</td>
+<td>13 @ 0.24.0/0.25.0</td>
+<td>12 @ 1.3.0rc20</td>
+<td>—</td>
+<td>14</td>
+</tr>
+<tr>
+<td>b300</td>
+<td>102</td>
+<td>63 @ 2.29.2</td>
+<td>13 @ 0.24.0/0.25.0</td>
+<td>12 @ 1.3.0rc20</td>
+<td>—</td>
+<td>14</td>
+</tr>
+<tr>
+<td>gb200-nvl72</td>
+<td>78</td>
+<td>48 @ 2.29.2</td>
+<td>4 @ 0.25.0</td>
+<td>12 @ 1.3.0rc20</td>
+<td>—</td>
+<td>14</td>
+</tr>
+<tr>
+<td>l40s</td>
+<td>100</td>
+<td>72 @ 2.27.3</td>
+<td>4 @ 0.24.0</td>
+<td>10 @ 1.3.0rc20</td>
+<td>—</td>
+<td>14</td>
+</tr>
+<tr>
+<td>a100-sxm</td>
+<td>94</td>
+<td>63 @ 2.27.3</td>
+<td>13 @ 0.14.0</td>
+<td>—</td>
+<td>4 @ 0.5.10</td>
+<td>14</td>
+</tr>
+<tr>
+<td>a100-80</td>
+<td>174</td>
+<td>126 @ 2.27.3</td>
+<td>22 @ 0.14.0</td>
+<td>—</td>
+<td>4 @ 0.5.10</td>
+<td>22</td>
+</tr>
+</tbody>
+</table>
+<p><code>other</code> is the non-AISimulate set: host overheads, HBM derate, communicator sizes.</p>
+<h3 id="version-pins-stated-rather-than-averaged-away">Version pins, stated rather than averaged away<a class="headerlink" href="#version-pins-stated-rather-than-averaged-away" title="Permanent link">&para;</a></h3>
+<p>A100's vLLM collection is <strong>0.14.0</strong> and L40S's is <strong>0.24.0</strong>, against 0.25.0 on the
+Hopper and Blackwell parts. Those are the newest vLLM collections AISimulate ships for
+those SKUs. Pinning one collection per part keeps a difference between parts attributable
+to silicon; it also means A100's coefficients describe an older engine, and that is a
+property of the data rather than a choice.</p>
+<h3 id="a100-80-is-an-alias">A100-80 is an alias<a class="headerlink" href="#a100-80-is-an-alias" title="Permanent link">&para;</a></h3>
+<p><code>a100-80</code> and <code>a100-sxm</code> are the same silicon — identical <code>TFlopsPeak</code> 312,
+<code>BwPeakTBs</code> 2.039, <code>MemoryGiB</code> 80, <code>SMCount</code> 108 — and the catalog's own chip file says
+"Alias for A100-SXM". Both names appear in <code>hardware_config.json</code>, so a BLIS run can
+request either.</p>
+<p>Aliasing is done two ways, deliberately:</p>
+<ul>
+<li>Where the coefficient NAME has no chip suffix, <code>a100-80</code> is added to <code>a100-sxm</code>'s
+  <strong>scope</strong>, so one measurement serves both names and a refit cannot update one and miss
+  the other. The kernel matches scope by membership (<code>resolve.Scope.Admits</code>).</li>
+<li>The collective names DO carry a chip suffix, because the kernel builds the key as
+  <code>collective_&lt;kind&gt;_&lt;op&gt;_&lt;dtype&gt;_&lt;rank&gt;rank_&lt;chip&gt;</code> with <code>-</code> replaced by <code>_</code>. A
+  membership scope cannot satisfy that, so 72 <code>*_a100_80</code> entries carry A100-SXM's values
+  with the alias stated in each rationale. <strong>Re-fit both together.</strong></li>
+</ul>
+<h3 id="deliberate-absences">Deliberate absences<a class="headerlink" href="#deliberate-absences" title="Permanent link">&para;</a></h3>
+<p>Absent is not the same as missing:</p>
+<ul>
+<li><code>gemm_*_fp8</code> and <code>gemm_*_fp8_block</code> on A100 — the part has <code>TFlopsFP8: 0</code>, so
+  <code>dtypeFit</code> returns the <code>bf16</code> suffix. A fraction of a rate the silicon does not have
+  would be worse than nothing.</li>
+<li><code>attention_decode_*_swa</code> on A100 — vLLM 0.14.0's schema has no <code>window_size</code> column;
+  the sliding-window sweep postdates it. The kernel falls back to the unsuffixed pair.</li>
+<li>int8 all-reduce on A100 stays on NCCL — <code>allreduce_dtype</code> in the custom_allreduce sweep
+  is bfloat16 across all 138 rows, so there is no vLLM int8 measurement. Unmeasured is not
+  unchanged.</li>
+<li>L40S sliding-window decode stays on TRT-LLM — the vLLM-lane fit is WORSE (2.110x
+  against the committed entry's), so it is reported and not applied.</li>
+<li>L40S all-reduce stays on NCCL — the vLLM-graph floors agree with NCCL to within 13%,
+  because L40S has no NVLink (PCIe Gen4, 32 GB/s) and <code>custom_allreduce</code> needs peer-to-peer
+  NVLink to help. A100-SXM has NVLink 3 at 300 GB/s and its floors drop 2.1-3.8x, which is
+  the same mechanism that moved the Hopper and Blackwell parts.</li>
+</ul>
+<h2 id="6-reproducing-any-value">6. Reproducing any value<a class="headerlink" href="#6-reproducing-any-value" title="Permanent link">&para;</a></h2>
+<p>Every fitted coefficient names its script in the rationale. The fitters are pure: given
+the same collection they print the same numbers, and the validator re-runs them.</p>
+<div class="highlight"><pre><span></span><code>scripts/fit_attention.py &lt;data&gt;/&lt;sku&gt;/attention/&lt;lane&gt;          --chip &lt;chip&gt;
+scripts/fit_attention_prefill.py --collection &lt;lane&gt; &lt;sku&gt;:&lt;chip&gt;
+scripts/fit_attention_by_kind.py --collection &lt;lane&gt; --sku &lt;sku&gt; --chip &lt;chip&gt;
+scripts/fit_collectives_vllm.py &lt;data&gt;/&lt;sku&gt;/comm/vllm/&lt;version&gt;
+scripts/fit_collectives.py &lt;data&gt;/&lt;sku&gt;/comm/nccl/&lt;version&gt;
+scripts/fit_gemm_envelope.py &lt;data&gt;/&lt;sku&gt;/gemm/&lt;lane&gt;
+scripts/fit_gemm_shape_ramp.py [--emit] &lt;sku&gt;:&lt;chip&gt;
+scripts/probe_cudagraph_dispatch.py --settings S --corpus C
+scripts/emit_memory.py [--check]
+scripts/mine_vllm_cudagraph_memory.py {fetch,extract} CACHE_DIR
+</code></pre></div>
+<p>Two traps these scripts exist to avoid, both of which produced wrong answers by hand:</p>
+<ul>
+<li><strong><code>latency</code> is MILLISECONDS</strong> in every AISimulate parquet. Reading it as seconds gives
+  2,070 TB/s on a 4.8 TB/s part, or a 143,314 GB/s collective peak. The error announces
+  itself if you check the number against the datasheet, and not otherwise.</li>
+<li><strong>FPM's <code>total_kv_read_tokens</code> is summed OVER THE BATCH</strong>, while the kernel takes a
+  per-sequence context. Joining them directly is a 256x KV error at batch 256; the join is
+  on <code>(batch, batch*ctx == kv_total)</code>.</li>
+</ul>
+<h3 id="60-what-is-reproducible-and-what-is-not">6.0 What is reproducible, and what is not<a class="headerlink" href="#60-what-is-reproducible-and-what-is-not" title="Permanent link">&para;</a></h3>
+<p>Four kinds of value live in this registry. Counted from the coefficient files
+themselves (1,121 entries in six sets):</p>
+<table>
+<thead>
+<tr>
+<th><code>method</code></th>
+<th>entries</th>
+<th>reproducible by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>measured</code></td>
+<td>816</td>
+<td>a named fitter in <code>scripts/</code>, re-run by the validator</td>
+</tr>
+<tr>
+<td><code>vendor_spec</code></td>
+<td>81</td>
+<td>NVIDIA's own descriptor or simulator source, transcribed by a writer with <code>--check</code></td>
+</tr>
+<tr>
+<td><code>assumed</code></td>
+<td>223</td>
+<td>a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it</td>
+</tr>
+<tr>
+<td><code>not_charged</code></td>
+<td>1</td>
+<td>nothing to reproduce: a declared zero (<code>cudagraph_capture_bytes_none</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The 223 <code>assumed</code> entries are of two different kinds, and the difference matters
+to a reader weighing one:</p>
+<ul>
+<li><strong>Derived from this project's own measurements</strong> — 212 entries, each
+  regenerated by a script. 204 collective triples close rank-width and part gaps
+  (<code>extrapolate_collective_width.py</code>, <code>extrapolate_by_generation.py</code>, each
+  holdout-validated, §8.5); A100's two sliding-window attention entries scale
+  its own measured full-attention floor and rate by its kernel sibling's
+  windowed/full ratio (<code>extrapolate_by_generation.py</code>); six <code>attention_decode_floor_mla</code> entries are set from
+  the part's own measured attention floor (<code>correct_mla_floor.py</code>, §3).</li>
+<li><strong>Not derivable from any dataset this project reads</strong> — 11 entries. The seven
+  host overheads in <code>cost-model-host-overheads.yaml</code>: no dataset measures
+  client-observed host time (AISimulate times kernels, FPM times one synchronized
+  forward pass — all 42 of its columns were enumerated, and there is no <code>ttft</code>,
+  <code>e2e</code>, <code>client</code>, <code>queue</code> or <code>host</code> column — and InferenceX is evaluation-only).
+  And the four capturing <code>cudagraph_capture_bytes_&lt;mode&gt;</code> entries in
+  <code>cost-model-memory.yaml</code>, whose magnitude is anchored on vLLM's own start-up
+  logs (§11); their anchor is reproducible from a committed CSV, but the samples
+  are uncontrolled deployments, which is why the method stays <code>assumed</code>.</li>
+</ul>
+<p>Each of those eleven carries the measurement that would replace it.
+<code>host_admission_per_request</code> names the exact experiment, a client-observed TTFT
+measurement at 1-token and 1,024-token prompts against a running vLLM server at
+concurrency 1 with a warm cache, whose intercept is the coefficient with no
+evaluation data involved. The capture entries name one log line from one
+start-up of the target deployment.</p>
+<p>This boundary is stated rather than smoothed over because the largest single
+accuracy movement in this work — TTFT mape 52.94% to 31.47% on the measured
+tier — comes from one of the seven.</p>
+<h3 id="61-reproducing-the-end-to-end-evaluation-tables">6.1 Reproducing the end-to-end evaluation tables<a class="headerlink" href="#61-reproducing-the-end-to-end-evaluation-tables" title="Permanent link">&para;</a></h3>
+<p>Reproducing a coefficient needs only a fitter and its collection. Reproducing an
+accuracy FIGURE needs four things pinned, and each of them has silently produced a
+wrong number during this work:</p>
+<table>
+<thead>
+<tr>
+<th>what</th>
+<th>why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the scorer checkout</td>
+<td><code>cmd/metricscore</code> is on inference-sim's <code>kernel-exclusive</code> branch only — not <code>main</code>, not <code>modeling</code>. A checkout of either fails with <code>stat cmd/metricscore: directory not found</code></td>
+</tr>
+<tr>
+<td><code>-registry</code></td>
+<td>defaults to the sibling <code>blis-registry</code> checkout, so scoring a branch without passing it explicitly scores a different registry</td>
+</tr>
+<tr>
+<td><code>-catalog</code></td>
+<td>the figures move with the catalog revision; a comparison across catalog revisions once produced an apparent 0.03pp "effect" that was two catalog commits</td>
+</tr>
+<tr>
+<td><code>-config-tier</code>, <code>-framework</code>, <code>-length-range-ratio</code></td>
+<td>each changes every figure. On one kernel revision the same command with and without <code>-length-range-ratio 1.0</code> gives 11.62/12.05/15.23/52.94 against 11.22/12.19/16.22/57.13</td>
+</tr>
+</tbody>
+</table>
+<p><code>scripts/compare_registries.py</code> pins all four by construction and prints the
+revisions it used. Beyond comparing two registries it records and checks absolute
+figures:</p>
+<div class="highlight"><pre><span></span><code># write the current figures, with revisions and flags, to docs/evaluation-baseline.json
+python scripts/compare_registries.py --record --scorer /path/to/kernel-exclusive/checkout
+
+# fail if any figure, or any n, has moved since
+python scripts/compare_registries.py --check  --scorer /path/to/kernel-exclusive/checkout
+</code></pre></div>
+<p><code>docs/evaluation-baseline.json</code> is the machine-checkable record. It holds the four
+headline figures and their point counts per tier, plus the framework, the
+length-range-ratio and the scorer and catalog revisions, because a figure is a
+claim about that whole triple rather than about the registry alone. <code>--check</code>
+compares the revisions too and says when they have moved, so a drift is
+attributable rather than merely visible.</p>
+<p>A figure quoted without its flags cannot be checked, and this is the reason every
+table in the companion documents carries its invocation.</p>
+<h3 id="611-the-scorers-kernel-is-pinned-and-the-pin-is-not-this-registrys-concern">6.1.1 The scorer's kernel is pinned, and the pin is not this registry's concern<a class="headerlink" href="#611-the-scorers-kernel-is-pinned-and-the-pin-is-not-this-registrys-concern" title="Permanent link">&para;</a></h3>
+<p>One asymmetry in the reproduce recipe is worth stating because it looks like an
+oversight and is not. <code>inference-sim</code>'s scoring branch clones the catalog and the
+registry with <code>-b modeling</code>, because both are read at RUN TIME by path and the
+scorer takes <code>-catalog</code> and <code>-registry</code> flags. It clones <code>blis-latency-kernel</code>
+WITHOUT a branch flag, because the kernel is a COMPILED dependency pinned by
+module version in <code>go.mod</code>, and its default branch is <code>main</code>.</p>
+<p>The consequence for a reader: changing this registry changes the figures
+immediately, while changing the kernel does not until its pin is advanced. At the
+time of writing the scoring branch pins kernel <code>0bbcb97</code>, which is an ancestor of
+the kernel's <code>modeling</code> branch by 17 commits. A figure recorded by
+<code>compare_registries.py --record</code> therefore states the scorer revision alongside
+the registry, and <code>--check</code> reports when it has moved, because a figure is a claim
+about the pair.</p>
+<p>A local <code>replace</code> directive pointing at on-disk kernel checkouts is how the
+scoring branch's own plan describes linking the two, and it is explicitly
+worktree-only: committing one would break the build for anyone following the
+clone recipe.</p>
+<h3 id="62-which-tier-to-weigh">6.2 Which tier to weigh<a class="headerlink" href="#62-which-tier-to-weigh" title="Permanent link">&para;</a></h3>
+<p><code>inferencex_engine_settings.json</code> records <strong>68 sweeps with a captured engine-args
+log and 136 without</strong>, each of the latter listed in its <code>incomplete</code> array with
+<code>reason: "no engine-args log"</code>. For those 136 the engine configuration is resolved
+from vLLM's defaults rather than observed, so an error there is as likely to be a
+wrong assumed configuration as a wrong model.</p>
+<p>The measured tier is the only one where the simulated deployment is ground truth.
+It is therefore the tier on which a coefficient change can be attributed to the
+model, and the tier to weigh when judging one. The resolved tier answers a weaker
+and still useful question — how well a predictor does when it must guess the
+configuration too — and mixing the two in one average mixes two kinds of
+evidence, which is why the scorer takes <code>-config-tier</code> and the baseline records
+them separately.</p>
+<h3 id="63-validation-gates">6.3 Validation gates<a class="headerlink" href="#63-validation-gates" title="Permanent link">&para;</a></h3>
+<p><code>pytest validator/</code> runs the registry's <strong>derivation / value-preservation</strong> gates — schema
+and provenance validation now live in blis-schemas (the Go validator every consumer loads
+through; see the registry README), not here. The derivation gates that matter:</p>
+<ul>
+<li><strong>independent re-derivation</strong> — re-runs the fitter and compares to the registry, so a
+  value edited without its citation fails.</li>
+<li><strong>single-sourced citations</strong> — every source in the AISimulate sets must cite AISimulate.</li>
+<li><strong>lane pinning</strong> — the all-reduce test pins the <code>vllm_graph</code> lane specifically, because
+  eager is SLOWER than NCCL and accepting either would accept a 3.4x mispricing.</li>
+<li><strong>memory occupancy</strong> — <code>emit_memory.py --check</code> re-renders <code>cost-model-memory.yaml</code> byte for
+  byte when the AISimulate tree is present; its capture half re-derives from the committed
+  CSV in CI with no tree at all, and property tests hold every vLLM <code>cudagraph_mode</code> to an
+  entry, no capturing mode above <code>FULL_AND_PIECEWISE</code>, and the activation multiple
+  non-increasing with width and at least as large for MoE as for dense (§11).</li>
+<li><strong>skips are explicit</strong> — a gate that cannot run says why. The three-factor GEMM ramp's
+  gate skips while the registry carries the one-factor form, and activates the moment the
+  coefficients land.</li>
+</ul>
+<h2 id="7-held-out-validation-of-the-lane-decisions">7. Held-out validation of the lane decisions<a class="headerlink" href="#7-held-out-validation-of-the-lane-decisions" title="Permanent link">&para;</a></h2>
+<p>§4 states the splitting principle. This section records the folds actually run, the
+numbers they produced, and the decisions they support or refuse. Every figure here is
+reproduced by the script named beside it; none is a residual on the rows that were fitted.</p>
+<h3 id="71-sliding-window-attention-hold-out-one-window-width">7.1 Sliding-window attention: hold out one window width<a class="headerlink" href="#71-sliding-window-attention-hold-out-one-window-width" title="Permanent link">&para;</a></h3>
+<p><code>scripts/holdout_attention_swa.py</code>. The window is the dimension that defines the kind —
+<code>kv_bytes</code> reads <code>min(context, window)</code> positions — so a held-out width is a byte count the
+fit never saw. Reported as the median over folds, because the widths are heavily unbalanced
+(window 128 carries 82% of h200's rows, so that fold trains on an eighth of the sweep while
+the others hold out 3-6%); a mean over folds this uneven would describe none of them.</p>
+<table>
+<thead>
+<tr>
+<th>part</th>
+<th>vLLM collection</th>
+<th>vLLM median held-out</th>
+<th>TRT-LLM median held-out</th>
+<th>shared folds won by vLLM</th>
+<th>decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>h200</td>
+<td>vllm/0.25.0</td>
+<td><strong>1.457x</strong></td>
+<td>1.754x</td>
+<td>3/3</td>
+<td>relane</td>
+</tr>
+<tr>
+<td>h100</td>
+<td>vllm/0.25.0</td>
+<td><strong>1.433x</strong></td>
+<td>1.787x</td>
+<td>2/2</td>
+<td>relane</td>
+</tr>
+<tr>
+<td>b200</td>
+<td>vllm/0.25.0</td>
+<td><strong>1.344x</strong></td>
+<td>1.475x</td>
+<td>2/3</td>
+<td>relane</td>
+</tr>
+<tr>
+<td>b300</td>
+<td>vllm/0.25.0</td>
+<td><strong>1.317x</strong></td>
+<td>1.498x</td>
+<td>2/2</td>
+<td>relane</td>
+</tr>
+<tr>
+<td>gb200-nvl72</td>
+<td>vllm/0.25.0</td>
+<td><strong>1.276x</strong></td>
+<td>1.358x</td>
+<td>3/3</td>
+<td>relane</td>
+</tr>
+<tr>
+<td>l40s</td>
+<td>vllm/0.24.0</td>
+<td>2.073x</td>
+<td><strong>1.681x</strong></td>
+<td>0/2</td>
+<td><strong>keep TRT-LLM</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Twelve of thirteen shared folds favour vLLM on the five relaned parts; the single exception
+is b200 at window 2048 (1.259x against 1.244x). The vLLM sweep also covers five widths
+where TRT-LLM covers two or three, so the TRT-LLM fit was never tested at 512 or 1024 on
+any part.</p>
+<p>L40S is the documented exception and now has held-out evidence rather than a residual: its
+vLLM fit is worse on BOTH folds. Note that L40S has no <code>vllm/0.25.0</code> attention collection
+at all — <code>vllm/0.24.0</code> is its newest — so the comparison uses that, and an earlier reading
+of "no vLLM data" for this part was wrong.</p>
+<h3 id="72-kda-hold-out-the-head-count-geometry">7.2 KDA: hold out the head-count geometry<a class="headerlink" href="#72-kda-hold-out-the-head-count-geometry" title="Permanent link">&para;</a></h3>
+<p><code>scripts/fit_recurrent.py --group-by kernel+heads</code>. vLLM's KDA sweep varies <code>num_k_heads</code>
+over 12/24/48/96 where SGLang's holds it at 12. Pooling those four geometries into one fit
+gives geo-err <strong>1.733x</strong>; fitted per geometry the same rows give 1.169x to 1.196x. The
+pooled figure is an artefact of the pooling, not a property of the lane:</p>
+<table>
+<thead>
+<tr>
+<th>lane</th>
+<th>num_k_heads</th>
+<th>n</th>
+<th>floor</th>
+<th>rate</th>
+<th>geo-err</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sglang/0.5.16 (committed)</td>
+<td>12</td>
+<td>11</td>
+<td>5.1 us</td>
+<td>1.50 tok/us</td>
+<td><strong>1.160x</strong></td>
+</tr>
+<tr>
+<td>vllm/0.1.dev19262</td>
+<td>12</td>
+<td>11</td>
+<td>5.4 us</td>
+<td>1.75 tok/us</td>
+<td><strong>1.169x</strong></td>
+</tr>
+<tr>
+<td>vllm/0.1.dev19262</td>
+<td>24</td>
+<td>11</td>
+<td>5.3 us</td>
+<td>1.00 tok/us</td>
+<td>1.196x</td>
+</tr>
+<tr>
+<td>vllm/0.1.dev19262</td>
+<td>48</td>
+<td>11</td>
+<td>3.6 us</td>
+<td>0.50 tok/us</td>
+<td>1.191x</td>
+</tr>
+<tr>
+<td>vllm/0.1.dev19262</td>
+<td>96</td>
+<td>11</td>
+<td>3.6 us</td>
+<td>0.25 tok/us</td>
+<td>1.188x</td>
+</tr>
+</tbody>
+</table>
+<p>At the matching geometry — <code>num_k_heads: 12</code>, which is what SGLang measures — the two lanes
+are <strong>equivalent</strong> (1.160x against 1.169x, a difference of 0.009). An earlier claim that the
+vLLM lane fits 1.49x worse was wrong, and wrong because of the pooling above.</p>
+<p>This does not by itself relane KDA. The vLLM collection is a dev build
+(<code>0.1.dev19262+gb6bbf29dd</code>), Kimi-K3 appears in no InferenceX tier and in no FPM artifact
+with a KDA node, so the change is unevaluable end to end and the decision rests on fit
+quality alone, where the two lanes tie.</p>
+<h3 id="73-gemm-ramp-hold-out-whole-k-values-and-the-largest-m-values">7.3 GEMM ramp: hold out whole K values, and the largest M values<a class="headerlink" href="#73-gemm-ramp-hold-out-whole-k-values-and-the-largest-m-values" title="Permanent link">&para;</a></h3>
+<p><code>scripts/holdout_gemm_ramp.py</code>. Two folds, and the second one found a defect in the FORM
+rather than in the lane.</p>
+<p><strong>The ramp is the wrong shape above M ~ 4096.</strong> <code>eff(M) = eps_max * M / (M + M_half)</code> is
+monotone and saturating, but the measured envelope PEAKS mid-sweep and then declines — on
+h200 bfloat16, 0.956 at M=3329 falling to 0.875 at M=32768 on the vLLM lane, and 0.870 at
+M=4097 falling to 0.839 on TRT-LLM. Both lanes show it, so it is a property of the kernel
+and not of either engine. Holding out the three largest M values and extrapolating:</p>
+<table>
+<thead>
+<tr>
+<th>held-out M</th>
+<th>predicted</th>
+<th>measured</th>
+<th>error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8192</td>
+<td>0.987</td>
+<td>0.930</td>
+<td>+0.057</td>
+</tr>
+<tr>
+<td>16384</td>
+<td>0.993</td>
+<td>0.911</td>
+<td>+0.082</td>
+</tr>
+<tr>
+<td>32768</td>
+<td>0.997</td>
+<td>0.875</td>
+<td><strong>+0.121</strong></td>
+</tr>
+</tbody>
+</table>
+<p>So <code>eps_max</code> is fitted to an asymptote the kernel never reaches, and a fit that has not seen
+large M over-predicts there by up to 12 points of efficiency.</p>
+<p><strong>Why this is recorded and not fixed.</strong> A decode step's M is the token count in the batch,
+and the corpus runs M = 1 to 2048 with 97.2% of points (1,036 of 1,066) at M &lt;= 128. The decline begins above
+M ~ 4096, outside the range any evaluated deployment reaches. Scoring the same fit inside
+and outside the operating range:</p>
+<table>
+<thead>
+<tr>
+<th>lane</th>
+<th>range</th>
+<th>n</th>
+<th>rms</th>
+<th>mean signed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vllm/0.25.0</td>
+<td>M &lt;= 128 (97% of corpus steps)</td>
+<td>30</td>
+<td>0.0585</td>
+<td>+0.0509</td>
+</tr>
+<tr>
+<td>vllm/0.25.0</td>
+<td>M &lt;= 2048 (all corpus steps)</td>
+<td>52</td>
+<td>0.0745</td>
+<td>+0.0009</td>
+</tr>
+<tr>
+<td>trtllm/1.3.0rc20</td>
+<td>M &lt;= 128</td>
+<td>30</td>
+<td><strong>0.0474</strong></td>
+<td><strong>+0.0393</strong></td>
+</tr>
+<tr>
+<td>trtllm/1.3.0rc20</td>
+<td>M &lt;= 2048</td>
+<td>52</td>
+<td><strong>0.0538</strong></td>
+<td>+0.0040</td>
+</tr>
+</tbody>
+</table>
+<p><strong>This refuses a vLLM-lane GEMM relane.</strong> In the range that matters TRT-LLM fits better on
+both measures, which is consistent with §2's finding that the lanes agree to 0.4-3.6% on
+shared shapes — the same cuBLAS/CUTLASS kernels underneath — so the larger TRT-LLM sweep
+wins on determination rather than on engine. The lane rule is "fit the engine you predict"
+only where the engine changes the kernel, and for GEMM it does not.</p>
+<p>Both lanes over-predict efficiency at small M (+0.039 and +0.051), which UNDER-predicts
+decode latency on the shapes that dominate the corpus. That is a real, quantified direction
+for future work, and it is a form problem: the fix is a non-monotone ramp or a small-M
+correction term, not a different collection.</p>
+<h3 id="74-what-fpm-could-and-could-not-adjudicate">7.4 What FPM could and could not adjudicate<a class="headerlink" href="#74-what-fpm-could-and-could-not-adjudicate" title="Permanent link">&para;</a></h3>
+<p>FPM is the validation source in §3, but its reach is narrower than the coefficient set:</p>
+<ul>
+<li><strong>SWA</strong>: unusable. No FPM model carries a sliding-window node. Four of the six models in
+  the FPM catalog have a graph in blis-catalog — MiniMax-M2.7 (<code>gqa</code>), GLM-5.2
+  (<code>gqa</code>, <code>sparse_mla</code>), DeepSeek-V4-Pro (<code>gqa</code>, <code>mla</code>, <code>sparse_mla</code>) and Kimi-K3
+  (<code>kda</code>, <code>mla</code>) — and none declares <code>kind: swa</code>; the other two
+  (DeepSeek-V4.1-Flash, DeepSeek-V4-Flash-0731) have no catalog graph, so the kernel cannot
+  price them either way. The relane in §7.1 therefore rests on held-out AISimulate folds
+  plus provenance, with no FPM arbiter, and that is weaker evidence than a GEMM change
+  would carry.</li>
+<li><strong>KDA</strong>: unusable for the same reason; Kimi-K3's FPM artifacts carry no KDA-node forward
+  pass in the local snapshot.</li>
+<li><strong>GEMM</strong>: usable in principle — each of the four graphed FPM models carries dense <code>GEMM</code>
+  nodes (3 on MiniMax-M2.7, 9 on GLM-5.2, 18 on DeepSeek-V4-Pro, 17 on Kimi-K3) — but the
+  AISimulate K and M folds above already refuse the relane on the shapes the corpus runs,
+  so no FPM run was needed to decide it. An FPM fold remains the right arbiter for a change
+  to the ramp's FORM, which §7.3 identifies and does not attempt.</li>
+</ul>
+<h2 id="8-lane-provenance-every-coefficient-family-and-every-remaining-borrow">8. Lane provenance: every coefficient family, and every remaining borrow<a class="headerlink" href="#8-lane-provenance-every-coefficient-family-and-every-remaining-borrow" title="Permanent link">&para;</a></h2>
+<p>The lane rule in §2 is applied per operator. This section is the resulting census, so a
+reader can tell at a glance which engine's measurements each coefficient rests on, and
+which four are borrowed because no alternative exists.</p>
+<h3 id="81-the-census">8.1 The census<a class="headerlink" href="#81-the-census" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Counts in this section were taken when it was written. The current counts, generated
+from <code>coefficients/</code> on every documentation build, are on the
+<a href="../reference/">reference pages</a>.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>lane</th>
+<th>n</th>
+<th>share</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nccl</code></td>
+<td>498</td>
+<td>68.8%</td>
+<td>all_gather, reduce_scatter, all_to_all, and the int8 all-reduce</td>
+</tr>
+<tr>
+<td><code>vllm</code></td>
+<td>152</td>
+<td>21.0%</td>
+<td>attention, GEMM, MoE imbalance, KDA, and the fp16 all-reduce</td>
+</tr>
+<tr>
+<td>descriptor</td>
+<td>64</td>
+<td>8.8%</td>
+<td>NVIDIA's own <code>systems/&lt;sku&gt;.yaml</code> — HBM derate, PCIe, p2p, NCCL buffers</td>
+</tr>
+<tr>
+<td>none</td>
+<td>6</td>
+<td>0.8%</td>
+<td>host overheads, all <code>method: assumed</code></td>
+</tr>
+<tr>
+<td><code>trtllm</code></td>
+<td>2</td>
+<td>0.3%</td>
+<td>mamba2 — <strong>borrow</strong></td>
+</tr>
+<tr>
+<td><code>sglang</code></td>
+<td>2</td>
+<td>0.3%</td>
+<td>A100 MoE imbalance — <strong>borrow</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>NCCL is not a borrow.</strong> It is vLLM's own path for every collective except all-reduce:
+<code>CustomAllreduce</code> implements all-reduce only, and <code>should_custom_all_gather</code> /
+<code>should_custom_reduce_scatter</code> gate and fall through. AISimulate ships no vLLM data for
+those operators because there is nothing to measure. Of the 654 data-fitted coefficients,
+<strong>650 (99.4%) rest on vLLM's actual execution path</strong> — 152 vLLM-lane plus 498 NCCL. The
+remaining four are the borrows in §8.3.</p>
+<h3 id="82-per-family-detail">8.2 Per-family detail<a class="headerlink" href="#82-per-family-detail" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>set</th>
+<th>family</th>
+<th>n</th>
+<th>lanes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>attention</td>
+<td><code>attention_decode_{floor,rate}</code></td>
+<td>14</td>
+<td>vllm 0.25.0 ×10, 0.24.0 ×2, 0.14.0 ×2</td>
+</tr>
+<tr>
+<td>attention</td>
+<td><code>attention_decode_*_swa</code></td>
+<td>12</td>
+<td>vllm 0.25.0 ×10, 0.24.0 ×2</td>
+</tr>
+<tr>
+<td>attention</td>
+<td><code>attention_prefill_{floor,work_scale}</code></td>
+<td>14</td>
+<td>vllm 0.25.0 ×10, 0.24.0 ×2, 0.14.0 ×2</td>
+</tr>
+<tr>
+<td>collectives</td>
+<td>all-reduce fp16 (floor, peak, transition)</td>
+<td>69</td>
+<td><strong>vllm</strong> 0.24.0 ×36, 0.14.0 ×18, nccl ×15</td>
+</tr>
+<tr>
+<td>collectives</td>
+<td>every other collective</td>
+<td>429</td>
+<td>nccl 2.29.2 / 2.27.3</td>
+</tr>
+<tr>
+<td>primitives</td>
+<td><code>gemm_{eps_max,m_half}</code></td>
+<td>52</td>
+<td>vllm 0.27.1 ×32, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2</td>
+</tr>
+<tr>
+<td>primitives</td>
+<td><code>moe_routing_imbalance_{median,p90}</code></td>
+<td>16</td>
+<td>vllm ×14, <strong>sglang 0.5.10 ×2 (A100)</strong></td>
+</tr>
+<tr>
+<td>primitives</td>
+<td>descriptors</td>
+<td>72</td>
+<td>AISimulate <code>systems/&lt;sku&gt;.yaml</code></td>
+</tr>
+<tr>
+<td>recurrent</td>
+<td><code>recurrent_decode_*_kda</code></td>
+<td>6</td>
+<td>vllm 0.1.dev19262</td>
+</tr>
+<tr>
+<td>recurrent</td>
+<td><code>recurrent_decode_*_mamba2</code></td>
+<td>2</td>
+<td><strong>trtllm 1.3.0rc20</strong></td>
+</tr>
+<tr>
+<td>host-overheads</td>
+<td>all</td>
+<td>7</td>
+<td>none — <code>method: assumed</code></td>
+</tr>
+</tbody>
+</table>
+<p>Regenerate this table rather than editing it: every count above is derivable from
+<code>coefficients/</code> with a group-by on the family stem, and a retyped count is the defect
+class this registry has caught most often.</p>
+<p>Where a part has no collection at the newest version, it uses the newest it has: L40S's
+attention and GEMM come from <code>vllm/0.24.0</code> because 0.25.0 does not cover it, and A100's
+from <code>vllm/0.14.0</code>. The citation on each entry names the collection it was fitted on.</p>
+<h3 id="83-the-four-borrows-and-why-each-is-unavoidable">8.3 The four borrows, and why each is unavoidable<a class="headerlink" href="#83-the-four-borrows-and-why-each-is-unavoidable" title="Permanent link">&para;</a></h3>
+<p><strong>mamba2 (2 entries, trtllm/1.3.0rc20).</strong> <code>mamba2_perf.parquet</code> exists on the TRT-LLM lane
+and nowhere else — checked across all eight SKUs in the tree. The vLLM <code>linear_attention</code>
+collections carry <code>gdn_perf.parquet</code> only. A strict vLLM-only registry could not price
+Nemotron-3 hybrids at all. The entries remain a documented LOWER BOUND regardless of lane:
+the sweep has only <code>causal_conv1d_fn</code> and <code>causal_conv1d_update</code>, so the selective-scan
+kernel that does the rest of a Mamba2 layer is in no collection.</p>
+<p><strong>A100 MoE imbalance (2 entries, sglang/0.5.10).</strong> A100's only vLLM MoE collection
+(<code>vllm/0.14.0</code>) contains <code>power_law_1.01</code> and <code>power_law_1.2</code> rows and <strong>no <code>balanced</code>
+rows at all</strong>. The coefficient is a ratio of skewed to balanced latency at identical
+shape, so with no balanced measurement there is no ratio to take. SGLang's sweep carries
+all three distributions. A100's GEMM entries DID move to the vLLM lane — that sweep is
+usable — so this is the narrowest possible borrow.</p>
+<h3 id="84-what-validates-what">8.4 What validates what<a class="headerlink" href="#84-what-validates-what" title="Permanent link">&para;</a></h3>
+<p>The three-level separation in §3 assigns FPM the validation role, but FPM's reach is
+narrower than the coefficient set and it is worth being exact about where it applies.</p>
+<p>FPM's 59 records are 41 vLLM and 18 SGLang, across five GPU families: B200 (17),
+GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:</p>
+<ul>
+<li><strong>GEMM and MoE</strong>: validatable. Every FPM model carries dense <code>GEMM</code> nodes, and the MoE
+  models carry <code>GroupedGEMM</code>, on chips the catalog prices.</li>
+<li><strong>Attention, full and windowed</strong>: GQA and MLA are validatable; <strong>sliding window is not</strong>
+  — no FPM model declares a <code>kind: swa</code> node. The SWA relane therefore rests on held-out
+  AISimulate folds (§7.1) plus lane correctness, with no FPM arbiter.</li>
+<li><strong>KDA</strong>: the data exists and is now reachable, but one gap remains and it is not the
+  one previously recorded here. Four Kimi-K3 artifacts are all vLLM and all on <strong>GB300</strong>,
+  two of them on <code>vllm/0.1.dev19262</code> — the same collection the kernel fit used, which is
+  the cleanest possible pairing. An earlier revision of this section said the catalog had
+  no <code>gb300</code> chip; it has carried one since blis-catalog#23, and this registry now carries
+  102 GB300 coefficients including the KDA pair. The dataset's own
+  <code>catalog/index.json</code> lists both artifacts as <code>aic_fpm_forward_perf</code> with
+  <code>phases: [decode, prefill]</code>, 5,266 and 4,874 rows at <code>tep8</code>.</li>
+</ul>
+<p>What blocks the scoring now is a <strong>rank width</strong>, not a chip. The <code>tep8</code> artifact is
+  tp=8, moe_ep=8, and NCCL sweeps GB300 at 2 and 4 ranks only because a Grace-Blackwell
+  tray is four GPUs — so <code>all_gather</code>, <code>reduce_scatter</code> and <code>alltoall</code> carry
+  <code>method: assumed</code> 8-rank floors (§8.5) rather than measurements. All-reduce IS measured
+  at 8 and 16 ranks, from vLLM's own custom kernel. The second artifact,
+  <code>vllm/0.29.0/tp8-dcp8</code>, is <code>moe_ep=1</code> / <code>pure_tp</code>, so it exercises no expert
+  all-to-all and is the cleaner first cell to score.</p>
+<p>Note also that FPM carries no per-kernel or per-node column at all — the truth
+  parquets hold one <code>latency_ms</code> per <code>(batch_size, total_prefill_tokens,
+  total_kv_read_tokens)</code>. "No KDA-node forward pass" describes something FPM never had
+  for any model; the right question is only whether a Kimi-K3 whole-forward measurement
+  exists on a chip the kernel can price, and it does.
+* <strong>mamba2</strong>: no FPM artifact carries a Mamba2 forward pass, and no InferenceX tier
+  carries Nemotron-3. Unvalidatable from either direction.
+* <strong>A100 and L40S</strong>: absent from FPM and from InferenceX entirely. Their coefficients are
+  fitted and shipped but carry no end-to-end check, which is stated rather than implied.</p>
+<h3 id="85-rack-scale-rank-widths-and-the-one-place-this-registry-extrapolates">8.5 Rack-scale rank widths, and the one place this registry extrapolates<a class="headerlink" href="#85-rack-scale-rank-widths-and-the-one-place-this-registry-extrapolates" title="Permanent link">&para;</a></h3>
+<p>A Grace-Blackwell tray is four GPUs, so AISimulate's NCCL sweeps cover <strong>2 and 4 ranks
+only</strong> on GB200-NVL72 and GB300 — against 2, 4 and 8 on every SXM part. <code>tp=8</code> is an
+ordinary deployment on both, so three of the four collectives have no 8-rank measurement
+on any lane. All-reduce does: vLLM's own <code>custom_allreduce_perf.parquet</code> sweeps GB300 at
+2, 4, 8 and 16 ranks, and since §5 already puts every fp16 all-reduce on that lane, the
+8-rank figure is a first-class measurement rather than a borrow.</p>
+<p>For the other three, <code>all_gather</code>, <code>reduce_scatter</code> and <code>alltoall</code>, GB300 ships 18
+entries at <code>method: assumed</code>. This is the only extrapolation in the registry, and it is
+constructed to the standard <code>cost-model-host-overheads.yaml</code> set: dimension derived,
+magnitude caveated, replacement experiment named.</p>
+<p><strong>The model that was refuted first.</strong> Ring hop-count predicts the 4→8 floor ratio as
+<code>(2·7/8)/(2·3/4)</code> = <strong>1.167</strong> for all-reduce. The measured median across the seven parts
+swept at both widths is <strong>1.703</strong>. Hop count is wrong by 46%, because a collective floor
+is dominated by per-rank synchronisation and launch cost rather than by hops. Grounding
+on textbook ring algebra would have under-priced these by a third; the refutation is
+recorded because the wrong model is the plausible one.</p>
+<p><strong>The model that holds.</strong> <code>floor(n) = a + b·(n−1)</code>, with <code>a</code> and <code>b</code> fitted on each
+part's own measured widths {2, 4} and evaluated at n=8. Validated as a holdout on the
+NVLink parts that <em>do</em> carry 8-rank data:</p>
+<table>
+<thead>
+<tr>
+<th>operator</th>
+<th>n</th>
+<th>pred/meas median</th>
+<th>range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>all_reduce</code></td>
+<td>14</td>
+<td>0.987</td>
+<td>0.953–1.041</td>
+</tr>
+<tr>
+<td><code>all_gather</code></td>
+<td>14</td>
+<td>1.017</td>
+<td>0.954–1.090</td>
+</tr>
+<tr>
+<td><code>reduce_scatter</code></td>
+<td>14</td>
+<td>1.018</td>
+<td>0.967–1.107</td>
+</tr>
+<tr>
+<td><code>alltoall</code></td>
+<td>14</td>
+<td><strong>1.128</strong></td>
+<td>0.737–1.294</td>
+</tr>
+</tbody>
+</table>
+<p><code>alltoall</code> is the stated exception and its entries say so: its floor barely grows with
+width (median 4→8 ratio 1.090), so a two-point linear fit amplifies noise.</p>
+<p><strong>The reference class excludes L40S and RTX Pro 6000</strong>, whose 8/4 rate ratios reach
+2.7×–4.2×. Those parts have no NVLink, so an 8-rank group crosses a materially different
+fabric. GB300 is full-NVSwitch: its descriptor states <code>inter_node_bw == intra_node_bw ==
+900 GB/s</code>, so crossing a tray boundary <em>inside the rack</em> is not a bandwidth change at
+all — only the rack boundary is, and that is a 9× step to InfiniBand. Including PCIe
+parts would have inflated the extrapolation.</p>
+<p><strong>Rates are not extrapolated.</strong> The 8-rank peak and transition rates carry the part's own
+<strong>4-rank measured</strong> values. A geometric decay fitted on {2,4} under-predicts the measured
+8-rank rate by a median 0.84×–0.95×, and the ring-bandwidth law by 0.91×–0.94× — both
+biased low rather than centred, so neither is a sound estimator. Carrying the 4-rank
+figure gives a rate that is <em>above</em> the true 8-rank rate, which is an upper bound on
+throughput and therefore a lower bound on transfer time. That direction is stated in each
+entry rather than left for a reader to infer.</p>
+<p><strong>What replaces all 18 at once:</strong> one 8-rank GB300 NCCL sweep.</p>
+<p><strong>The kernel enforces the boundary.</strong> <code>blis-latency-kernel</code> reads the measured widths from
+the registry per chip rather than from a constant, and a width inside the sweep range that
+this part was never measured at is an <strong>error naming the operator, width and chip</strong> — not
+a silent clamp to a narrower floor. Before that change a GB200 <code>tp=8</code> group was priced at
+the 4-rank coefficient, understating an 8-rank all-reduce by 1.53×–1.91× across the parts
+measured at both widths.</p>
+<h2 id="9-the-fpm-mixed-rows-and-what-they-found">9. The FPM mixed rows, and what they found<a class="headerlink" href="#9-the-fpm-mixed-rows-and-what-they-found" title="Permanent link">&para;</a></h2>
+<p>§8.4 noted that FPM's reach is narrower than the coefficient set. It was also being
+under-used: 79.2% of FPM is MIXED prefill+decode rows (67,736 of 85,484), and none had
+ever been scored. <code>scripts/score_fpm_mixed.py</code> closes that, and the result is the largest
+single finding in this work.</p>
+<h3 id="91-what-the-coordinates-mean-verified-in-aisimulates-own-source">9.1 What the coordinates mean, verified in AISimulate's own source<a class="headerlink" href="#91-what-the-coordinates-mean-verified-in-aisimulates-own-source" title="Permanent link">&para;</a></h3>
+<p>FPM's coordinate system is <code>iteration_totals_balanced_v1</code>
+(<code>crates/core/src/perfmodel/perf_database/fpm_forward.rs:59</code>), and the totals are
+<strong>per-rank iteration totals</strong>, not global ones. AISimulate builds a query as</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// crates/core/src/perfmodel/operators/fpm_forward.rs:203-218</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">FpmPhase</span><span class="p">::</span><span class="n">Prefill</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">f64</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">f64</span><span class="p">],</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">FpmPhase</span><span class="p">::</span><span class="n">Decode</span><span class="w">   </span><span class="o">=&gt;</span><span class="w"> </span><span class="fm">vec!</span><span class="p">[</span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">w</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">f64</span><span class="p">],</span>
+</code></pre></div>
+<p>so <code>total_prefill_tokens = batch × per_request_prefill</code> and
+<code>total_kv_read_tokens = batch × per_request_context</code>. Dividing by <code>batch_size</code> to recover
+the per-request shape the kernel takes is therefore the correct inverse, and is what
+<code>select_overlap_band.py</code> already documents. The source warns that the round trip adds
+integer-division rounding, which is why the scorer medians per grid point rather than
+per row.</p>
+<p>For a data-parallel cell the recorded latency is the <strong>maximum across DP ranks</strong>
+(<code>collector/fpm_forward/native_artifact.py:704</code>,
+<code>expected_wall_time = max(value for _, value in wall_times)</code>), not a mean — so a DP cell's
+measurement is gated by its slowest rank.</p>
+<h3 id="92-six-cells-scored-and-the-error-is-strongly-topology-dependent">9.2 Six cells scored, and the error is strongly topology-dependent<a class="headerlink" href="#92-six-cells-scored-and-the-error-is-strongly-topology-dependent" title="Permanent link">&para;</a></h3>
+<p>NoOverlap edge, all mixed grid points, against the committed registry:</p>
+<table>
+<thead>
+<tr>
+<th>cell</th>
+<th>parallelism</th>
+<th>n</th>
+<th>mean abs</th>
+<th>signed</th>
+<th>over</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>m27 pure_tp4</td>
+<td>tp4, ep1</td>
+<td>5,986</td>
+<td>15.63%</td>
+<td><strong>−13.63%</strong></td>
+<td>13.0%</td>
+</tr>
+<tr>
+<td>m27 tep2</td>
+<td>tp2, ep2</td>
+<td>5,782</td>
+<td>20.13%</td>
+<td><strong>−14.86%</strong></td>
+<td>20.8%</td>
+</tr>
+<tr>
+<td>m27 tep4</td>
+<td>tp4, ep4</td>
+<td>5,986</td>
+<td>25.58%</td>
+<td><strong>−25.24%</strong></td>
+<td>3.1%</td>
+</tr>
+<tr>
+<td>m27 dep2</td>
+<td>tp1, dp2, ep2</td>
+<td>5,383</td>
+<td>34.58%</td>
+<td><strong>−33.96%</strong></td>
+<td>2.6%</td>
+</tr>
+<tr>
+<td>m27 dep4</td>
+<td>tp1, dp4, ep4</td>
+<td>5,918</td>
+<td>47.14%</td>
+<td><strong>−46.67%</strong></td>
+<td>1.6%</td>
+</tr>
+<tr>
+<td>glm-5.2 tep8</td>
+<td>tp8, ep8</td>
+<td>5,910</td>
+<td>49.79%</td>
+<td><strong>−45.04%</strong></td>
+<td>10.5%</td>
+</tr>
+</tbody>
+</table>
+<p>Every cell under-predicts, and the error spans 13% to 47% — a 3.4× range across topologies
+of the same model on the same chip. That is not scatter; it is a missing term that scales
+with parallelism.</p>
+<p>The error is also <strong>flat across the prefill share of the batch</strong> on the tep4 cell
+(−25.05% below 25% prefill, −22.57% at 25–75%, −28.40% above 75%), so it is not a
+prefill-specific or a decode-specific defect. The whole forward pass is under-priced.</p>
+<h3 id="93-the-mechanism-attention-dp-funnels-every-ranks-tokens-into-the-experts">9.3 The mechanism: attention-DP funnels every rank's tokens into the experts<a class="headerlink" href="#93-the-mechanism-attention-dp-funnels-every-ranks-tokens-into-the-experts" title="Permanent link">&para;</a></h3>
+<p>With attention data parallelism, all DP ranks' tokens are concatenated before expert
+routing, so the MoE grouped GEMM sees <code>dp × tokens</code> rather than one rank's share. Three
+independent sources agree:</p>
+<ul>
+<li><strong>vLLM</strong>: <code>fused_moe/routed_experts_capturer.py:115-117</code> — "<code>n == total</code> (naive
+  dispatch): all DP ranks' tokens are <strong>concatenated before routing</strong>". <code>naive</code> and
+  <code>allgather_reducescatter</code> are that path, and <code>allgather_reducescatter</code> is vLLM's default
+  (<code>config/parallel.py:195</code>).</li>
+<li><strong>AISimulate</strong>: <code>crates/core/src/perfmodel/operators/moe.rs:287</code> —
+  <code>let num_tokens = num_tokens.saturating_mul(self.attention_dp_size.max(1));</code> with the
+  comment "Attention-dp scales up the total input tokens (all dp ranks all-gather into one
+  shared expert pool)".</li>
+<li><strong>blis-latency-kernel</strong>: <code>kernel.go:402</code> —
+  <code>routedPerRank := tokensF * float64(l.TopK) * k.localExpertShare</code>. <strong>No DP factor.</strong>
+  <code>DP</code> reaches exactly one decision, <code>SequenceParallelMoE</code>
+  (<code>internal/resolve/layout.go:106</code>), and that rule requires <code>tp &gt; 1 &amp;&amp; dp &gt; 1</code>
+  (<code>blis-schemas rules/rules.go:196</code>) — so on the two <code>dep</code> cells, which carry <code>tp=1</code>,
+  DP influences no pricing term at all.</li>
+</ul>
+<p>The two <code>dep</code> cells are the two worst MiniMax results and they order by <code>dp</code> (−33.96% at
+dp=2, −46.67% at dp=4), which is the direction and roughly the magnitude a missing <code>×dp</code>
+on the routed term predicts.</p>
+<p><strong>What this does NOT explain.</strong> <code>glm-5.2 tep8</code> is dp=1 and still −45.04%, so a missing DP
+factor cannot be the whole account. GLM-5.2 differs from MiniMax-M2.7 in more than
+topology — it carries <code>sparse_mla</code> attention and a separate indexer GEMM — so that cell
+needs its own diagnosis rather than being folded into this one. Stating the limit is the
+point: one mechanism explains the MiniMax ordering, and a second, unidentified term is
+still live on GLM.</p>
+<h3 id="94-a-committed-figure-this-corrected">9.4 A committed figure this corrected<a class="headerlink" href="#94-a-committed-figure-this-corrected" title="Permanent link">&para;</a></h3>
+<p><code>docs/band-selection.md</code> reports NoOverlap's signed mean as −3.44% over 219 points and
+calls it "nearly unbiased". Scoring every pure-decode grid point in the m27 tep4 artifact
+rather than the 45 the old band sweep reached gives <strong>−22.93%</strong> (1,500 points), or
+<strong>−19.27%</strong> restricted to batches within the scenario's declared <code>max_num_seqs</code> of 256
+(1,048 points). FPM carries 1,557 distinct decode grid points for that cell, so the
+committed figure rested on under 3% of the evidence available for it, and the deficit
+grows with batch (−12.8% at batch 8 to −31.3% at 512) in a way a 45-point slice can miss.</p>
+<p>The band CHOICE is unaffected — NoOverlap beats Overlap on every slice measured here, by
+about 7pp on the mixed rows. The claim of near-unbiasedness is withdrawn.</p>
+<h2 id="10-sparse-mla-the-byte-count-is-the-fix-and-the-rate-is-not-fittable">10. Sparse MLA: the byte count is the fix, and the rate is not fittable<a class="headerlink" href="#10-sparse-mla-the-byte-count-is-the-fix-and-the-rate-is-not-fittable" title="Permanent link">&para;</a></h2>
+<p>Commit 587c1be recorded sparse MLA as <strong>unfittable</strong>, and the kernel's <code>new.go</code> said
+<code>sparse_mla</code> was "deliberately NOT mapped … the registry carries no fit for it", so every
+layer of deepseek-v4-pro was priced as if it read the whole KV cache. Checking that against
+the data rather than inheriting it produced a split answer: the <strong>byte count</strong> was the
+defect and is now fixed in the kernel, while a per-kind <strong>rate</strong> turns out not to be
+identifiable from this dataset at all. Both halves are recorded because the negative one is
+the more useful.</p>
+<h3 id="101-the-table-that-is-not-a-module-measurement">10.1 The table that is not a module measurement<a class="headerlink" href="#101-the-table-that-is-not-a-module-measurement" title="Permanent link">&para;</a></h3>
+<p>The <code>sparse_attention</code> family ships <strong>thirteen</strong> tables per part. Twelve floor between
+37.7 µs and 1,186 µs on h200 — at or above the <strong>66.2 µs</strong> it costs to read the <code>csa4_moe</code>
+layer's 317.5 MB of projections at 4.80 TB/s, which blis-catalog prices as nine separate
+<code>GEMM</code> nodes. Those are module measurements, and fitting a kernel coefficient from one is
+the defect <code>scripts/correct_mla_floor.py</code> had to undo (§3, sixth entry).</p>
+<p>One is not: <code>dsv4_hca_attn_module_perf</code> floors at <strong>9.6 µs</strong> on the <code>FLASHMLA_SPARSE_DSV4</code>
+lane — <em>below</em> this part's 13.5 µs GQA attention floor and 7× below the projection read.
+35,262 rows across all six NVIDIA parts, and uniquely in the family a <code>compress_ratio</code>
+column.</p>
+<h3 id="102-the-byte-count-chosen-by-search-rather-than-assumed">10.2 The byte count, chosen by search rather than assumed<a class="headerlink" href="#102-the-byte-count-chosen-by-search-rather-than-assumed" title="Permanent link">&para;</a></h3>
+<p>Candidate forms were grid-searched against (floor, rate) on three parts. The discriminator
+is whether the optimum is <strong>interior</strong>: a form that under-counts bytes forces the rate to
+the grid ceiling, which is how a wrong byte count announces itself.</p>
+<table>
+<thead>
+<tr>
+<th>form</th>
+<th>h200 error</th>
+<th>rate as fraction of peak</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>full context — <em>the old fallback</em></td>
+<td>1.698</td>
+<td><strong>1.00 — clamped on every part</strong></td>
+</tr>
+<tr>
+<td><code>topk=128</code> only</td>
+<td>1.309</td>
+<td>0.07</td>
+</tr>
+<tr>
+<td><code>topk=128 + (step−128)/128</code></td>
+<td><strong>1.301</strong></td>
+<td>0.08</td>
+</tr>
+<tr>
+<td><code>topk=1024 + (step−1024)/4</code></td>
+<td>1.483</td>
+<td><strong>1.00 — clamped</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The winner is exactly the geometry blis-catalog declares for <code>csa128_moe</code> (<code>window: 128</code>,
+<code>compress_ratio: 128</code>) — resolved from the catalog, not tuned. <strong>The full-context form
+clamping at 1.00 of datasheet peak on all three parts is the quantitative statement that
+the old fallback could not describe this kernel</strong>: it needed a physically impossible
+bandwidth to cover the measured time.</p>
+<p>The physics is directly visible. At batch 1 on h200 latency is flat at 9.8–13.7 µs from
+step 0 to 16,384 and reaches only 30.6 µs at step 1,048,575 — a 1 M-token context costs
+about as much as a 16 K one.</p>
+<h3 id="103-why-a-per-kind-rate-is-not-fittable-which-is-the-finding">10.3 Why a per-kind rate is NOT fittable, which is the finding<a class="headerlink" href="#103-why-a-per-kind-rate-is-not-fittable-which-is-the-finding" title="Permanent link">&para;</a></h3>
+<p>A rate was fitted — 0.083–0.111 of datasheet peak across six parts, errors 1.30×–1.36×
+with head and tail balanced — and then <strong>withdrawn</strong>, because the end-to-end check refused
+it:</p>
+<table>
+<thead>
+<tr>
+<th>configuration</th>
+<th>overall TPOT</th>
+<th>deepseek-v4-pro TPOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>neither (full context, part-wide rate)</td>
+<td>14.98 %</td>
+<td>10.42 %</td>
+</tr>
+<tr>
+<td><strong>sparse byte count only</strong></td>
+<td>15.04 %</td>
+<td><strong>8.72 %</strong></td>
+</tr>
+<tr>
+<td>sparse byte count + sparse rate</td>
+<td>14.95 %</td>
+<td>14.36 %</td>
+</tr>
+</tbody>
+</table>
+<p>The byte count earns <strong>1.7 points</strong> on the affected model. The rate costs <strong>5.6</strong>.</p>
+<p>The mechanism is not noise, and it is specific. deepseek-v4-pro <strong>alternates two sparse
+geometries</strong> — 30 <code>csa128_moe</code> layers (window 128, ratio 128) and 30 <code>csa4_moe</code> layers
+(index_topk 1024, ratio 4) — whose selected-token counts differ by <strong>32×</strong> at a 1 M context
+(8,319 against 262,912). The fitted rate came from <code>dsv4_hca_attn_module_perf</code>, which states
+<code>compress_ratio: 128</code> on every row, so it describes <code>csa128_moe</code> alone. Charging it to all
+60 layers applies a rate fitted on the small read to the large one.</p>
+<p><strong>And this dataset cannot supply the missing half.</strong> <code>compress_ratio: 4</code> appears only in the
+<code>dsv4_csa_*</code> tables, and every one of those is a module measurement (floors 61.4–80.6 µs).
+Fitting a <code>csa4_moe</code> rate from them would re-import the projection double-charge. A rate
+covering half a model's layers is not a coefficient — it is a bias with a provenance string,
+so no <code>attention_decode_rate_sparse_mla</code> ships.</p>
+<p><code>scripts/fit_attention_sparse_mla.py</code> is kept as a negative result, the way
+<code>fit_attention_mla.py</code> and <code>probe_moe_roofline.py</code> are: the fit is clean, physical, and
+wrong for this cost model, and deleting it would leave the next person to re-derive that.</p>
+<h3 id="104-what-shipped-instead">10.4 What shipped instead<a class="headerlink" href="#104-what-shipped-instead" title="Permanent link">&para;</a></h3>
+<p>The fix is in the kernel, not the registry, and it needs no fitted constant:
+<code>selectedKVTokens</code> bounds a sparse layer's decode read <strong>per layer and per request</strong> from
+the catalog's own <code>index_topk</code>, <code>window</code> and <code>compress_ratio</code>. Sparse layers keep the
+part-wide measured floor and rate, now charged against the right number of bytes.</p>
+<p>Per-request rather than batch-wide because <code>min(sum) ≠ sum(min)</code>: a batch holding one
+request below the top-k and one far above it gets both wrong if the bound is applied to the
+aggregate. Per-layer because the two geometries above differ by 32×.</p>
+<p>No schema change was needed — blis-schemas v0.2.0 already carries <code>index_topk</code> and
+<code>compress_ratio</code>; the kernel's layer plan simply was not reading them.</p>
+<p>The generalizable point, and it is the same one §3 makes from the other direction: a
+coefficient can be <em>measurable</em> and still not be <em>identifiable for the thing it will be
+charged against</em>. Here the quantity was measured cleanly on one of two layer geometries,
+and only the end-to-end check could tell that this made it unusable.</p>
+<h2 id="11-memory-occupancy-what-composes-and-where-each-term-comes-from">11. Memory occupancy: what composes, and where each term comes from<a class="headerlink" href="#11-memory-occupancy-what-composes-and-where-each-term-comes-from" title="Permanent link">&para;</a></h2>
+<p><code>cost-model-memory.yaml</code> exists because a consumer was carrying three per-rank memory
+magnitudes as constants in its own source — CUDA-graph capture at 512 MiB, collective
+buffers at 392 MiB, activation scratch at "a few live buffers" (×4) — where no provenance
+readout could see them (inference-sim/blis-registry#33). They set how many sequences
+fit, so they are not soft numbers.</p>
+<h3 id="111-the-composition-taken-from-nvidias-capacity-path">11.1 The composition, taken from NVIDIA's capacity path<a class="headerlink" href="#111-the-composition-taken-from-nvidias-capacity-path" title="Permanent link">&para;</a></h3>
+<p>AISimulate's KV-capacity estimate (<code>aisimulate_core/sdk/memory.py</code>) charges, per rank and
+outside the KV budget:</p>
+<div class="highlight"><pre><span></span><code>weights + activation + nccl_communicator_bytes_&lt;N&gt;rank + engine_workspace_bytes
+        + cudagraph_capture_bytes_&lt;mode&gt;
+</code></pre></div>
+<p>Every term <strong>adds</strong>. Two questions the consumer could not answer from its side are
+settled by the source rather than by preference:</p>
+<ul>
+<li><code>nccl_communicator_bytes_&lt;N&gt;rank</code> is the <strong>whole</strong> collective-buffer reservation.
+  <code>base_backend.py</code> sums <code>nccl_mem</code> and <code>other_mem</code>; neither contains the other.</li>
+<li><code>engine_workspace_bytes</code> (<code>misc.other_mem</code>) does <strong>not</strong> include CUDA-graph capture.
+  This registry's own rationale previously said it did; AISimulate annotates <code>other_mem</code>
+  as "excludes CUDA graph reservation" (<code>support/config_profile.py</code>) and takes the graph
+  reservation as a separate argument (<code>capacity.py</code>, <code>cuda_graph_reserved_bytes</code>). Adding
+  a capture term on top therefore does not double-count. The rationale is corrected in
+  <code>emit_primitives.py</code> and in all nine committed entries.</li>
+</ul>
+<h3 id="112-activation-scratch-vendor_spec-nvidias-table">11.2 Activation scratch — <code>vendor_spec</code>, NVIDIA's table<a class="headerlink" href="#112-activation-scratch-vendor_spec-nvidias-table" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>activation = max(activation_buffer_count_&lt;family&gt;_&lt;N&gt;rank · max_num_batched_tokens · h · 2,
+                 activation_scratch_floor_bytes)
+</code></pre></div>
+<p>The multiple is AISimulate's <code>ACTIVATION_COEFFICIENTS</code>, which the vLLM backend reuses from
+TRT-LLM's; <code>emit_memory.py</code> reads it from the source with <code>ast</code> and refuses if vLLM stops
+aliasing it. Two rows are registered because the kernel can tell only whether a model
+routes to experts: dense (the LLAMA row, 11 / 6.5 / 5 / 5 at 1 / 2 / 4 / 8 ranks) and MoE
+(22 / 13 / 10 / 10). <code>h</code> is <code>num_attention_heads × head_dim</code>, equal to <code>hidden_size</code>
+unless a config declares a different <code>head_dim</code>; <code>N</code> is <code>min(tp, 8)</code>.</p>
+<p>Three scoping decisions, each a finding rather than a convenience:</p>
+<ul>
+<li><strong>The <code>2</code> is the model dtype, not the served one.</strong> The issue proposed sizing scratch at
+  the served width (1 byte for fp8). vLLM's quantized linears return
+  <code>out_dtype=x.dtype</code> (<code>vllm/model_executor/kernels/linear/scaled_mm/cutlass.py</code>): the fp8
+  operand is a transient copy, and the residual stream stays bf16. Halving it would
+  understate an fp8 deployment.</li>
+<li><strong>Not scoped by graph mode.</strong> vLLM measures the activation peak in an eager profile run
+  and the capture separately (<code>gpu_worker.py</code>); a mode-scoped multiple would charge
+  capture twice.</li>
+<li><strong>Not scoped by hardware</strong>, because the source states no per-part value; the scope lists
+  every catalog part, under the same coverage test as the host set.</li>
+</ul>
+<p><strong>Engine.</strong> These are the vLLM figures. SGLang's table is about 1.3× higher with a further
+15% overhead, and SGLang does not charge activations inside its static pool. A deployment
+states no engine identity and the consumer prices vLLM, so no SGLang row is registered.</p>
+<p><strong>Not registered: the MoE dispatch workspace.</strong> AISimulate adds
+<code>tokens · h · num_experts · top_k / ep / 128 · 4</code> bytes for its DeepSeek-derived families
+and Kimi-K2.5 — 3,758,096,384 bytes for DeepSeek-V3 at 8,192 tokens and ep 1. That is a
+formula over catalog facts and the fp8 block size, not a learned magnitude, so it belongs
+to the consumer's composition; it is recorded here so it is not lost.</p>
+<h3 id="113-cuda-graph-capture-assumed-anchored-on-vllms-own-measurements">11.3 CUDA-graph capture — <code>assumed</code>, anchored on vLLM's own measurements<a class="headerlink" href="#113-cuda-graph-capture-assumed-anchored-on-vllms-own-measurements" title="Permanent link">&para;</a></h3>
+<p>No dataset this project reads measures it. AISimulate takes it from the caller with a zero
+default; the FPM dataset records each run's <code>cudagraph_mode</code> and capture sizes in its
+resolved configs but no memory figure (all 417 of its JSON, text and TSV files under 3.5 MB at
+revision <code>68fa3add</code> were read), and its SGLang raw evidence was collected with prefill capture off.</p>
+<p>vLLM measures it on every start-up and logs it, and users paste those logs into issues.
+<code>mine_vllm_cudagraph_memory.py</code> collected 506 samples from 677 vLLM issues into
+<code>docs/vllm-cudagraph-capture-samples.csv</code>, which is committed so the anchor is reproducible
+offline. The medians on catalog parts are 0.80 GiB for <code>PIECEWISE</code> (n = 18) and 1.08 GiB
+for <code>FULL_AND_PIECEWISE</code> (n = 22); the replaced constant was 0.50 GiB. The <strong>dimension</strong>
+is vLLM's profiler (<code>gpu_model_runner.profile_cudagraph_memory</code>): one first capture per
+mode, sized by the largest shape, plus at least 1 MiB per further graph, with <code>PIECEWISE</code>
+and <code>FULL</code> overlaid in one pool. So the cost is dominated by the largest captured shape,
+not proportional to the number of shapes.</p>
+<p><code>FULL</code> and <code>FULL_DECODE_ONLY</code> have too few samples (one and four logs, only one of them on a catalog
+part),
+so they are charged the <code>FULL_AND_PIECEWISE</code> figure as an <strong>upper bound</strong> — they capture a
+subset of its graphs into the same pool — with the direction declared. <code>NONE</code> is
+<code>not_charged</code> at zero.</p>
+<p><strong>Why this source is admissible here and nowhere else.</strong> §3's separation is about fitting:
+an uncontrolled sample cannot identify a per-primitive constant. These entries are not
+fitted and are not <code>measured</code>; they are <code>assumed</code> entries whose magnitude is oriented by
+the only public record of the quantity, in the pattern <code>host_admission_per_request</code> set.
+None of the samples is from InferenceX or FPM, and the single-sourcing tests
+(<code>test_generated_from_aisimulate.py</code>) still govern the primitive and collective sets,
+which this set is kept out of for exactly that reason.</p>
+<h3 id="114-what-it-changes-on-the-issues-fixture">11.4 What it changes on the issue's fixture<a class="headerlink" href="#114-what-it-changes-on-the-issues-fixture" title="Permanent link">&para;</a></h3>
+<p>On <code>deepseek-v3-h200-fp8-sglang-tp8</code> (tp 8, <code>hidden_size</code> 7168, 8,192 batched tokens,
+<code>PIECEWISE</code>), resolved through <code>blis-latency-kernel</code>'s own <code>resolve.Load</code>:</p>
+<table>
+<thead>
+<tr>
+<th>term</th>
+<th>hardcoded</th>
+<th>registry</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>activation scratch</td>
+<td>469,762,048 (×4)</td>
+<td>1,174,405,120 (MoE 8-rank ×10)</td>
+</tr>
+<tr>
+<td>CUDA-graph capture</td>
+<td>536,870,912</td>
+<td>858,783,744</td>
+</tr>
+<tr>
+<td>collective buffers</td>
+<td>411,041,792</td>
+<td>411,041,792 (<code>nccl_communicator_bytes_8rank</code>)</td>
+</tr>
+<tr>
+<td>engine workspace</td>
+<td>not charged</td>
+<td>3,758,096,384</td>
+</tr>
+<tr>
+<td><strong>total</strong></td>
+<td><strong>1,417,674,752</strong></td>
+<td><strong>6,202,327,040</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The set is committed <strong>ahead of its reader</strong>: the kernel reads none of it yet, and
+inference-sim/blis-latency-kernel#22 is sequenced to land after it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../research/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Methodology">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Methodology
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../reproducing-coefficients/" class="md-footer__link md-footer__link--next" aria-label="Next: Reproducing the coefficients">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Reproducing the coefficients
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Apache-2.0 · part of <a href="https://inference-sim.github.io/inference-sim/">BLIS</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/inference-sim/blis-registry" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.indexes", "navigation.sections", "navigation.footer", "navigation.top", "search.highlight", "search.suggest", "content.code.copy", "content.action.view", "toc.follow"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

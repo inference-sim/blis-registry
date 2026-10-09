@@ -74,9 +74,10 @@ mixed. Derive these counts rather than quoting them: the dataset is rewritten, a
 `workload_kind` column labels any row carrying prefill tokens as `prefill`, which is a
 coarser split than the one fitting needs.
 
-FPM is used for validation and model selection only, never for fitting a coefficient this
-registry ships. That separation, and the model↔system collinearity confound that makes it
-necessary, is argued in [`methodology.md`](methodology.md).
+FPM is used for validation and model selection. It may fit only a term that is itself a
+property of the whole forward pass, never a per-primitive constant, and no committed
+coefficient cites it. [`methodology.md`](methodology.md) §3 gives the argument, including
+why an earlier, stricter rule was relaxed.
 
 ## 2. What each dataset's units are
 
@@ -93,7 +94,11 @@ Run from the repository root with `AISIMULATE_DATA` and `BLIS_CATALOG` exported.
 are fully generated and are compared by diff; the rest are fitted per part, and each
 printed value should match the committed entry.
 
-### `cost-model-primitives.yaml` — generated, 122 entries
+Entry counts quoted in this section were taken when each passage was written, and sets
+have grown since. The current count of every set, by method, is on the
+[reference pages](reference/index.md), which are generated from the committed files.
+
+### `cost-model-primitives.yaml` — generated
 
 ```bash
 python scripts/emit_primitives.py \
@@ -116,7 +121,7 @@ python scripts/fit_gemm_envelope.py "$AISIMULATE_DATA"/h200_sxm/gemm/trtllm/1.3.
     --moe "$AISIMULATE_DATA"/h200_sxm/moe/trtllm/1.3.0rc20
 ```
 
-### `cost-model-collectives.yaml` — generated, 552 entries
+### `cost-model-collectives.yaml` — generated
 
 This set is generated in two passes, because its entries come from two different lanes.
 
@@ -158,7 +163,7 @@ sweep — so each names the sweep it actually comes from rather than claiming an
 measurement that does not exist. Treating the two A100 80GB parts as one for collectives is
 a modelling choice, recorded in each entry's rationale.
 
-### `cost-model-attention.yaml` — fitted per part, 40 entries
+### `cost-model-attention.yaml` — fitted per part
 
 Decode (`attention_decode_floor`, `attention_decode_rate`), fitted on the vLLM lane:
 
@@ -201,7 +206,7 @@ for the values currently committed. Only full attention is fitted — rows with 
 `window_size` read a bounded number of bytes, and fitting them together would fit one
 curve to two byte counts.
 
-### `cost-model-recurrent.yaml` — fitted per family, 8 entries
+### `cost-model-recurrent.yaml` — fitted per family
 
 ```bash
 # KDA (Kimi-K3), h100 / h200 / gb300. Re-derives all six entries and diffs them
@@ -236,26 +241,22 @@ convolution and the recurrent scan separately plus a fused decode variant. MAMBA
 committed `*_mamba2` pair is the convolution alone and is a documented LOWER BOUND on a
 Mamba2 layer, not its cost. The selective-scan kernel is in no collection in the tree.
 
-### Sliding-window attention — `*_swa`, 12 of the 40 attention entries
+### Sliding-window attention — `*_swa`
 
 The windowed entries are fitted by a separate script, because a windowed kernel reads a
-number of bytes bounded by the window rather than by the context:
+number of bytes bounded by the window rather than by the context.
+`scripts/relane_attention_swa.py` owns them and reads its values from
+`scripts/fit_attention_by_kind.py`:
 
 ```bash
-python scripts/fit_attention_by_kind.py --sku h200_sxm --chip h200 \
-    --collection trtllm/1.3.0rc20
+python scripts/relane_attention_swa.py --collection vllm/0.25.0 --check
 ```
 
-which prints `swa floor 9.5us rate 1,248,000 B/us ... n=13,000`, the committed h200 pair
-and the point count its citation records. `--all` sweeps every part.
-
-**These twelve entries are the one family still fitted on the TRT-LLM lane**, and their
-citations say so. The full-attention (`gqa`) coefficients were refitted on `vllm/0.25.0`;
-the windowed ones were not, so re-running this script against a vLLM collection returns
-different numbers (h200 SWA lands at 864,000 on `vllm/0.25.0`) and will not reproduce the
-committed file. Pass the lane each entry cites. Whether the windowed entries should be
-relaned is an open question, not a settled one — the lane table in
-[`methodology.md`](methodology.md) governs it.
+The windowed entries were relaned from TRT-LLM to vLLM (methodology §7.1), and each
+entry's citation names the collection it was fitted on: `vllm/0.25.0` on the Hopper and
+Blackwell parts, `vllm/0.24.0` on L40S, whose newest vLLM collection that is. Pass the
+collection the entry cites; the A100 pair is `assumed` and is written by
+`extrapolate_by_generation.py` instead.
 
 Using the context length for both kinds is what made an early windowed fit land at 2.00 of
 datasheet peak — a physically impossible rate, and the reason the two kinds are fitted

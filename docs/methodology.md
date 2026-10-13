@@ -708,14 +708,17 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
   `vllm/0.29.0/tp8-dcp8`, is `moe_ep=1` / `pure_tp`, so it exercises no expert
   all-to-all and is the cleaner first cell to score.
 
-  The kernel-side contract that blocked the scoring in #25 needs restating. In stock
-  vLLM v0.31.0 Kimi-K3's compressed-tensors MXFP4 experts run `CutlassExpertsMxfp4` on
-  SM100/110/120 (`CompressedTensorsW4A4Mxfp4MoEMethod`; `MarlinExperts` only on other CUDA
-  parts, and `moe_backend=b12x` overrides both), so on GB300 they are a CUTLASS MXFP4 kernel,
-  not Marlin W4A16. AISimulate's GB300 Marlin rows force Marlin for a preview build that
-  rejected SiTU, which is why no gb300 Marlin ramp is committed (§10.5). What the KDA check
-  needs from the kernel is pricing that CUTLASS path at its own rate
-  (blis-latency-kernel#34).
+  The blocker last recorded on #25 needs correcting. That comment attributed the
+  over-prediction to a "W4A16 contract" -- Kimi-K3's experts computing at BF16. In stock
+  vLLM v0.31.0 they do not: `CompressedTensorsW4A4Mxfp4MoEMethod` selects
+  `CutlassExpertsMxfp4` on SM100/110/120, whose quant scheme is (`kMxfp4Static`,
+  `kMxfp4Dynamic`) -- activations quantized to MXFP4 too, W4A4 on FP4 tensor cores, the
+  rate class the kernel already applies there. (AISimulate's GB300 Marlin W4A16 rows force
+  Marlin for a preview build that rejected SiTU, which is why no gb300 Marlin ramp is
+  committed, §10.5.) What actually blocks the check is the ~2x over-prediction of the
+  MoE/GEMM term on that scoring run: it is ~82% of the per-request marginal, so FPM cannot
+  yet attribute anything to the KDA pair -- making the KDA read free left the error
+  unchanged. That is kernel-side work, and #25 stays open until it is done.
 
   Note also that FPM carries no per-kernel or per-node column at all — the truth
   parquets hold one `latency_ms` per `(batch_size, total_prefill_tokens,

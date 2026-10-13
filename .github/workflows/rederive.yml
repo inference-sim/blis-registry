@@ -92,9 +92,13 @@ jobs:
           # The vendored descriptors must be the catalog this job checks out.
           diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
           python -m pytest validator/ -q -rs | tee pytest.log
-          # A gate that skips for want of the data is exactly what this job exists to
-          # prevent, so a data-absence skip fails it.
-          if grep -E "AISimulate data not present|holds no parquet" pytest.log; then
-            echo "a re-derivation gate skipped for missing data" >&2
+          # With the data present, the only skips are the eight by-design ramp-form ones
+          # (a part carries the one- or three-factor ramp, so the other gate does not
+          # apply). Any other skip -- missing data, a missing catalog, a gate whose
+          # premise quietly disappeared -- is a gate that did not run, and fails the job.
+          unexpected=$(grep '^SKIPPED' pytest.log | grep -Ev 'carries the (one|three)-factor ramp' || true)
+          if [ -n "$unexpected" ]; then
+            echo "unexpected skips with the data present:" >&2
+            echo "$unexpected" >&2
             exit 1
           fi

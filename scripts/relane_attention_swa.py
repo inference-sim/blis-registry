@@ -268,10 +268,15 @@ def main(argv: list[str]) -> int:
         parts.append((bits[0], bits[1], bits[2] if len(bits) == 3 else args.collection))
     parts = parts or DEFAULT_PARTS
     fits: dict[str, dict] = {}
+    missing: list[str] = []
     for sku, chip, collection in parts:
         f = fit(sku, chip, collection)
         if f is None:
             print(f"{chip:14} no sliding-window rows at {collection}", file=sys.stderr)
+            if not args.parts:
+                # A committed part the default run cannot re-derive is not guarded; under
+                # --check that must fail rather than pass its entries through unchecked.
+                missing.append(chip)
             continue
         f["sku"] = sku
         f["collection"] = collection
@@ -291,6 +296,10 @@ def main(argv: list[str]) -> int:
               f"geo-err {f['err']}x  n={f['n']:,}")
     if not fits:
         print("no parts fitted; nothing to do", file=sys.stderr)
+        return 1
+    if missing:
+        print(f"default parts that did not fit: {', '.join(missing)}; their committed "
+              f"entries would go unchecked", file=sys.stderr)
         return 1
 
     before = SET_PATH.read_text(encoding="utf-8")

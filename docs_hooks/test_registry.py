@@ -70,6 +70,21 @@ def test_a_model_scoped_entry_is_its_own_row_labelled_with_its_model():
     assert columns == ["h200"]
 
 
+def test_a_scalar_model_scope_is_one_label_not_its_characters():
+    e = registry.Entry("x", {"scope": {"hardware": ["h200"], "model": "m-1"},
+                             "units": "tokens", "method": "measured", "value": 1}, 1)
+    assert registry._fold(e)[0] == "x ‹model: m-1›"
+
+
+@pytest.mark.parametrize("scope", [{"hardware": ["h200"], "tp": [8]}, {"model": ["m"]}],
+                         ids=["unshown-scope-key", "no-hardware"])
+def test_the_matrix_refuses_an_entry_it_cannot_show(scope):
+    e = registry.Entry("x", {"scope": scope, "units": "tokens", "method": "measured",
+                             "value": 1}, 1)
+    with pytest.raises(registry.PluginError):
+        registry.matrix(registry.CoefficientSet("s", "s.yaml", [e]))
+
+
 @pytest.mark.parametrize("s", all_sets(), ids=lambda s: s.name)
 def test_every_quoted_entry_parses_back_to_the_committed_entry(s):
     for e in s.entries:

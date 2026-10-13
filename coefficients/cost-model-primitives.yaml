@@ -1,10 +1,11 @@
 # Cost-model primitives — every entry from NVIDIA AISimulate.
 #
-# WRITTEN by per-family writers, each with --check: relane_gemm_envelope.py (gemm_*),
-# relane_moe_imbalance.py (moe_routing_imbalance_median), fit_marlin_grouped_ramp.py
-# (gemm_*_w4a16_mxfp4_grouped), fit_deepseek_v41_h200.py (the assumed
-# gemm_*_w8a16_mxfp8 and host_gather_rate_uva), and emit_primitives.py for the
-# descriptor entries. docs/reproducing-coefficients.md maps every family to its owner.
+# WRITTEN by per-family writers, each with --check: relane_gemm_envelope.py (the dense
+# gemm_*_{bf16,fp8,fp8_block,nvfp4} ramps), relane_moe_imbalance.py
+# (moe_routing_imbalance_median), fit_marlin_grouped_ramp.py (gemm_*_w4a16_mxfp4_grouped),
+# fit_deepseek_v41_h200.py (the assumed gemm_*_w8a16_mxfp8 and host_gather_rate_uva), and
+# emit_primitives.py (the descriptor entries and A100's MoE median).
+# docs/reproducing-coefficients.md maps every family to its owner.
 # Re-run the owner and commit the diff rather than editing values here.
 #
 # Two kinds of number, both NVIDIA-sourced:
@@ -23,7 +24,7 @@
 #
 # The envelope is per SKU as well as per dtype, and the H100/H200 pair shows why
 # it has to be. Those two share the GH100 die and therefore an identical compute
-# peak, and their asymptotes agree to within 0.013 as that predicts. Their knees
+# peak, and their bf16 asymptotes agree to within 0.013 as that predicts. Their knees
 # do not: bf16 M_half is 170 on H100 and 110 on H200, a factor of 1.55. The knee is set
 # by how fast operands reach the tensor cores, so it tracks memory bandwidth
 # (3.35 against 4.8 TB/s) rather than compute. A model that carries one part's
@@ -784,7 +785,7 @@ coefficients:
       sources:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/moe/vllm/0.25.0/moe_perf.parquet, vllm_compressedtensorsw4a4mxfp4moe_marlin_marlinexperts_situ_as_silu, moe_dtype w4a16_mxfp4, balanced, moe_tp 1 / moe_ep 1, 27 token counts (hidden 3584, inter 3072, top-16 of 896)", role: primary}
       rationale: >
-        Asymptotic fraction of this part's dense BF16 peak (989.5 TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. Marlin dequantizes the four-bit weights in registers and multiplies against BF16 activations with mma.sync, so its rate is a fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert composition -- the SM half summed with the distinct experts' stored weight bytes (0.53125 B/weight, E8M0 scales included) at BwPeak x hbm_derate -- so the ramp is what remains once the kernel's own memory half is charged. Geometric error 1.175x (signed 0.908); held out on vLLM's int4 Marlin MoE (hidden 7168, inter 2048, top-8 of 384; 27 token counts) at 1.198x, signed 1.074. Applies to the routed-expert term only; a dense MXFP4 linear runs a different Marlin kernel and is not measured. Reproduce with scripts/fit_marlin_grouped_ramp.py.
+        Asymptotic fraction of this part's dense BF16 peak (989.5 TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. On SM90 v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM and DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all require SM100+). Marlin dequantizes the four-bit weights in registers and multiplies against BF16 activations with mma.sync, so its rate is a fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert composition -- the SM half summed with the distinct experts' stored weight bytes (0.53125 B/weight, E8M0 scales included) at BwPeak x hbm_derate -- so the ramp is what remains once the kernel's own memory half is charged. Geometric error 1.175x (signed 0.908); held out on vLLM's int4 Marlin MoE (hidden 7168, inter 2048, top-8 of 384, group 128; 27 token counts) at 1.196x, signed 1.023. Applies to the routed-expert term only; a dense MXFP4 linear runs a different Marlin kernel and is not measured. Not committed for Blackwell, where stock v0.31.0 does not select Marlin. Reproduce with scripts/fit_marlin_grouped_ramp.py.
   - gemm_m_half_w4a16_mxfp4_grouped:
       value: 26
       units: tokens
@@ -805,7 +806,7 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/gemm_perf.parquet via gemm_eps_max_bf16 (cuBLAS BF16 envelope)", role: upper_bound}
         - {kind: model, cite: "vLLM v0.31.0 model_executor/kernels/linear/mxfp8/marlin.py MarlinMxfp8LinearKernel", role: supporting}
       rationale: >
-        ASSUMED: this part's measured BF16 GEMM asymptote, as an UPPER BOUND. On SM90 vLLM v0.31.0 runs every MXFP8 dense linear through MarlinMxfp8LinearKernel (W8A16; the FlashInfer MXFP8 kernels ahead of it require SM100): FP8 weights dequantized in registers, BF16 activations, mma.sync. Its compute rate is therefore a fraction of the BF16 peak, and the measured cuBLAS BF16 envelope (0.992 of peak) bounds it above. No sweep measures dense Marlin on any part, so the fraction it reaches is unknown; the same Marlin MMA core in its grouped (MoE) form reaches 0.245 (gemm_eps_max_w4a16_mxfp4_grouped), so the bound may be loose by up to 4.0x at prefill-sized M. At decode-sized M the kernel's HBM term -- the FP8 weight read -- dominates, and this term barely enters. DIRECTION: optimistic for compute-bound GEMMs. TO REPLACE IT: an h200 GEMM sweep with MarlinMxfp8LinearKernel forced (AISimulate's vLLM GEMM collector has no Marlin path). Read by no consumer until blis-latency-kernel selects a ramp by weight format and chip (blis-latency-kernel#34).
+        ASSUMED: this part's measured BF16 GEMM asymptote, as an UPPER BOUND. On SM90 vLLM v0.31.0 runs every MXFP8 dense linear through MarlinMxfp8LinearKernel (W8A16; the FlashInfer MXFP8 kernels ahead of it require SM100): FP8 weights dequantized in registers, BF16 activations, mma.sync. Its compute rate is therefore a fraction of the BF16 peak, and the measured cuBLAS BF16 envelope (0.992 of peak) bounds it above. No sweep measures dense Marlin on any part, so the fraction it reaches is unknown; the same Marlin MMA core in its grouped (MoE) form reaches 0.245 (gemm_eps_max_w4a16_mxfp4_grouped); if dense Marlin reaches what the grouped form does, the bound is loose by about 4.0x at prefill-sized M. At decode-sized M the kernel's HBM term -- the FP8 weight read -- dominates, and this term barely enters. DIRECTION: optimistic for compute-bound GEMMs. TO REPLACE IT: an h200 GEMM sweep with MarlinMxfp8LinearKernel forced (AISimulate's vLLM GEMM collector has no Marlin path). Read by no consumer until blis-latency-kernel selects a ramp by weight format and chip (blis-latency-kernel#34).
   - gemm_m_half_w8a16_mxfp8:
       value: 110
       units: tokens
@@ -813,9 +814,9 @@ coefficients:
       fitted: false
       scope: {hardware: [h200]}
       sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/gemm_perf.parquet via gemm_m_half_bf16", role: upper_bound}
+        - {kind: model, cite: "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/gemm_perf.parquet via gemm_m_half_bf16", role: primary}
       rationale: >
-        ASSUMED: this part's measured cuBLAS BF16 knee (gemm_m_half_bf16), paired with gemm_eps_max_w8a16_mxfp8 so the two describe one ramp rather than an asymptote from one kernel and a knee from another. The knee is where a GEMM stops being operand-starved; Marlin's grouped form measures 26 tokens on this part (gemm_m_half_w4a16_mxfp4_grouped), against 110 here, so the dense Marlin knee is unmeasured within that range. At decode M the kernel's HBM term -- the FP8 weight read -- dominates either way. TO REPLACE IT: the same MarlinMxfp8LinearKernel sweep as the asymptote; both come from one fit.
+        ASSUMED: this part's measured cuBLAS BF16 knee (gemm_m_half_bf16), paired with gemm_eps_max_w8a16_mxfp8 so the two describe one ramp rather than an asymptote from one kernel and a knee from another. The knee is where a GEMM stops being operand-starved; Marlin's grouped form measures 26 tokens on this part (gemm_m_half_w4a16_mxfp4_grouped), against 110 here, so the dense Marlin knee is unmeasured within that range. DIRECTION: NOT a bound. A knee above Marlin's own lowers the ramp at mid M, so this half is likely pessimistic there while the asymptote is optimistic at large M; the two partly offset and neither direction is established. At decode M the kernel's HBM term -- the FP8 weight read -- dominates either way. TO REPLACE IT: the same MarlinMxfp8LinearKernel sweep as the asymptote; both come from one fit.
   - moe_routing_imbalance_median:
       value: 0.999
       units: dimensionless
@@ -1121,26 +1122,6 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/gemm/vllm/0.27.1/gemm_perf.parquet (NVIDIA GB300), 35,890 nvfp4 rows over 74 token counts, kernel FlashInferCuteDslNvFp4LinearKernel", role: primary}
       rationale: >
         The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_nvfp4 on the same envelope; residual 0.0240.
-  - gemm_eps_max_w4a16_mxfp4_grouped:
-      value: 0.114
-      units: dimensionless
-      method: measured
-      fitted: true
-      scope: {hardware: [gb300]}
-      sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/moe/vllm/0.25.0/moe_perf.parquet, vllm_compressedtensorsw4a4mxfp4moe_marlin_marlinexperts_situ_as_silu, moe_dtype w4a16_mxfp4, balanced, moe_tp 1 / moe_ep 1, 27 token counts (hidden 3584, inter 3072, top-16 of 896)", role: primary}
-      rationale: >
-        Asymptotic fraction of this part's dense BF16 peak (2500 TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. Marlin dequantizes the four-bit weights in registers and multiplies against BF16 activations with mma.sync, so its rate is a fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert composition -- the SM half summed with the distinct experts' stored weight bytes (0.53125 B/weight, E8M0 scales included) at BwPeak x hbm_derate -- so the ramp is what remains once the kernel's own memory half is charged. Geometric error 1.284x (signed 0.857); held out on vLLM's int4 Marlin MoE (hidden 7168, inter 2048, top-8 of 384; 27 token counts) at 1.248x, signed 1.015. Applies to the routed-expert term only; a dense MXFP4 linear runs a different Marlin kernel and is not measured. Reproduce with scripts/fit_marlin_grouped_ramp.py.
-  - gemm_m_half_w4a16_mxfp4_grouped:
-      value: 55
-      units: tokens
-      method: measured
-      fitted: true
-      scope: {hardware: [gb300]}
-      sources:
-        - {kind: model, cite: "NVIDIA AISimulate systems/data/gb300/moe/vllm/0.25.0/moe_perf.parquet, vllm_compressedtensorsw4a4mxfp4moe_marlin_marlinexperts_situ_as_silu, moe_dtype w4a16_mxfp4, balanced, moe_tp 1 / moe_ep 1, 27 token counts (hidden 3584, inter 3072, top-16 of 896)", role: primary}
-      rationale: >
-        The step token count at which the Marlin MXFP4 W4A16 grouped ramp reaches half its asymptote, fitted jointly with gemm_eps_max_w4a16_mxfp4_grouped over 27 token counts; the kernel evaluates it at the step's token count, as it does every ramp. Reproduce with scripts/fit_marlin_grouped_ramp.py.
   # --- gb300 descriptors (NVIDIA AISimulate systems/gb300.yaml) ---
   - hbm_derate:
       value: 0.8
@@ -1209,4 +1190,3 @@ coefficients:
         - {kind: model, cite: "NVIDIA AISimulate systems/gb300.yaml", role: primary}
       rationale: >
         3.8 GB of non-weight, non-KV occupancy NVIDIA's descriptor reserves, which AISimulate's memory model labels as CUDA context, cuBLAS and the like ("cuda, cublas, etc.", sdk/backends/base_backend.py) and the descriptor annotates as a safety reserve that also covers part of the inaccuracy of the rest of its memory calculation. It does NOT include CUDA-graph capture: AISimulate annotates other_mem as excluding the graph reservation (support/config_profile.py) and takes that reservation as a separate argument (capacity.py, cuda_graph_reserved_bytes), so cudagraph_capture_bytes_<mode> in cost-model-memory.yaml adds to this rather than sitting inside it. Nor is it part of the collective reservation: NVIDIA's composition sums it with nccl_communicator_bytes_<N>rank. It is a lumped allowance rather than a decomposition, so a memory breakdown reports it as one term and does not claim to split it.
-# 108 entries.

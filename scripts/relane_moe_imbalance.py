@@ -205,17 +205,19 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv[1:])
 
     fits: dict[str, dict] = {}
+    missing: list[str] = []
     for sku, chip in PARTS:
         f = measure(Path(args.data), sku)
         if f is None:
-            print(f"{chip:14} no paired vLLM MoE shapes; left on its current lane",
+            print(f"{chip:14} no paired vLLM MoE shapes; its committed entry is unchecked",
                   file=sys.stderr)
+            missing.append(chip)
             continue
         fits[chip] = f
         print(f"{chip:14} {f['coll']:18} pairs={f['n']:6} "
               f"median={f['median']:.3f} p90={f['p90']:.3f}")
-    if not fits:
-        print("nothing measured", file=sys.stderr)
+    if not fits or missing:
+        print(f"nothing measured for: {', '.join(missing) or 'every part'}", file=sys.stderr)
         return 1
 
     before = SET_PATH.read_text(encoding="utf-8")

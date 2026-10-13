@@ -204,6 +204,25 @@ def test_a_model_scoped_entry_never_shadows_a_part_wide_one():
     )
 
 
+def test_every_name_resolves_to_one_entry_per_part_and_model():
+    """blis-latency-kernel keeps the LAST admitted entry of a name, so two entries that
+    admit the same (part, model) make the price depend on file order and leave one copy
+    unmaintained -- the a100-80 descriptor duplicates were this, with equal values only by
+    luck. Holds for every set, with no sweep."""
+    seen: dict = {}
+    clashes = []
+    for setname, name, body in ENTRIES:
+        scope = body.get("scope") or {}
+        models = scope.get("model") or [None]
+        for hw in scope.get("hardware", []):
+            for m in (models if isinstance(models, list) else [models]):
+                key = (setname, name, hw, m)
+                if key in seen:
+                    clashes.append(key)
+                seen[key] = True
+    assert not clashes, f"names admitted twice for one part and model: {clashes}"
+
+
 def _single(name: str, chip: str, model: str | None = None) -> float:
     hits = [b["value"] for _, n, b in ENTRIES
             if n == name and (b.get("scope") or {}).get("hardware") == [chip]
@@ -221,7 +240,9 @@ def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
     """
     checked = 0
     for _, name, body in ENTRIES:
-        if name not in ("gemm_eps_max_w4a16_mxfp4_grouped", "gemm_eps_max_w8a16_mxfp8"):
+        # The W8A16 entry is assumed EQUAL to the BF16 envelope (see the derived-entry test
+        # below), so only the fitted grouped ramp can actually violate this bound.
+        if name != "gemm_eps_max_w4a16_mxfp4_grouped":
             continue
         for hw in body["scope"]["hardware"]:
             bf16 = _single("gemm_eps_max_bf16", hw)
@@ -229,7 +250,7 @@ def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
                 f"{name} on {hw} is {body['value']}, above the part's dense BF16 envelope "
                 f"{bf16}; a weight-only BF16-compute kernel cannot exceed it.")
             checked += 1
-    assert checked >= 3, f"only {checked} Marlin ramp entries checked"
+    assert checked >= 1, f"only {checked} Marlin ramp entries checked"
 
 
 def test_the_derived_deepseek_v41_h200_entries_equal_what_they_are_derived_from():
@@ -509,7 +530,7 @@ def _by_hardware(prefix: str) -> dict[str, float]:
     """hardware name -> value, for every entry whose name is exactly `prefix`."""
     out: dict[str, float] = {}
     for _, name, body in ENTRIES:
-        if name != prefix:
+        if name != prefix or "model" in (body.get("scope") or {}):
             continue
         for hw in (body.get("scope") or {}).get("hardware", []):
             out[hw] = body["value"]

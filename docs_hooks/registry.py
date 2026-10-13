@@ -277,7 +277,7 @@ def _fold(e: Entry) -> tuple[str, list[str]]:
     # part-wide entry of the same name, because the kernel admits it only for that
     # deployment. The extra scope is carried in the row label so the matrix stays one
     # value per (row, part) and a reader sees the restriction.
-    tag = "".join(f" ‹{k}: {', '.join(str(x) for x in v)}›"
+    tag = "".join(f" ‹{k}: {', '.join(str(x) for x in (v if isinstance(v, list) else [v]))}›"
                   for k, v in sorted(e.other_scope.items()))
     for part in e.hardware:
         suffix = "_" + part.replace("-", "_")

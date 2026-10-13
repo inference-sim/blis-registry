@@ -26,8 +26,12 @@ and three of them replace figures this model previously carried as assumptions: 
 communicator buffer size, the runtime workspace allowance, and the host link rate.
 
 Usage:
-    python scripts/emit_primitives.py <aisimulate>/systems <catalog-root> > \
-        coefficients/cost-model-primitives.yaml
+    python scripts/emit_primitives.py <aisimulate>/systems <catalog-root>   # render, stdout
+    python scripts/emit_primitives.py --check   # the entries it owns, against the committed set
+
+Only the descriptor entries and A100's MoE median are committed from this script; the
+rendered GEMM path is superseded by relane_gemm_envelope.py, so the whole-file output is a
+reference, never a file to commit. `--check` reads $AISIMULATE_DATA's parent `systems/`.
 
 The first argument is the `systems` directory, which holds both the per-SKU
 descriptors (`<sku>.yaml`) and the measurement collections (`data/<sku>/...`).
@@ -36,6 +40,7 @@ descriptors (`<sku>.yaml`) and the measurement collections (`data/<sku>/...`).
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -50,11 +55,12 @@ _spec.loader.exec_module(fg)
 
 HEADER = '''# Cost-model primitives — every entry from NVIDIA AISimulate.
 #
-# WRITTEN by per-family writers, each with --check: relane_gemm_envelope.py (gemm_*),
-# relane_moe_imbalance.py (moe_routing_imbalance_median), fit_marlin_grouped_ramp.py
-# (gemm_*_w4a16_mxfp4_grouped), fit_deepseek_v41_h200.py (the assumed
-# gemm_*_w8a16_mxfp8 and host_gather_rate_uva), and emit_primitives.py for the
-# descriptor entries. docs/reproducing-coefficients.md maps every family to its owner.
+# WRITTEN by per-family writers, each with --check: relane_gemm_envelope.py (the dense
+# gemm_*_{bf16,fp8,fp8_block,nvfp4} ramps), relane_moe_imbalance.py
+# (moe_routing_imbalance_median), fit_marlin_grouped_ramp.py (gemm_*_w4a16_mxfp4_grouped),
+# fit_deepseek_v41_h200.py (the assumed gemm_*_w8a16_mxfp8 and host_gather_rate_uva), and
+# emit_primitives.py (the descriptor entries and A100's MoE median).
+# docs/reproducing-coefficients.md maps every family to its owner.
 # Re-run the owner and commit the diff rather than editing values here.
 #
 # Two kinds of number, both NVIDIA-sourced:
@@ -73,7 +79,7 @@ HEADER = '''# Cost-model primitives — every entry from NVIDIA AISimulate.
 #
 # The envelope is per SKU as well as per dtype, and the H100/H200 pair shows why
 # it has to be. Those two share the GH100 die and therefore an identical compute
-# peak, and their asymptotes agree to within 0.013 as that predicts. Their knees
+# peak, and their bf16 asymptotes agree to within 0.013 as that predicts. Their knees
 # do not: bf16 M_half is 170 on H100 and 110 on H200, a factor of 1.55. The knee is set
 # by how fast operands reach the tensor cores, so it tracks memory bandwidth
 # (3.35 against 4.8 TB/s) rather than compute. A model that carries one part's
@@ -381,7 +387,60 @@ def descriptor_entries(root: Path, sku: str, chip: str) -> list[str]:
     return out
 
 
+# The families this script OWNS in the committed set: the descriptor entries for every
+# part (gb300's descriptor is read like the others; its sweeps are owned elsewhere), and
+# A100's MoE median, the one imbalance entry relane_moe_imbalance.py cannot derive.
+DESCRIPTOR_NAMES = {"hbm_derate", "host_link_bandwidth", "nccl_communicator_bytes_2rank",
+                    "nccl_communicator_bytes_4rank", "nccl_communicator_bytes_8rank",
+                    "engine_workspace_bytes"}
+DESCRIPTOR_PARTS = sorted({**{s: c for s, c in SKUS.items() if s not in SKIPPED_SKUS},
+                           "gb300": "gb300"}.items())
+
+
+def check(root: Path, committed_path: Path) -> int:
+    """Compare every entry this script owns against the committed set, field by field.
+
+    The whole-file output is not committable (the GEMM path is superseded), so the gate is
+    entry-level: each owned (name, scope) must be committed exactly as rendered, and no
+    committed entry of an owned family may be one this script would not render.
+    """
+    def parse(blocks: list[str]) -> dict:
+        out = {}
+        for blk in blocks:
+            ((name, body),) = yaml.safe_load(blk.replace("  - ", "- ", 1))[0].items()
+            out[(name, tuple(body["scope"]["hardware"]))] = body
+        return out
+
+    expected = {}
+    for sku, chip in DESCRIPTOR_PARTS:
+        expected |= parse(descriptor_entries(root, sku, chip))
+    expected |= {k: v for k, v in parse(moe_entries(root, "a100_sxm", "a100-sxm")).items()
+                 if k[0] == "moe_routing_imbalance_median"}
+    committed = {}
+    for e in yaml.safe_load(committed_path.read_text())["coefficients"]:
+        ((name, body),) = e.items()
+        key = (name, tuple(body["scope"]["hardware"]))
+        if name in DESCRIPTOR_NAMES or key in expected:
+            committed[key] = body
+    problems = [f"missing: {k}" for k in expected if k not in committed]
+    problems += [f"not rendered by this script: {k}" for k in committed if k not in expected]
+    for k in expected.keys() & committed.keys():
+        for field in ("value", "units", "method", "fitted", "scope", "sources", "rationale"):
+            if expected[k].get(field) != committed[k].get(field):
+                problems.append(f"{k}: {field} differs")
+    for line in problems:
+        print(line, file=sys.stderr)
+    print(f"{len(expected)} owned entries checked, {len(problems)} problems")
+    return 1 if problems else 0
+
+
 def main(argv: list[str]) -> int:
+    if argv[1:] == ["--check"]:
+        data = Path(os.environ.get(
+            "AISIMULATE_DATA",
+            "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data"))
+        return check(data.parent, Path(__file__).resolve().parent.parent
+                     / "coefficients" / "cost-model-primitives.yaml")
     if len(argv) != 3:
         print(__doc__, file=sys.stderr)
         return 2

@@ -44,7 +44,8 @@ across the pins the two tags build:
   * FlashMLA (vllm-project/FlashMLA a6ec2ba -> 0eee43b): `csrc/sm90/decode/sparse_fp8/*`
     became `csrc/kernels/sm90/decode/sparse/*` with only namespace, include-path and
     MODEL1 -> V4 renames; the 584 B `BYTES_PER_TOKEN` assert is unchanged.
-  * DeepGEMM (deepseek-ai a6b593d -> e1f418c): `sm90_fp8_paged_mqa_logits.cuh` and its
+  * DeepGEMM (deepseek-ai/DeepGEMM a6b593d -> vllm-project/DeepGEMM e1f418c; v0.31.0
+    builds from vLLM's fork, deepgemm.cmake): `sm90_fp8_paged_mqa_logits.cuh` and its
     scheduler differ by renames and by bounds handling for zero-length contexts and
     block-table rows past a request's pages; the 64-token compute loop is unchanged.
 
@@ -57,7 +58,8 @@ THE TABLES, AND WHY EACH IS (OR IS NOT) A KERNEL MEASUREMENT.
     full; the kernel walks SWA blocks then extra blocks in one 64-token-block loop
     (`num_orig_kv_blocks`, splitkv_mla.cuh), so the cost of a request is its BLOCK count
     whatever tier the blocks come from. V4.1 reads at most 2 + 8 = 10 blocks (window 128,
-    top-512) per request, inside the 1-130 blocks the table covers.
+    top-512) per query, inside the 1-130 blocks the table covers; both counts are derived
+    from the configs, and the writer refuses if V4.1's would leave the measured range.
   * `dsv4_paged_mqa_logits_module_perf` (vllm/0.25.0): times `fp8_fp4_paged_mqa_logits`
     itself under CUDA graphs. Its FLOOR is the kernel's. Its SLOPE is not an HBM rate: the
     collector gives every query row the same block table, so the unique key footprint is at
@@ -108,9 +110,11 @@ FLASHMLA_FIT_MODEL = "sgl-project/DeepSeek-V4-Flash-FP8"
 INDEXER_TABLE = "dsv4_paged_mqa_logits_module_perf.parquet"
 INDEXER_LANE = "vllm.utils.deep_gemm.fp8_fp4_paged_mqa_logits"
 
-BLOCK = 64            # FlashMLA's TOPK_BLOCK_SIZE: the kernel's unit of work
+# FlashMLA's TOPK_BLOCK_SIZE, its unit of work. Also the collector's indexer page size
+# (`block_kv = 64`, collect_dsv4_attn.py), which is why one constant serves both.
+BLOCK = 64
 INDEXER_RATIO = 4     # the measured indexer rows are DeepSeek-V4's compress_ratio 4
-H200_L2_BYTES = 50e6  # GH100 L2 (NVIDIA H100 Tensor Core GPU architecture whitepaper)
+H200_L2_BYTES = 50e6  # the H100/H200 SXM product's L2 (the full GH100 die has 60 MB)
 
 # Engram rows: 256 FP8 values in one table, 8 UE8M0 scales in a separate one
 # (ParallelEngramEmbedding._allocate_weights). The value row is 256 B at a 256 B stride,
@@ -120,6 +124,13 @@ ENGRAM_ROW_BYTES = 256 + 8
 ENGRAM_FETCHED_BYTES = 256 + 32
 
 RATE_FRACTIONS = [x / 1000 for x in range(5, 1001)]
+INDEXER_MODELS = {"sgl-project/DeepSeek-V4-Flash-FP8", "sgl-project/DeepSeek-V4-Pro-FP8"}
+
+
+def interior(value, grid, what: str) -> None:
+    """A fit pinned to its grid's edge is the grid's answer, not the data's."""
+    if not math.isfinite(value) or value <= grid[0] or value >= grid[-1]:
+        raise SystemExit(f"{what} {value} is at the edge of its grid [{grid[0]}, {grid[-1]}]")
 
 
 def model_config(data: Path, name: str) -> dict:
@@ -167,9 +178,9 @@ def check_geometry(data: Path) -> dict:
     def padded(h):  # DeepseekV4FlashMLAAttention.get_padded_num_q_heads
         return 64 if h <= 64 else 128
 
-    if padded(v41["num_attention_heads"]) != padded(flash["num_attention_heads"]) != 64:
+    if not padded(v41["num_attention_heads"]) == padded(flash["num_attention_heads"]) == 64:
         raise SystemExit("V4.1 and the fitted V4-Flash rows do not share the h64 kernel")
-    for k in ("head_dim", "qk_rope_head_dim"):
+    for k in ("head_dim", "qk_rope_head_dim", "sliding_window"):
         if v41[k] != flash[k]:
             raise SystemExit(f"{k} differs between V4.1 and V4-Flash; the record differs")
     if set(v41["compress_ratios"]) - {0, 1, 2}:
@@ -177,14 +188,21 @@ def check_geometry(data: Path) -> dict:
     for c in (flash, pro):
         if c["index_head_dim"] != v41["index_head_dim"]:
             raise SystemExit("indexer head_dim differs; the 132 B key does not hold")
+    if flash["index_n_heads"] != pro["index_n_heads"]:
+        raise SystemExit("the two measured checkpoints differ in index heads; pooling them "
+                         "would pool two kernel configurations")
     nope = v41["head_dim"] - v41["qk_rope_head_dim"]
+    window, topk = v41["sliding_window"], v41["index_topk"]
     return {
         # FlashMLA SM90 V4 BYTES_PER_TOKEN = HEAD_DIM_NOPE + 2*HEAD_DIM_ROPE + 8
         "record": nope + 2 * v41["qk_rope_head_dim"] + 8,
-        "window": v41["sliding_window"], "topk": v41["index_topk"],
+        "window": window, "topk": topk,
+        # The most a V4.1 sparse layer reads per query, in FlashMLA blocks and tokens.
+        "v41_blocks": math.ceil(window / BLOCK) + math.ceil(topk / BLOCK),
+        "v41_tokens": window + topk,
         "key": v41["index_head_dim"] + v41["index_head_dim"] // 128 * 4,
         "v41_index_heads": v41["index_n_heads"],
-        "fit_index_heads": sorted({flash["index_n_heads"], pro["index_n_heads"]}),
+        "fit_index_heads": flash["index_n_heads"],
     }
 
 
@@ -192,11 +210,16 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
     t = read(data, FLASHMLA_TABLE)
     pts, blocks_of = [], []
     for i in range(len(t["latency"])):
-        if t["isl"][i] != 1 or t["model"][i] != FLASHMLA_FIT_MODEL or t["latency"][i] <= 0:
+        if t["isl"][i] != 1 or t["model"][i] != FLASHMLA_FIT_MODEL:
             continue
-        if t["kernel_source"][i] != FLASHMLA_LANE or t["compress_ratio"][i] != 128:
-            raise SystemExit(f"unexpected row: {t['kernel_source'][i]}, "
-                             f"ratio {t['compress_ratio'][i]}")
+        # Every fitted row must be the configuration V4.1 runs; anything else refuses
+        # rather than pooling silently.
+        if (t["kernel_source"][i] != FLASHMLA_LANE or t["compress_ratio"][i] != 128
+                or t["kv_cache_dtype"][i] != "fp8" or t["local_num_heads"][i] != 64
+                or not (math.isfinite(t["latency"][i]) and t["latency"][i] > 0)):
+            raise SystemExit(f"unexpected FlashMLA row {i}: {t['kernel_source'][i]}, ratio "
+                             f"{t['compress_ratio'][i]}, kv {t['kv_cache_dtype'][i]}, heads "
+                             f"{t['local_num_heads'][i]}, latency {t['latency'][i]}")
         ctx = t["step"][i] + 1
         blocks = (math.ceil(min(ctx, g["window"]) / BLOCK)
                   + math.ceil((ctx // 128) / BLOCK))
@@ -207,6 +230,7 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
         raise SystemExit(f"only {len(pts)} FlashMLA decode rows")
     best = min((geo(pts, floor, peak * f)[0], f) for f in RATE_FRACTIONS)
     frac = best[1]
+    interior(frac, RATE_FRACTIONS, "FlashMLA rate fraction")
     rate = int(round(peak * frac))
     err, signed = geo(pts, floor, rate)
     # Free-floor fit, reported to show what pinning the floor costs.
@@ -216,7 +240,10 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
     tr = [p for p, b in zip(pts, blocks_of) if b <= 3]
     te = [p for p, b in zip(pts, blocks_of) if b >= 5]
     trf = min((geo(tr, floor, peak * f)[0], f) for f in RATE_FRACTIONS)[1]
-    v41 = [p for p, b in zip(pts, blocks_of) if b == 10]
+    v41 = [p for p, b in zip(pts, blocks_of) if b == g["v41_blocks"]]
+    if g["v41_blocks"] > max(blocks_of):
+        raise SystemExit(f"V4.1 reads {g['v41_blocks']} blocks per query, beyond the "
+                         f"{max(blocks_of)} measured; the rate would be an extrapolation")
     return {"n": len(pts), "rate": rate, "frac": frac, "err": err, "signed": signed,
             "free_err": free[0], "free_floor": free[1],
             "hold_n": len(te), "hold": geo(te, floor, peak * trf),
@@ -228,10 +255,15 @@ def fit_indexer(data: Path, g: dict) -> dict:
     t = read(data, INDEXER_TABLE)
     pts, uniq, models = [], [], []
     for i in range(len(t["latency"])):
-        if t["isl"][i] != 1 or t["latency"][i] <= 0:
+        if t["isl"][i] != 1:
             continue
-        if t["kernel_source"][i] != INDEXER_LANE or t["compress_ratio"][i] != INDEXER_RATIO:
-            raise SystemExit(f"unexpected row: {t['kernel_source'][i]}")
+        if (t["kernel_source"][i] != INDEXER_LANE or t["compress_ratio"][i] != INDEXER_RATIO
+                or t["kv_cache_dtype"][i] != "fp8" or t["mla_dtype"][i] != "fp8_e4m3"
+                or t["model"][i] not in INDEXER_MODELS
+                or not (math.isfinite(t["latency"][i]) and t["latency"][i] > 0)):
+            raise SystemExit(f"unexpected indexer row {i}: {t['kernel_source'][i]}, "
+                             f"{t['model'][i]}, keys {t['mla_dtype'][i]}, latency "
+                             f"{t['latency'][i]}")
         b, s = t["batch_size"][i], t["step"][i]
         # The collector's context_lens: (past_kv + row + 1) // 4, at least 1, per row.
         row_keys = sum(max((s + r) // INDEXER_RATIO, 1) for r in range(1, b + 1))
@@ -239,6 +271,8 @@ def fit_indexer(data: Path, g: dict) -> dict:
         models.append(t["model"][i])
         # Every row shares one block table, so the unique keys are one request's.
         uniq.append(math.ceil(max((s + b) // INDEXER_RATIO, 1) / BLOCK) * BLOCK * g["key"])
+    if len(pts) < 150 or set(models) != INDEXER_MODELS:
+        raise SystemExit(f"only {len(pts)} indexer decode rows over {sorted(set(models))}")
     floors = [x / 100 for x in range(200, 800)]
     rates = [10 ** (3 + k / 500) for k in range(1501)]  # 1e3 .. 1e6 row-keys per us
     best = min((geo(pts, fl, r)[0], fl, r) for fl in floors[::10] for r in rates[::10])
@@ -247,6 +281,8 @@ def fit_indexer(data: Path, g: dict) -> dict:
                for fl in floors if abs(fl - fl0) <= 0.2
                for r in rates if 0.8 * r0 <= r <= 1.25 * r0)
     err, floor, rate = best
+    interior(floor, floors, "indexer floor")
+    interior(rate, rates, "indexer work rate")
     floor = round(floor, 1)
     implied = rate * g["key"]  # bytes per microsecond, if each row-key were a key read
     small = [p for p in pts if p[0] / rate < 0.05 * floor]
@@ -277,7 +313,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
             host_bw: float) -> tuple[list, list]:
     tb = peak / 1e6
     ridge = fp8_tflops * 1e6 / peak                       # FLOP per byte at the FP8 peak
-    fit_heads = g["fit_index_heads"][0]
+    fit_heads = g["fit_index_heads"]
     measured_tflops = ix["rate_rowkeys"] * fit_heads * 256 / 1e6
     # Speculative decoding scores k+1 rows per key read; at the measured compute rate,
     # the key rate that sustains, as a fraction of the committed HBM bound, for k = 5.
@@ -298,31 +334,39 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{fm['rate'] / 1e6:.2f} TB/s, {fm['frac']:.3f} of this part's {tb:g} TB/s "
               f"datasheet bandwidth, for vLLM v0.31.0's FlashMLA sparse decode on SM90 -- "
               f"one flash_mla_with_kvcache call per layer over the sliding window plus the "
-              f"indexer's top-k, query heads padded to 64 at every TP width, the 584 B V4 "
-              f"KV record. BYTES ARE COUNTED IN THE KERNEL'S 64-TOKEN BLOCKS: per request "
-              f"and per query token, {g['record']} x 64 x (ceil(window tokens / 64) + "
-              f"ceil(selected tokens / 64)), which at any context past 1,024 is 10 blocks, "
-              f"373,760 B. The floor is this part's part-wide attention_decode_floor "
-              f"({fm['floor']:g} us), which the kernel inherits for a kind with a rate and "
-              f"no floor; fitting it freely lands at {fm['free_floor']:.1f} us for "
+              f"indexer's top-k, query heads padded to 64 at every TP width, the "
+              f"{g['record']} B V4 KV record. BYTES ARE COUNTED IN FLASHMLA'S 64-TOKEN "
+              f"BLOCKS: per request and per query token, {g['record']} x 64 x (ceil(window "
+              f"tokens / 64) + ceil(selected tokens / 64)), which once the context fills the "
+              f"window and the top-{g['topk']} is {g['v41_blocks']} blocks, "
+              f"{g['v41_blocks'] * BLOCK * g['record']:,} B. The floor is this part's "
+              f"part-wide attention_decode_floor ({fm['floor']:g} us), which "
+              f"blis-latency-kernel inherits for a kind with a rate and no floor; fitting "
+              f"it freely lands at {fm['free_floor']:.1f} us for "
               f"{fm['free_err']:.3f}x against {fm['err']:.3f}x pinned, so the data does not "
               f"ask for a separate one. Geometric error {fm['err']:.3f}x (signed "
               f"{fm['signed']:.3f}) over {fm['n']} points spanning 1-{fm['max_blocks']} "
               f"blocks per request; trained on requests of <= 3 blocks and held out on "
               f">= 5 it predicts {fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, "
-              f"n={fm['hold_n']}); at exactly V4.1's 10 blocks {fm['v41'][0]:.3f}x "
-              f"(signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= 8 -- larger batches "
-              f"at 10 blocks are outside the sweep's batch x context <= 1M grid). WHY THIS "
-              f"SHIPS WHEN DEEPSEEK-V4-PRO'S WAS WITHDRAWN (methodology section 10.3): Pro's "
-              f"csa4 layers read up to 262,912 tokens, far outside any measured row, and "
-              f"its 128 heads run the h128 kernel; every V4.1 sparse layer reads at most "
-              f"640 tokens on the h64 kernel, inside the measured range. SCOPED TO THIS "
+              f"n={fm['hold_n']}); at exactly V4.1's {g['v41_blocks']} blocks "
+              f"{fm['v41'][0]:.3f}x (signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= 8 "
+              f"-- larger batches at {g['v41_blocks']} blocks are outside the sweep's batch x "
+              f"context <= 1M grid). WHY THIS SHIPS WHEN DEEPSEEK-V4-PRO'S WAS WITHDRAWN "
+              f"(methodology section 10.3): that rate was fitted on Pro's 128-head rows (the "
+              f"h128 instance, which Pro runs only below TP 2) and was to be charged against "
+              f"the kernel's selection rule for Pro's csa4 layers -- up to 262,912 tokens "
+              f"at a 1M context, far outside any measured row. Every V4.1 sparse layer reads "
+              f"at most {g['v41_tokens']} tokens per query ({g['window']} window + top-"
+              f"{g['topk']}) on the h64 instance at every TP width, inside the measured "
+              f"range; the kernel charges that read once blis-latency-kernel#32 drops the "
+              f"compressed tier and keeps the window. SCOPED TO THIS "
               f"MODEL so no other sparse_mla deployment changes. The FlashMLA SM90 decode "
               f"device code is unchanged between the FlashMLA pins of vLLM 0.25.0 and "
               f"0.31.0 (a6ec2ba, 0eee43b: renames only). END-TO-END CHECK PENDING: FPM "
               f"carries DeepSeek-V4.1-Flash on h200, but blis-latency-kernel cannot yet "
-              f"price this model -- it refuses the fp8_ds_mla cache, and its KV bytes and "
-              f"sparse selection rule are wrong for it (blis-latency-kernel#36, #30, #32); "
+              f"price this model -- it refuses the fp8_ds_mla cache, and its KV bytes, "
+              f"sparse selection rule and FlashMLA head padding are wrong for it "
+              f"(blis-latency-kernel#36, #30, #32, #39); "
               f"see methodology section 10.5. Reproduce with "
               f"scripts/fit_deepseek_v41_h200.py."),
         lines("attention_decode_floor_block_index_scores", ix["floor"], "us_per_transfer",
@@ -374,9 +418,11 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{g['v41_index_heads'] * 256 / g['key']:.0f} FLOP/B against an FP8 ridge of "
               f"{ridge:.0f}. DIRECTION: an upper bound on the rate, so a lower bound on scan "
               f"time. Under speculative decoding each request scores k+1 query rows against "
-              f"each key; at the {measured_tflops:.0f} TFLOPS this kernel was measured "
-              f"sustaining (a lower bound on what it can), k = 5 would make the scan "
-              f"compute-bound at {spec_frac:.2f} of this rate. TO REPLACE IT: the same "
+              f"each key, so k = 5 brings it to {6 * g['v41_index_heads'] * 256 / g['key']:.0f} "
+              f"FLOP/B -- still under the ridge at datasheet peak, but at the "
+              f"{measured_tflops:.0f} TFLOPS this kernel was measured sustaining (a lower "
+              f"bound on what it can) the scan could become compute-bound at as little as "
+              f"{spec_frac:.2f} of this rate. TO REPLACE IT: the same "
               f"sweep with a distinct block table per query row, so the footprint exceeds "
               f"L2. Scoped to this model; consumed by no reader yet (see the floor)."),
     ]
@@ -396,8 +442,9 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"the measured cuBLAS BF16 envelope ({bf16_eps:g} of peak) bounds it above. "
               f"No sweep measures dense Marlin on any part, so the fraction it reaches is "
               f"unknown; the same Marlin MMA core in its grouped (MoE) form reaches "
-              f"{grouped_eps:g} (gemm_eps_max_w4a16_mxfp4_grouped), so the bound may be loose "
-              f"by up to {bf16_eps / grouped_eps:.1f}x at prefill-sized M. At decode-sized M "
+              f"{grouped_eps:g} (gemm_eps_max_w4a16_mxfp4_grouped); if dense Marlin reaches "
+              f"what the grouped form does, the bound is loose by about "
+              f"{bf16_eps / grouped_eps:.1f}x at prefill-sized M. At decode-sized M "
               f"the kernel's HBM term -- the FP8 "
               f"weight read -- dominates, and this term barely enters. DIRECTION: optimistic "
               f"for compute-bound GEMMs. TO REPLACE IT: an h200 GEMM sweep with "
@@ -406,13 +453,16 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"by weight format and chip (blis-latency-kernel#34)."),
         lines("gemm_m_half_w8a16_mxfp8", bf16_mh, "tokens", "assumed", False, PART_SCOPE,
               [("model", "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/"
-                "gemm_perf.parquet via gemm_m_half_bf16", "upper_bound")],
+                "gemm_perf.parquet via gemm_m_half_bf16", "primary")],
               f"ASSUMED: this part's measured cuBLAS BF16 knee (gemm_m_half_bf16), paired "
               f"with gemm_eps_max_w8a16_mxfp8 so the two describe one ramp rather than an "
               f"asymptote from one kernel and a knee from another. The knee is where a GEMM "
               f"stops being operand-starved; Marlin's grouped form measures {grouped_mh} "
               f"tokens on this part (gemm_m_half_w4a16_mxfp4_grouped), against {bf16_mh} "
-              f"here, so the dense Marlin knee is unmeasured within that range. At decode "
+              f"here, so the dense Marlin knee is unmeasured within that range. DIRECTION: "
+              f"NOT a bound. A knee above Marlin's own lowers the ramp at mid M, so this "
+              f"half is likely pessimistic there while the asymptote is optimistic at large "
+              f"M; the two partly offset and neither direction is established. At decode "
               f"M the kernel's HBM term -- the FP8 weight read -- dominates either way. TO "
               f"REPLACE IT: the same MarlinMxfp8LinearKernel sweep as the asymptote; both "
               f"come from one fit."),

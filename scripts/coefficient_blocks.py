@@ -2,26 +2,42 @@
 
 The sets are hand-ordered YAML with comments, so a writer that owns a few entries must
 replace exactly those and pass every other byte through. An entry is identified by its
-NAME and its SCOPE LINE, because one name legitimately appears once per part (and, for a
-model-scoped entry, once per model).
+NAME and its SCOPE, because one name legitimately appears once per part (and, for a
+model-scoped entry, once per model). Scopes are compared parsed, so a reordered or
+re-spaced scope is still the same entry rather than a reason to insert a duplicate.
 """
 
 from __future__ import annotations
 
 import re
 
+import yaml
+
 ENTRY = re.compile(r"^  - ([a-z_0-9]+):$")
 SCOPE = re.compile(r"^      scope: (\{.*\})$")
 
 
 def split(text: str) -> list[list[str]]:
-    """The file as blocks: each entry with its indented body, and every other line alone."""
+    """The file as blocks: each entry with its indented body, and every other line alone.
+
+    A blank line inside an entry's body -- a paragraph break in a folded rationale -- stays
+    with the entry when the next non-blank line is still indented as part of it, so
+    replacing the entry cannot leave a stale paragraph behind under the new one.
+    """
+    lines = text.split("\n")
     out: list[list[str]] = []
-    for line in text.split("\n"):
+    for i, line in enumerate(lines):
+        in_entry = bool(out) and ENTRY.match(out[-1][0]) is not None
         if ENTRY.match(line):
             out.append([line])
-        elif out and ENTRY.match(out[-1][0]) and line.startswith("    "):
+        elif in_entry and line.startswith("    "):
             out[-1].append(line)
+        elif in_entry and not line.strip():
+            nxt = next((x for x in lines[i + 1:] if x.strip()), "")
+            if nxt.startswith("    "):
+                out[-1].append(line)
+            else:
+                out.append([line])
         else:
             out.append([line])
     return out
@@ -45,11 +61,22 @@ def scope_of(block: list[str]) -> str | None:
     return None
 
 
+def _scope_key(scope: str) -> tuple:
+    parsed = yaml.safe_load(scope) or {}
+    return tuple(sorted((k, tuple(sorted(v)) if isinstance(v, list) else (v,))
+                        for k, v in parsed.items()))
+
+
 def find(blocks: list[list[str]], name: str, scope: str) -> int | None:
-    for j, b in enumerate(blocks):
-        if name_of(b) == name and scope_of(b) == scope:
-            return j
-    return None
+    """The one block with this name and scope, or None. Two is an error: the kernel keeps
+    the last in file order, so a writer maintaining the first would leave the live one stale."""
+    key = _scope_key(scope)
+    hits = [j for j, b in enumerate(blocks)
+            if name_of(b) == name and scope_of(b) is not None
+            and _scope_key(scope_of(b)) == key]
+    if len(hits) > 1:
+        raise SystemExit(f"{name} {scope}: {len(hits)} entries share this name and scope")
+    return hits[0] if hits else None
 
 
 def upsert(blocks: list[list[str]], entry: list[str], after) -> None:

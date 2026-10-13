@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Fit the GEMM ramp of vLLM's Marlin weight-only grouped GEMM (MXFP4 W4A16 experts).
+"""Fit the GEMM ramp of vLLM's Marlin weight-only grouped GEMM (MXFP4 W4A16 experts) on h200.
 
     python scripts/fit_marlin_grouped_ramp.py            # print the fits, rewrite the file
     python scripts/fit_marlin_grouped_ramp.py --check    # exit 1 if the file would change
 
-WHY THIS FAMILY EXISTS (inference-sim/blis-registry#38). On a part without a native FP4
-tensor-core path, vLLM v0.31.0 runs MXFP4 routed experts through Marlin: the MXFP4
-backend order is FlashInfer-TRTLLM, DeepGEMM, Marlin, and the first two require SM100
-(`model_executor/layers/fused_moe/oracle/mxfp4.py`, `_get_priority_backends`). For a
-compressed-tensors MXFP4 checkpoint (Kimi-K3) `CompressedTensorsW4A4Mxfp4MoEMethod` picks
-`MarlinExperts` on EVERY SM unless `moe_backend == "b12x"`
-(`quantization/compressed_tensors/compressed_tensors_moe/compressed_tensors_moe_w4a4_mxfp4.py`).
+WHY THIS FAMILY EXISTS (inference-sim/blis-registry#38). On SM90 vLLM v0.31.0 runs MXFP4
+routed experts through Marlin:
+  * an OCP-MXFP4 checkpoint (DeepSeek-V4.1-Flash, `Mxfp4MoEMethod`): the backend order is
+    FlashInfer-TRTLLM, DeepGEMM, Marlin, and the first two require SM100
+    (`model_executor/layers/fused_moe/oracle/mxfp4.py`, `_get_priority_backends`);
+  * a compressed-tensors MXFP4 checkpoint (`CompressedTensorsW4A4Mxfp4MoEMethod`, Kimi-K3):
+    `CutlassExpertsMxfp4` when `_supports_current_device()` -- SM100, SM110 or SM120 --
+    and `MarlinExperts` otherwise (`compressed_tensors_moe_w4a4_mxfp4.py`).
+So on h200 both resolve to Marlin, and on Blackwell neither does by default. That is why
+this family is committed for h200 only: AISimulate's Blackwell rows of the same kernel force
+the Marlin selection for a preview build whose CUTLASS path rejected SiTU
+(AISimulate `collector/vllm/collect_moe.py`), which stock v0.31.0 does not do.
+
 Marlin is WEIGHT-ONLY: the four-bit weights are dequantized in registers and multiplied
 against BF16 activations with `mma.sync` (`csrc/libtorch_stable/quantization/marlin/
 marlin_mma.h`), so its compute rate is a fraction of the part's BF16 peak, not of an FP8 or
@@ -31,12 +37,11 @@ only way a fitted ramp composes back to the measured latency inside the kernel.
 
 THE DATA. AISimulate `moe/vllm/0.25.0/moe_perf.parquet`, kernel_source
 `vllm_compressedtensorsw4a4mxfp4moe_marlin_marlinexperts_situ_as_silu`, moe_dtype
-`w4a16_mxfp4`: Kimi-K3's expert geometry (hidden 3584, inter 3072, top-16 of 896), the
-`MarlinExperts` selection forced on the stock build with SiTU's elementwise epilogue
-approximated as SiLU (AISimulate `collector/vllm/collect_moe.py`). The epilogue is an
-elementwise pass between the two grouped GEMMs, so the approximation leaves the GEMMs the
-ramp describes untouched. Fitted on balanced routing at moe_tp = moe_ep = 1, 27 token
-counts from 1 to 16,384.
+`w4a16_mxfp4`: Kimi-K3's expert geometry (hidden 3584, inter 3072, top-16 of 896) with
+SiTU's elementwise epilogue approximated as SiLU. The epilogue is an elementwise pass
+between the two grouped GEMMs, so the approximation leaves the GEMMs the ramp describes
+untouched. Fitted on balanced routing at moe_tp = moe_ep = 1, 27 token counts from 1 to
+16,384.
 
 WHY vLLM 0.25.0 MEASURES THE v0.31.0 KERNEL. Between the two tags the Marlin MoE template
 (`csrc/libtorch_stable/moe/marlin_moe_wna16/marlin_template.h`) changes only by removing
@@ -46,16 +51,15 @@ compile-time constant, and MXFP4's group-32 instantiation never took that branch
 HELD OUT, AND WHAT IT SHOWS.
   * A DIFFERENT GEOMETRY AND WEIGHT TYPE. The same sweep carries vLLM's int4 Marlin MoE
     (`compressedtensorswna16marlinmoe_marlin_marlinexperts`, hidden 7168, inter 2048,
-    top-8 of 384 -- the Kimi-K2 geometry, whose int4 checkpoints use group-32 BF16 scales,
-    AISimulate model_configs/moonshotai--Kimi-K2.5_config.json). Same Marlin template,
-    different expert shape: held-out error is reported beside the training error, and is
-    the evidence that the asymptote is the kernel's rather than one shape's.
+    top-8 of 384), collected with the collector's default group size of 128
+    (`collect_moe.py`, `module_config.get("group_size", 128)`; the Kimi-K2.5 case passes
+    none). Same Marlin template, different expert shape, so its error is the evidence that
+    the asymptote is the kernel's rather than one shape's. Its geometry is asserted.
   * EXPERT AND TENSOR PARALLELISM ARE A FORM LIMIT, NOT THIS FIT'S. The error grows with
     moe_ep and moe_tp, because the kernel's routed term evaluates the ramp at the STEP's
-    token count and carries no per-launch floor. The committed BF16 ramp shows the same
-    growth on vLLM's BF16 Triton experts (2.8x at ep 8, 8.3x at ep 32 on h200, hidden 2048,
-    inter 512, top-8 of 256), so it is a
-    property of the composition and is reported, not tuned away.
+    token count and carries no per-launch floor. `form_check` prints the same growth for
+    the committed BF16 ramp on vLLM's BF16 Triton experts, so it is a property of the
+    composition and is reported, not tuned away.
 
 LANE. vLLM, the engine BLIS prices. Units: `latency` is MILLISECONDS in every AISimulate
 parquet.
@@ -91,15 +95,18 @@ FIT_KERNEL = "vllm_compressedtensorsw4a4mxfp4moe_marlin_marlinexperts_situ_as_si
 FIT_DTYPE = "w4a16_mxfp4"
 HOLDOUT_KERNEL = "vllm_compressedtensorswna16marlinmoe_marlin_marlinexperts"
 HOLDOUT_DTYPE = "int4_wo"
+HOLDOUT_GEOMETRY = (7168, 2048, 8, 384)
+# The BF16 baseline the form check scores the committed BF16 ramp against.
+FORM_KERNEL = "vllm_unquantizedfusedmoe_triton_tritonexperts"
+FORM_DTYPE = "bfloat16"
 
 # Stored bytes per weight. MXFP4: e2m1 nibbles plus one E8M0 byte per 32 values (OCP MX
-# block size). int4 holdout: nibbles plus one BF16 scale per group of 32.
-BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 32}
+# block size). int4 holdout: nibbles plus one BF16 scale per group of 128. BF16: 2.
+BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 128, FORM_DTYPE: 2.0}
 
-# The parts this family is committed for, and why each: h200 serves DeepSeek-V4.1-Flash's
-# MXFP4 experts on Marlin (#38); gb300 serves Kimi-K3's, which the KDA validation in #25
-# cannot score until the W4A16 rate is stated.
-PARTS = [("h200_sxm", "h200"), ("gb300", "gb300")]
+# The parts this family is committed for: those where stock vLLM v0.31.0 runs these
+# experts on Marlin. See the module docstring for why Blackwell is not one of them.
+PARTS = [("h200_sxm", "h200")]
 
 NAMES = ("gemm_eps_max_w4a16_mxfp4_grouped", "gemm_m_half_w4a16_mxfp4_grouped")
 
@@ -113,14 +120,14 @@ def chip_facts(catalog: Path, chip: str) -> tuple[float, float]:
     return float(facts["TFlopsPeak"]) * 1e12, float(facts["BwPeakTBs"]) * 1e12
 
 
-def hbm_derate(chip: str) -> float:
-    """The committed hbm_derate for this chip, which the kernel multiplies BwPeak by."""
+def committed(name: str, chip: str) -> float:
+    """The committed part-wide entry for this chip -- scoped to it alone, no model."""
     doc = yaml.safe_load(SET_PATH.read_text())
-    for e in doc["coefficients"]:
-        ((name, body),) = e.items()
-        if name == "hbm_derate" and chip in body["scope"].get("hardware", []):
-            return float(body["value"])
-    raise SystemExit(f"{chip}: no committed hbm_derate; the memory half cannot be charged")
+    hits = [body["value"] for e in doc["coefficients"] for n, body in e.items()
+            if n == name and body["scope"] == {"hardware": [chip]}]
+    if len(hits) != 1:
+        raise SystemExit(f"{chip}: expected one part-wide {name}, found {len(hits)}")
+    return float(hits[0])
 
 
 def load(data: Path, sku: str, kernel: str, dtype: str) -> list[dict]:
@@ -131,12 +138,21 @@ def load(data: Path, sku: str, kernel: str, dtype: str) -> list[dict]:
     rows = []
     for i in range(len(t["latency"])):
         if (t["kernel_source"][i] != kernel or t["moe_dtype"][i] != dtype
-                or t["distribution"][i] != "balanced" or t["latency"][i] <= 0):
+                or t["distribution"][i] != "balanced"):
             continue
+        if not (math.isfinite(t["latency"][i]) and t["latency"][i] > 0):
+            raise SystemExit(f"{sku}: {kernel} row {i} has latency {t['latency'][i]}")
         rows.append({k: t[k][i] for k in (
             "num_tokens", "hidden_size", "inter_size", "topk", "num_experts",
             "moe_tp_size", "moe_ep_size")} | {"s": t["latency"][i] * 1e-3})
     return rows
+
+
+def geometry(rows: list[dict]) -> tuple[int, int, int, int]:
+    geoms = {(r["hidden_size"], r["inter_size"], r["topk"], r["num_experts"]) for r in rows}
+    if len(geoms) != 1:
+        raise SystemExit(f"expected one expert geometry, got {sorted(geoms)}")
+    return geoms.pop()
 
 
 def terms(rows: list[dict], dtype: str, bw: float) -> tuple[np.ndarray, ...]:
@@ -155,13 +171,9 @@ def terms(rows: list[dict], dtype: str, bw: float) -> tuple[np.ndarray, ...]:
     return tuple(np.asarray(x, dtype=float) for x in (T, F, H, S))
 
 
-def predict(T, F, H, peak, eps, mh):
-    return F / (peak * eps * T / (T + mh)) + H
-
-
 def errors(T, F, H, S, peak, eps, mh) -> tuple[float, float]:
     """(geometric mean |error|, geometric mean signed ratio), as the committed fits report."""
-    r = np.log(predict(T, F, H, peak, eps, mh) / S)
+    r = np.log(F / (peak * eps * T / (T + mh)) + H) - np.log(S)
     return math.exp(float(np.mean(np.abs(r)))), math.exp(float(np.mean(r)))
 
 
@@ -175,53 +187,79 @@ def fit(T, F, H, S, peak) -> tuple[float, int, float]:
         j = int(np.argmin(err))
         if err[j] < best[0]:
             best = (float(err[j]), float(eps), int(MHALF_GRID[j]))
-    return float(best[1]), best[2], math.exp(best[0])
+    err, eps, mh = math.exp(best[0]), best[1], best[2]
+    # A fit pinned to its grid's edge is the grid's answer, not the data's.
+    if not math.isfinite(err) or eps in (EPS_GRID[0], EPS_GRID[-1]) \
+            or mh in (MHALF_GRID[0], MHALF_GRID[-1]):
+        raise SystemExit(f"fit is not interior: eps_max={eps}, m_half={mh}, err={err}")
+    return eps, mh, err
+
+
+def form_check(data: Path, sku: str, peak: float, bw: float, chip: str) -> dict:
+    """The committed BF16 ramp, scored on vLLM's BF16 Triton experts across EP widths."""
+    eps, mh = committed("gemm_eps_max_bf16", chip), committed("gemm_m_half_bf16", chip)
+    by_geom: dict = {}
+    for r in load(data, sku, FORM_KERNEL, FORM_DTYPE):
+        by_geom.setdefault((r["hidden_size"], r["inter_size"], r["topk"],
+                            r["num_experts"]), []).append(r)
+    geom = min(by_geom)  # deterministic: the smallest geometry the sweep carries
+    out = {}
+    for ep in (1, 8, 32):
+        cell = [r for r in by_geom[geom] if r["moe_tp_size"] == 1 and r["moe_ep_size"] == ep]
+        if cell:
+            out[ep] = errors(*terms(cell, FORM_DTYPE, bw), peak, eps, mh)[0]
+    return {"geom": geom, "by_ep": out}
 
 
 def fit_part(data: Path, catalog: Path, sku: str, chip: str) -> dict:
     peak, bw_peak = chip_facts(catalog, chip)
-    bw = bw_peak * hbm_derate(chip)
-    rows = load(data, sku, FIT_KERNEL, FIT_DTYPE)
-    train = [r for r in rows if r["moe_tp_size"] == 1 and r["moe_ep_size"] == 1]
-    geoms = {(r["hidden_size"], r["inter_size"], r["topk"], r["num_experts"]) for r in train}
-    if len(geoms) != 1 or len(train) < 20:
-        raise SystemExit(f"{chip}: expected one geometry and >= 20 rows, got {geoms}, "
-                         f"{len(train)}")
+    bw = bw_peak * committed("hbm_derate", chip)
+    train = [r for r in load(data, sku, FIT_KERNEL, FIT_DTYPE)
+             if r["moe_tp_size"] == 1 and r["moe_ep_size"] == 1]
+    if len(train) < 20:
+        raise SystemExit(f"{chip}: only {len(train)} training rows")
+    geom = geometry(train)
     T, F, H, S = terms(train, FIT_DTYPE, bw)
     eps, mh, err = fit(T, F, H, S, peak)
     _, signed = errors(T, F, H, S, peak, eps, mh)
 
     hold = [r for r in load(data, sku, HOLDOUT_KERNEL, HOLDOUT_DTYPE)
             if r["moe_tp_size"] == 1 and r["moe_ep_size"] == 1]
-    ho = errors(*terms(hold, HOLDOUT_DTYPE, bw), peak, eps, mh) if hold else None
-    (geom,) = geoms
+    if len(hold) < 20 or geometry(hold) != HOLDOUT_GEOMETRY:
+        raise SystemExit(f"{chip}: the int4 Marlin holdout is missing or has moved "
+                         f"({len(hold)} rows); refusing to commit an unvalidated ramp")
+    ho = errors(*terms(hold, HOLDOUT_DTYPE, bw), peak, eps, mh)
     return {"sku": sku, "chip": chip, "eps": eps, "mh": mh, "err": err, "signed": signed,
             "n": len(train), "geom": geom, "peak_tf": peak / 1e12,
             "holdout": ho, "holdout_n": len(hold),
-            }
+            "form": form_check(data, sku, peak, bw, chip)}
 
 
 def entry_lines(name: str, f: dict) -> list[str]:
     h, i, k, e = f["geom"]
+    hh, hi, hk, he = HOLDOUT_GEOMETRY
     cite = (f"NVIDIA AISimulate systems/data/{f['sku']}/moe/{COLLECTION}/moe_perf.parquet, "
             f"{FIT_KERNEL}, moe_dtype {FIT_DTYPE}, balanced, moe_tp 1 / moe_ep 1, "
             f"{f['n']} token counts (hidden {h}, inter {i}, top-{k} of {e})")
-    ho = (f"held out on vLLM's int4 Marlin MoE (hidden 7168, inter 2048, top-8 of 384; "
-          f"{f['holdout_n']} token counts) at {f['holdout'][0]:.3f}x, signed "
-          f"{f['holdout'][1]:.3f}" if f["holdout"] else "no int4 Marlin holdout on this part")
     if name.startswith("gemm_eps_max"):
         value, units = f"{f['eps']:.3f}", "dimensionless"
         rat = (f"Asymptotic fraction of this part's dense BF16 peak ({f['peak_tf']:g} "
-               f"TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. Marlin "
-               f"dequantizes the four-bit weights in registers and multiplies against BF16 "
-               f"activations with mma.sync, so its rate is a fraction of the BF16 peak, not "
-               f"of an FP8 or FP4 one. Fitted with gemm_m_half_w4a16_mxfp4_grouped under "
-               f"the kernel's routed-expert composition -- the SM half summed with the "
-               f"distinct experts' stored weight bytes (0.53125 B/weight, E8M0 scales "
-               f"included) at BwPeak x hbm_derate -- so the ramp is what remains once the "
-               f"kernel's own memory half is charged. Geometric error {f['err']:.3f}x "
-               f"(signed {f['signed']:.3f}); {ho}. Applies to the routed-expert term only; "
-               f"a dense MXFP4 linear runs a different Marlin kernel and is not measured. "
+               f"TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. On SM90 "
+               f"v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM and "
+               f"DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
+               f"require SM100+). Marlin dequantizes the four-bit weights in registers and "
+               f"multiplies against BF16 activations with mma.sync, so its rate is a "
+               f"fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with "
+               f"gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert "
+               f"composition -- the SM half summed with the distinct experts' stored weight "
+               f"bytes (0.53125 B/weight, E8M0 scales included) at BwPeak x hbm_derate -- so "
+               f"the ramp is what remains once the kernel's own memory half is charged. "
+               f"Geometric error {f['err']:.3f}x (signed {f['signed']:.3f}); held out on "
+               f"vLLM's int4 Marlin MoE (hidden {hh}, inter {hi}, top-{hk} of {he}, group "
+               f"128; {f['holdout_n']} token counts) at {f['holdout'][0]:.3f}x, signed "
+               f"{f['holdout'][1]:.3f}. Applies to the routed-expert term only; a dense "
+               f"MXFP4 linear runs a different Marlin kernel and is not measured. Not "
+               f"committed for Blackwell, where stock v0.31.0 does not select Marlin. "
                f"Reproduce with scripts/fit_marlin_grouped_ramp.py.")
     else:
         value, units = str(f["mh"]), "tokens"
@@ -246,8 +284,14 @@ def entry_lines(name: str, f: dict) -> list[str]:
 
 def render(text: str, fits: dict[str, dict]) -> str:
     """Replace each owned (name, chip) entry in place; insert a missing one after the
-    chip's last gemm_* entry, so the family sits with the part's other ramps."""
+    chip's last gemm_* entry, so the family sits with the part's other ramps. An entry of
+    this family on a part outside PARTS is refused rather than left unmaintained."""
     blocks = cb.split(text)
+    owned = {f"{{hardware: [{chip}]}}" for chip in fits}
+    for b in blocks:
+        if cb.name_of(b) in NAMES and cb.scope_of(b) not in owned:
+            raise SystemExit(f"{cb.name_of(b)} {cb.scope_of(b)} is not a part this writer "
+                             f"maintains; remove it or add the part to PARTS")
     for chip, f in fits.items():
         scope = f"{{hardware: [{chip}]}}"
         for name in NAMES:
@@ -270,10 +314,12 @@ def main(argv: list[str]) -> int:
     for sku, chip in PARTS:
         f = fit_part(Path(args.data), Path(args.catalog), sku, chip)
         fits[chip] = f
-        ho = (f"holdout int4 {f['holdout'][0]:.3f}x signed {f['holdout'][1]:.3f} "
-              f"(n={f['holdout_n']})" if f["holdout"] else "no holdout")
+        form = ", ".join(f"ep {ep} {e:.2f}x" for ep, e in f["form"]["by_ep"].items())
         print(f"{chip:8} eps_max={f['eps']:.3f} m_half={f['mh']:4d}  "
-              f"train {f['err']:.3f}x signed {f['signed']:.3f} (n={f['n']})  {ho}")
+              f"train {f['err']:.3f}x signed {f['signed']:.3f} (n={f['n']})  holdout int4 "
+              f"{f['holdout'][0]:.3f}x signed {f['holdout'][1]:.3f} (n={f['holdout_n']})")
+        print(f"{'':8} form check, committed BF16 ramp on BF16 Triton experts "
+              f"{f['form']['geom']}: {form}")
 
     before = SET_PATH.read_text(encoding="utf-8")
     after = render(before, fits)

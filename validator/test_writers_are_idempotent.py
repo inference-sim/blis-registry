@@ -61,6 +61,8 @@ WRITERS = [
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance median"),
     ("fit_marlin_grouped_ramp.py", "the Marlin W4A16 grouped GEMM ramp"),
+    # Entry-level: the descriptor entries and A100's MoE median, the families it owns.
+    ("emit_primitives.py", "the descriptor entries and the A100 MoE median"),
     # Owns six DeepSeek-V4.1-on-h200 entries across two sets: two fitted, four assumed
     # and derived from committed siblings, so --check also catches a sibling refitted
     # without re-deriving them.

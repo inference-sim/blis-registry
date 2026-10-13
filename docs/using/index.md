@@ -20,8 +20,9 @@ promise.
 ## Run BLIS with it
 
 The simulator prices steps through blis-latency-kernel when run with
-`--latency-model blis-latency-kernel`. That path is on inference-sim's `kernel-exclusive`
-branch ([inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851)).
+`--latency-model blis-latency-kernel`. That path is on the `kernel-exclusive` branch of
+the `sriumcp/inference-sim` fork, open as
+[inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851).
 It reads the deployment from a scenario file, the model and hardware from a catalog
 clone, and the coefficients from a registry clone:
 

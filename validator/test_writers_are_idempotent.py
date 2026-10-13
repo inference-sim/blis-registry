@@ -59,7 +59,13 @@ WRITERS = [
     ("relane_attention_prefill.py", "prefill floor and work_scale"),
     ("relane_attention_swa.py", "sliding-window decode floor and rate"),
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
-    ("relane_moe_imbalance.py", "the MoE routing-imbalance pair"),
+    ("relane_moe_imbalance.py", "the MoE routing-imbalance median"),
+    ("fit_marlin_grouped_ramp.py", "the Marlin W4A16 grouped GEMM ramp"),
+    # Owns six DeepSeek-V4.1-on-h200 entries across two sets: two fitted, four assumed
+    # and derived from committed siblings, so --check also catches a sibling refitted
+    # without re-deriving them.
+    ("fit_deepseek_v41_h200.py", "the DeepSeek-V4.1 h200 attention, indexer, W8A16 and "
+                                 "host-gather entries"),
     # Not a fitter -- it transcribes AISimulate's activation table and anchors the capture
     # bytes on a committed CSV -- but it renders a whole file, so byte-identity is the right
     # gate. The capture half needs no AISimulate tree and is also gated in CI by
@@ -214,7 +220,10 @@ def test_every_fitted_family_has_a_writer():
         "gemm_eps_max": "relane_gemm_envelope.py",
         "gemm_m_half": "relane_gemm_envelope.py",
         "moe_routing_imbalance_median": "relane_moe_imbalance.py",
-        "moe_routing_imbalance_p90": "relane_moe_imbalance.py",
+        "gemm_eps_max_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
+        "gemm_m_half_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
+        "attention_decode_rate_sparse_mla": "fit_deepseek_v41_h200.py",
+        "attention_decode_floor_block_index_scores": "fit_deepseek_v41_h200.py",
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {

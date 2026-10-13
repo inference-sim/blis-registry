@@ -16,14 +16,22 @@ THE VALUES ARE NOT HARDCODED. Each is read from `fit_attention_by_kind.py` run a
 the collection given, so re-running this script re-derives them. A fit that moves moves
 the file; a fit that does not leaves it byte-identical.
 
-L40S IS DEFERRED, NOT FORGOTTEN. Its vLLM-lane fit is WORSE than the committed TRT-LLM
-entry (2.110x against it), so relaning it would trade provenance for accuracy. Pass it
-explicitly to override that; the default part list omits it.
+L40S IS ON THE vLLM LANE BY DECISION, AND THE COST IS RECORDED. Commit 5be809b moved it
+to `vllm/0.24.0` (its newest vLLM attention collection; there is no 0.25.0 for this part)
+for lane correctness, knowing its held-out folds favour TRT-LLM: median held-out error
+2.073x against TRT-LLM's 1.681x, 0 of 2 shared folds won (methodology section 7.1). That
+trades measured fit quality for the engine BLIS prices, and the trade is stated rather
+than reverted, because the alternative mixes two engines into one step for every
+windowed model on the part.
+
+EVERY COMMITTED PART IS MAINTAINED. Each default part carries its own collection, so
+`--check` guards the l40s and gb300 entries too; an earlier default list omitted both,
+which left four committed values with no writer re-deriving them.
 
 Usage:
-    python scripts/relane_attention_swa.py --collection vllm/0.25.0
-    python scripts/relane_attention_swa.py --collection vllm/0.25.0 --check
-    python scripts/relane_attention_swa.py --collection vllm/0.25.0 h200_sxm:h200
+    python scripts/relane_attention_swa.py
+    python scripts/relane_attention_swa.py --check
+    python scripts/relane_attention_swa.py h200_sxm:h200:vllm/0.25.0
 """
 
 from __future__ import annotations
@@ -38,14 +46,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SET_PATH = HERE.parent / "coefficients" / "cost-model-attention.yaml"
 
-# The parts with a vLLM sliding-window sweep whose fit beats the committed TRT-LLM one.
-# l40s is absent deliberately — see the module docstring.
+# Every part the set carries a measured SWA pair for, each with the vLLM collection it is
+# fitted on. l40s has no vllm/0.25.0 attention collection; 0.24.0 is its newest.
+DEFAULT_COLLECTION = "vllm/0.25.0"
 DEFAULT_PARTS = [
-    ("h200_sxm", "h200"),
-    ("h100_sxm", "h100"),
-    ("b200_sxm", "b200"),
-    ("b300_sxm", "b300"),
-    ("gb200", "gb200-nvl72"),
+    ("h200_sxm", "h200", DEFAULT_COLLECTION),
+    ("h100_sxm", "h100", DEFAULT_COLLECTION),
+    ("b200_sxm", "b200", DEFAULT_COLLECTION),
+    ("b300_sxm", "b300", DEFAULT_COLLECTION),
+    ("gb200", "gb200-nvl72", DEFAULT_COLLECTION),
+    ("gb300", "gb300", DEFAULT_COLLECTION),
+    ("l40s", "l40s", "vllm/0.24.0"),
 ]
 
 DEVICE = {
@@ -195,7 +206,7 @@ def insert_part(
     return result, 2
 
 
-def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int]:
+def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
     """Replace the floor/rate entries for every chip in `fits`; pass everything else through."""
     lines = text.split("\n")
     out: list[str] = []
@@ -229,7 +240,7 @@ def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int
             out.extend(tail)
             i = j
             continue
-        out += entry_lines(m.group(2), chip, collection, fits[chip])
+        out += entry_lines(m.group(2), chip, fits[chip]["collection"], fits[chip])
         out.extend(tail)
         changed += 1
         i = j
@@ -239,26 +250,31 @@ def rewrite(text: str, fits: dict[str, dict], collection: str) -> tuple[str, int
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--collection", default="vllm/0.25.0",
-                    help="lane/version under <sku>/attention (default vllm/0.25.0)")
+    ap.add_argument("--collection", default=DEFAULT_COLLECTION,
+                    help="lane/version for a sku:chip argument that names none "
+                         f"(default {DEFAULT_COLLECTION})")
     ap.add_argument("--check", action="store_true",
                     help="exit 1 if the file would change; write nothing")
     ap.add_argument("--insert", metavar="CHIP",
                     help="append the SWA pair for a part the set does not carry yet "
                          "(the rewrite path only maintains parts already present)")
-    ap.add_argument("parts", nargs="*", metavar="sku:chip",
-                    help=f"default: {' '.join(f'{s}:{c}' for s, c in DEFAULT_PARTS)}")
+    ap.add_argument("parts", nargs="*", metavar="sku:chip[:collection]",
+                    help="default: " + " ".join(f"{s}:{c}:{v}" for s, c, v in DEFAULT_PARTS))
     args = ap.parse_args(argv[1:])
 
-    parts = ([tuple(p.split(":", 1)) for p in args.parts] if args.parts
-             else DEFAULT_PARTS)
+    parts = []
+    for p in args.parts:
+        bits = p.split(":", 2)
+        parts.append((bits[0], bits[1], bits[2] if len(bits) == 3 else args.collection))
+    parts = parts or DEFAULT_PARTS
     fits: dict[str, dict] = {}
-    for sku, chip in parts:
-        f = fit(sku, chip, args.collection)
+    for sku, chip, collection in parts:
+        f = fit(sku, chip, collection)
         if f is None:
-            print(f"{chip:14} no sliding-window rows at {args.collection}", file=sys.stderr)
+            print(f"{chip:14} no sliding-window rows at {collection}", file=sys.stderr)
             continue
         f["sku"] = sku
+        f["collection"] = collection
         # Unit guard. The rate is a fraction of this part's datasheet bandwidth, so
         # frac * peak(TB/s) * 1e6 is the same number in B/us. A parse or scaling slip
         # shows up here rather than in the registry: a 1000x error once reached all ten
@@ -289,7 +305,7 @@ def main(argv: list[str]) -> int:
             print(f"{chip}: SWA entries already present; use the rewrite path",
                   file=sys.stderr)
             return 1
-        after, n = insert_part(before, chip, args.collection, fits)
+        after, n = insert_part(before, chip, fits[chip]["collection"], fits)
         if not n:
             print(f"{chip}: nothing to insert", file=sys.stderr)
             return 1
@@ -297,15 +313,15 @@ def main(argv: list[str]) -> int:
         print(f"\n{SET_PATH.name}: inserted {n} {chip} entries")
         return 0
 
-    after, changed = rewrite(before, fits, args.collection)
+    after, changed = rewrite(before, fits)
     if args.check:
         if before != after:
             print(f"\n{SET_PATH.name} would change ({changed} entries)", file=sys.stderr)
             return 1
-        print(f"\n{SET_PATH.name} already matches the {args.collection} fit")
+        print(f"\n{SET_PATH.name} already matches the fit")
         return 0
     SET_PATH.write_text(after, encoding="utf-8")
-    print(f"\n{SET_PATH.name}: {changed} entries rewritten on {args.collection}")
+    print(f"\n{SET_PATH.name}: {changed} entries rewritten")
     return 0
 
 

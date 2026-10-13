@@ -20,6 +20,11 @@ the sweep carries. That choice is kept: `power_law_1.2` is a harder distribution
 production router with auxiliary-loss balancing produces, and switching the basis would
 change what the coefficient means rather than where it was measured.
 
+ONE ENTRY PER PART. The median is the only figure the kernel reads (`kernel.go`
+multiplies the routed FLOPs by it). A `moe_routing_imbalance_p90` family was written beside
+it and read by nothing -- the kernel prices a mean step, not a tail -- so it was retired
+(inference-sim/blis-registry#36); its value is kept in the median's rationale.
+
 A100 IS NOT RELANED. Its vLLM MoE sweep has no shape measured under both a skewed and the
 balanced distribution, so no ratio is derivable; it keeps its SGLang borrow, which is the
 only lane carrying that family for the part.
@@ -105,17 +110,16 @@ def entry_lines(kind: str, chip: str, f: dict) -> list[str]:
     cite = (f"NVIDIA AISimulate systems/data/{f['sku']}/moe/{f['coll']}/"
             f"moe_perf.parquet, {SKEW} against balanced at identical shape and "
             f"kernel_source, {f['n']:,} paired shapes")
-    if kind == "median":
-        rat = ("Median ratio of skewed to balanced latency on vLLM's own expert "
-               "kernels -- Triton, FlashInfer-Cutlass and Marlin, which is what vLLM "
-               "runs rather than the `moe_torch_flow*` paths the TRT-LLM sweep "
-               "measures. Paired per shape AND per kernel, so no ratio crosses "
-               "implementations. This multiplies the routed-expert FLOPs in the "
-               "kernel's step time.")
-    else:
-        rat = ("The 90th percentile of the same paired ratios, recorded for the tail "
-               "a badly-balanced router can reach. Not consumed by "
-               "blis-latency-kernel today, which reads the median only.")
+    if kind != "median":
+        raise ValueError(f"no {kind} entry is written; see the module docstring")
+    rat = ("Median ratio of skewed to balanced latency on vLLM's own expert "
+           "kernels -- Triton, FlashInfer-Cutlass and Marlin, which is what vLLM "
+           "runs rather than the `moe_torch_flow*` paths the TRT-LLM sweep "
+           "measures. Paired per shape AND per kernel, so no ratio crosses "
+           "implementations. This multiplies the routed-expert FLOPs in the "
+           f"kernel's step time. The 90th percentile of the same ratios is "
+           f"{f['p90']:.3f}, stated here rather than as a coefficient because no "
+           "consumer prices a tail from it.")
     return [
         f"  - {name}:",
         f"      value: {f[kind]}",
@@ -142,7 +146,7 @@ def insert_part(text: str, chip: str, fits: dict[str, dict]) -> tuple[str, int]:
     lines = text.split("\n")
     last = None
     for idx, line in enumerate(lines):
-        if re.match(r"  - moe_routing_imbalance_(median|p90):$", line):
+        if re.match(r"  - moe_routing_imbalance_median:$", line):
             j = idx + 1
             while j < len(lines) and not re.match(r"  - [a-z_0-9]+:$", lines[j]):
                 j += 1
@@ -150,13 +154,12 @@ def insert_part(text: str, chip: str, fits: dict[str, dict]) -> tuple[str, int]:
     if last is None:
         return text, 0
     block: list[str] = []
-    for kind in ("median", "p90"):
-        block += entry_lines(kind, chip, f)
+    block += entry_lines("median", chip, f)
     out = lines[:last] + block + lines[last:]
     result = "\n".join(out)
     if text.endswith("\n") and not result.endswith("\n"):
         result += "\n"
-    return result, 2
+    return result, 1
 
 
 def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
@@ -165,7 +168,7 @@ def rewrite(text: str, fits: dict[str, dict]) -> tuple[str, int]:
     i = 0
     changed = 0
     while i < len(lines):
-        m = re.match(r"  - (moe_routing_imbalance_(median|p90)):$", lines[i])
+        m = re.match(r"  - (moe_routing_imbalance_(median)):$", lines[i])
         if not m:
             out.append(lines[i])
             i += 1

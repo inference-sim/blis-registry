@@ -55,3 +55,10 @@ Re-copy the nine files from an upstream checkout and update the commit above. A 
 rename or a changed `BwPeakTBs` is *supposed* to break the tests that name it — that
 coupling is the point, and it is why the copy is pinned to a commit rather than tracking a
 branch.
+
+## Kept in step with CI
+
+`.github/workflows/rederive.yml` checks out blis-catalog at this same commit for the
+writers (the MLA writer reads `models/`, which is not vendored here) and fails if its
+`hardware/` differs from this copy, so the property tests and the re-derivation gates
+always read one revision.

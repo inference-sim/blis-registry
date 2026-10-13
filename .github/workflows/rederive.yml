@@ -9,7 +9,7 @@ name: rederive
 # at the commit every committed value re-derives at and runs the whole suite, so a value
 # that its own fitter no longer produces fails on the pull request.
 #
-# Path-filtered, because the sweeps are ~130 MB and the gates take minutes: a change that
+# Path-filtered, because the checkout is ~135 MB and the gates take ~20 minutes: a change that
 # touches no coefficient, writer or test cannot move a re-derivation.
 
 on:
@@ -46,7 +46,11 @@ jobs:
       - name: Check out the registry
         uses: actions/checkout@v4
 
-      - name: Check out AISimulate (pinned, sweeps and model configs only)
+      # The whole aisimulate_core package (~135 MB): the sweeps under systems/, the model
+      # configs fit_deepseek_v41_h200.py asserts geometry from, and the sdk/ source
+      # emit_memory.py reads NVIDIA's activation table out of. A narrower checkout once
+      # left sdk/ out and failed the memory writer.
+      - name: Check out AISimulate (pinned, the aisimulate_core package only)
         uses: actions/checkout@v4
         with:
           repository: ai-dynamo/aisimulate
@@ -54,8 +58,7 @@ jobs:
           path: aisimulate
           fetch-depth: 1
           sparse-checkout: |
-            python/aisimulate/src/aisimulate_core/systems
-            python/aisimulate/src/aisimulate_core/model_configs
+            python/aisimulate/src/aisimulate_core
 
       - name: Check out blis-catalog (pinned to the vendored commit)
         uses: actions/checkout@v4

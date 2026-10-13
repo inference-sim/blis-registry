@@ -366,7 +366,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"carries DeepSeek-V4.1-Flash on h200, but blis-latency-kernel cannot yet "
               f"price this model -- it refuses the fp8_ds_mla cache, and its KV bytes, "
               f"sparse selection rule and FlashMLA head padding are wrong for it "
-              f"(blis-latency-kernel#36, #30, #32, #39); "
+              f"(blis-latency-kernel#36, #30, #32, #39); tracked in blis-registry#42, "
               f"see methodology section 10.5. Reproduce with "
               f"scripts/fit_deepseek_v41_h200.py."),
         lines("attention_decode_floor_block_index_scores", ix["floor"], "us_per_transfer",

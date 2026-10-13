@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit the GEMM ramp of vLLM's Marlin weight-only grouped GEMM (MXFP4 W4A16 experts) on h200.
+"""Fit the GEMM ramp of vLLM's Marlin weight-only grouped GEMM (MXFP4 W4A16 experts).
 
     python scripts/fit_marlin_grouped_ramp.py            # print the fits, rewrite the file
     python scripts/fit_marlin_grouped_ramp.py --check    # exit 1 if the file would change
@@ -12,10 +12,19 @@ routed experts through Marlin:
   * a compressed-tensors MXFP4 checkpoint (`CompressedTensorsW4A4Mxfp4MoEMethod`, Kimi-K3):
     `CutlassExpertsMxfp4` when `_supports_current_device()` -- SM100, SM110 or SM120 --
     and `MarlinExperts` otherwise (`compressed_tensors_moe_w4a4_mxfp4.py`).
-So on h200 both resolve to Marlin, and on Blackwell neither does by default. That is why
-this family is committed for h200 only: AISimulate's Blackwell rows of the same kernel force
-the Marlin selection for a preview build whose CUTLASS path rejected SiTU
-(AISimulate `collector/vllm/collect_moe.py`), which stock v0.31.0 does not do.
+So on h200 both resolve to Marlin by default. On Blackwell stock v0.31.0 does not select
+Marlin, but Marlin is still what some measured Blackwell deployments ran: the Kimi-K3
+preview build (`vllm 0.1.dev19262`), whose CUTLASS activation whitelist rejected SiTU, served
+those experts on MarlinExperts W4A16 on every SM (AISimulate `collector/vllm/collect_moe.py`),
+and the FPM dataset's own runtime-dtype annotation records that build's GB300 runs as
+`moe_quant_mode: w4a16_mxfp4` (`fpm_identity_correction`, policy
+`runtime-dtype-annotation-v1`, in the Kimi-K3 gb300 `0.1.dev19262/tep8` metadata). That run is
+the only end-to-end evidence for the KDA pair (#41), so gb300 carries the family too.
+
+A ramp here is a property of (kernel, part), not a claim about which kernel a deployment
+selects: a consumer applies it only where the deployment's MoE backend IS Marlin W4A16, and
+must not apply it to a stock v0.31.0 Blackwell deployment, which runs CutlassExpertsMxfp4
+(W4A4) or a TRTLLM/DeepGEMM backend.
 
 Marlin is WEIGHT-ONLY: the four-bit weights are dequantized in registers and multiplied
 against BF16 activations with `mma.sync` (`csrc/libtorch_stable/quantization/marlin/
@@ -104,9 +113,22 @@ FORM_DTYPE = "bfloat16"
 # block size). int4 holdout: nibbles plus one BF16 scale per group of 128. BF16: 2.
 BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 128, FORM_DTYPE: 2.0}
 
-# The parts this family is committed for: those where stock vLLM v0.31.0 runs these
-# experts on Marlin. See the module docstring for why Blackwell is not one of them.
-PARTS = [("h200_sxm", "h200")]
+# The parts this family is committed for, and why each (see the module docstring): h200,
+# where stock v0.31.0 selects Marlin for MXFP4 experts; gb300, where the Kimi-K3 FPM run the
+# KDA validation (#41) scores against ran Marlin W4A16.
+PARTS = [("h200_sxm", "h200"), ("gb300", "gb300")]
+
+# Where Marlin is the default on the part, and where it is not.
+WHEN = {
+    "h200": ("On SM90 v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM "
+             "and DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
+             "require SM100+)."),
+    "gb300": ("On this part stock v0.31.0 does NOT select Marlin -- CutlassExpertsMxfp4 "
+              "(W4A4) for a compressed-tensors MXFP4 checkpoint, TRTLLM or DeepGEMM for OCP "
+              "MXFP4 -- so apply this only where the deployment's MoE backend is Marlin W4A16: "
+              "the Kimi-K3 preview build vllm 0.1.dev19262, which the FPM dataset's "
+              "runtime-dtype annotation records as moe_quant_mode w4a16_mxfp4 on gb300."),
+}
 
 NAMES = ("gemm_eps_max_w4a16_mxfp4_grouped", "gemm_m_half_w4a16_mxfp4_grouped")
 
@@ -244,10 +266,8 @@ def entry_lines(name: str, f: dict) -> list[str]:
     if name.startswith("gemm_eps_max"):
         value, units = f"{f['eps']:.3f}", "dimensionless"
         rat = (f"Asymptotic fraction of this part's dense BF16 peak ({f['peak_tf']:g} "
-               f"TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. On SM90 "
-               f"v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM and "
-               f"DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
-               f"require SM100+). Marlin dequantizes the four-bit weights in registers and "
+               f"TFLOPS) that vLLM's Marlin MXFP4 W4A16 grouped GEMM reaches. "
+               f"{WHEN[f['chip']]} Marlin dequantizes the four-bit weights in registers and "
                f"multiplies against BF16 activations with mma.sync, so its rate is a "
                f"fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with "
                f"gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert "
@@ -258,8 +278,7 @@ def entry_lines(name: str, f: dict) -> list[str]:
                f"vLLM's int4 Marlin MoE (hidden {hh}, inter {hi}, top-{hk} of {he}, group "
                f"128; {f['holdout_n']} token counts) at {f['holdout'][0]:.3f}x, signed "
                f"{f['holdout'][1]:.3f}. Applies to the routed-expert term only; a dense "
-               f"MXFP4 linear runs a different Marlin kernel and is not measured. Not "
-               f"committed for Blackwell, where stock v0.31.0 does not select Marlin. "
+               f"MXFP4 linear runs a different Marlin kernel and is not measured. "
                f"Reproduce with scripts/fit_marlin_grouped_ramp.py.")
     else:
         value, units = str(f["mh"]), "tokens"

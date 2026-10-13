@@ -313,7 +313,7 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 |---|---|---|
 | `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
 | `moe_routing_imbalance_median` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
-| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200 only; see methodology §10.5 |
+| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200 and gb300; see methodology §10.5 for where each applies |
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |

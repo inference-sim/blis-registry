@@ -632,7 +632,8 @@ remaining four are the borrows in §8.3.
 *Since this census* (#36, §10.5): the `moe_routing_imbalance_p90` family is retired, so the
 A100 borrow is one entry and the vLLM lane loses seven; the descriptor rows are 48 now that
 `hbm_constant_latency`, `p2p_latency` and the a100_pcie duplicates are gone; and the vLLM
-lane gains four h200 entries (the Marlin ramp, the V4.1 sparse rate and indexer floor).
+lane gains six entries (the Marlin ramp on h200 and gb300, the V4.1 sparse rate and
+indexer floor on h200).
 The reference pages carry the current counts.
 
 ### 8.2 Per-family detail
@@ -646,7 +647,7 @@ The reference pages carry the current counts.
 | collectives | every other collective | 429 | nccl 2.29.2 / 2.27.3 |
 | primitives | `gemm_{eps_max,m_half}` | 52 | vllm 0.27.1 ×32, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
 | primitives | `moe_routing_imbalance_median` | 8 | vllm ×7, **sglang 0.5.10 ×1 (A100)** — the p90 family was retired in #36 |
-| primitives | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 2 | vllm 0.25.0 ×2 (h200), §10.5 |
+| primitives | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 4 | vllm 0.25.0 ×4 (h200, gb300), §10.5 |
 | primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 3 | `assumed` bounds (h200), §10.5 |
 | primitives | descriptors | 48 | AISimulate `systems/<sku>.yaml` |
 | attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 3 | vllm 0.25.0 ×2 + 1 `assumed` (h200, deepseek-v4.1-flash), §10.5 |
@@ -708,17 +709,19 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
   `vllm/0.29.0/tp8-dcp8`, is `moe_ep=1` / `pure_tp`, so it exercises no expert
   all-to-all and is the cleaner first cell to score.
 
-  The blocker last recorded on #25 needs correcting. That comment attributed the
-  over-prediction to a "W4A16 contract" -- Kimi-K3's experts computing at BF16. In stock
-  vLLM v0.31.0 they do not: `CompressedTensorsW4A4Mxfp4MoEMethod` selects
-  `CutlassExpertsMxfp4` on SM100/110/120, whose quant scheme is (`kMxfp4Static`,
-  `kMxfp4Dynamic`) -- activations quantized to MXFP4 too, W4A4 on FP4 tensor cores, the
-  rate class the kernel already applies there. (AISimulate's GB300 Marlin W4A16 rows force
-  Marlin for a preview build that rejected SiTU, which is why no gb300 Marlin ramp is
-  committed, §10.5.) What actually blocks the check is the ~2x over-prediction of the
-  MoE/GEMM term on that scoring run: it is ~82% of the per-request marginal, so FPM cannot
-  yet attribute anything to the KDA pair -- making the KDA read free left the error
-  unchanged. That is kernel-side work, and #25 stays open until it is done.
+  Which MoE kernel that run used matters, and it is not stock v0.31.0's. The FPM metadata
+  for the `0.1.dev19262/tep8` leaves records `moe_quant_mode: w4a16_mxfp4` as the
+  effective runtime identity (`fpm_identity_correction`, policy
+  `runtime-dtype-annotation-v1`): the Kimi-K3 preview build ran its MXFP4 experts on
+  MarlinExperts W4A16, because its CUTLASS path rejected SiTU (AISimulate
+  `collector/vllm/collect_moe.py`). Stock v0.31.0 would instead select
+  `CutlassExpertsMxfp4` (W4A4) on SM100. So scoring that run needs the kernel to price
+  Marlin W4A16 experts at the BF16 rate class, which is what
+  `gemm_*_w4a16_mxfp4_grouped` on gb300 measures (§10.5). It is read once
+  blis-latency-kernel#34 selects a ramp by MoE backend. The scoring attempt recorded on
+  #25 also over-predicted by ~2x with the FASTER FP4 rate class, and making the KDA read
+  free left that unchanged, so the MoE/GEMM composition is a second blocker. #41 carries
+  the validation forward.
 
   Note also that FPM carries no per-kernel or per-node column at all — the truth
   parquets hold one `latency_ms` per `(batch_size, total_prefill_tokens,
@@ -1009,7 +1012,7 @@ the source the two tags build was diffed:
 | `attention_decode_rate_sparse_mla` | h200, deepseek-v4.1-flash | measured | 1,123,200 B/µs (0.234 of peak), floor inherited (13.5 µs) | `dsv4_hca_attn_module_perf`, V4-Flash rows: the `h64` FlashMLA instance and 584 B record V4.1 runs |
 | `attention_decode_floor_block_index_scores` | h200, deepseek-v4.1-flash | measured | 4.3 µs | `dsv4_paged_mqa_logits_module_perf`, the kernel itself under CUDA graphs |
 | `attention_decode_rate_block_index_scores` | h200, deepseek-v4.1-flash | assumed | 3,840,000 B/µs, the HBM bound | see below |
-| `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | h200 | measured | 0.245 / 26, of the BF16 peak | vLLM's `MarlinExperts` MXFP4 rows, fitted under the kernel's routed-term composition |
+| `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | h200, gb300 | measured | 0.245 / 26 (h200), 0.114 / 55 (gb300), of the BF16 peak | vLLM's `MarlinExperts` MXFP4 rows, fitted under the kernel's routed-term composition. On gb300 it applies only where the MoE backend is Marlin W4A16 (the Kimi-K3 preview build FPM measured), not to stock v0.31.0 |
 | `gemm_{eps_max,m_half}_w8a16_mxfp8` | h200 | assumed | the BF16 envelope, as an upper bound | no dense Marlin sweep exists on any part |
 | `host_gather_rate_uva` | h200 | assumed | 58,667 B/µs, the PCIe bound × 264/288 | no host-gather measurement exists |
 
@@ -1050,9 +1053,9 @@ routed term. Fitting the ramp as what remains after the kernel's own memory half
 only way the fitted number composes back to the measurement inside the kernel.
 
 * The fit holds out on vLLM's int4 Marlin MoE, a different geometry and weight type:
-  1.196x on h200.
+  1.196x on h200 and 1.266x on gb300.
 * Its error grows with expert and tensor parallelism. The committed BF16 ramp does the
-  same on BF16 Triton experts (2.83x at ep 8, 8.33x at ep 32, printed by the writer's form
+  same on BF16 Triton experts (on h200, 2.83x at ep 8 and 8.33x at ep 32, printed by the writer's form
   check), so that growth is a property
   of the routed-term form, not of this coefficient.
 
@@ -1061,12 +1064,8 @@ ramp. That is 1,456 TFLOPS effective where Marlin sustains about 242.
 
 **What does not ship, and why.**
 
-* **A Marlin ramp for GB300.** AISimulate carries the same Marlin MXFP4 rows on GB300, and
-  an earlier revision of this PR fitted them. But stock v0.31.0 does not run Marlin there:
-  `Mxfp4MoEMethod` takes TRTLLM or DeepGEMM on SM100, and the compressed-tensors method
-  takes `CutlassExpertsMxfp4`. Those rows describe a forced selection, so a ramp from them
-  would price a kernel no default deployment runs. `fit_marlin_grouped_ramp.py` refuses
-  a family entry on a part outside its list.
+* **A ramp for `CutlassExpertsMxfp4`**, what stock v0.31.0 runs for compressed-tensors
+  MXFP4 experts on Blackwell. AISimulate carries no such rows on any Blackwell part.
 
 * **Prefill pairs for either kernel.** No kernel-level table carries V4.1's prefill path
   (`flash_mla_sparse_fwd` over a gathered compressed region, `fp8_fp4_mqa_logits`), and
@@ -1087,7 +1086,8 @@ price the model yet:
 
 Until those land, no figure could attribute an error to these coefficients. The entries
 are scoped to this model so that no scored deployment moves meanwhile, and the check is
-the first thing to run once the kernel prices V4.1. Two consumer-side facts belong with
+the first thing to run once the kernel prices V4.1. It is tracked in
+inference-sim/blis-registry#42. Two consumer-side facts belong with
 it:
 
 * The kernel prices a `role: block_index_scores` node with its layer kind's pair. Until

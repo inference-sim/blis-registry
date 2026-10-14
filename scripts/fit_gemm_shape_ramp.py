@@ -75,7 +75,7 @@ _spec.loader.exec_module(_ep)
 entry = _ep.entry
 
 DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/private/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
-DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 COLLECTION = "vllm/0.25.0"
 
 SKUS = {

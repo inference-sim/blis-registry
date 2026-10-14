@@ -56,7 +56,7 @@ import pyarrow.parquet as pq
 import yaml
 
 DEFAULT_DATA = os.environ.get("AISIMULATE_DATA", "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
-DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+DEFAULT_CATALOG = os.environ.get("BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 DEFAULT_REGISTRY = "."
 COLLECTION = "trtllm/1.3.0rc20"
 

@@ -265,7 +265,7 @@ def test_the_derived_deepseek_v41_h200_entries_equal_what_they_are_derived_from(
     assert _single("gemm_eps_max_w8a16_mxfp8", "h200") == _single("gemm_eps_max_bf16", "h200")
     assert _single("gemm_m_half_w8a16_mxfp8", "h200") == _single("gemm_m_half_bf16", "h200")
     assert _single("host_gather_rate_uva", "h200") == round(
-        _single("host_link_bandwidth", "h200") * (256 + 8) / (256 + 32))
+        _single("host_link_bandwidth", "h200") * 128 / 130 * (256 + 8) / (256 + 32))
 
 
 # --------------------------------------------------------------------------------------

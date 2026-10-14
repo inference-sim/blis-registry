@@ -53,7 +53,7 @@ def _load(name: str):
 fge = _load("fit_gemm_envelope")
 
 DEFAULT_CATALOG = os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+    "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 
 
 def fit_points(points: dict[int, float]) -> tuple[float, int]:

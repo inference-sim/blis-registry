@@ -61,7 +61,8 @@ def scope_of(block: list[str]) -> str | None:
     return None
 
 
-def _scope_key(scope: str) -> tuple:
+def scope_key(scope: str) -> tuple:
+    """A scope's identity, independent of key order and spacing."""
     parsed = yaml.safe_load(scope) or {}
     return tuple(sorted((k, tuple(sorted(v)) if isinstance(v, list) else (v,))
                         for k, v in parsed.items()))
@@ -70,10 +71,10 @@ def _scope_key(scope: str) -> tuple:
 def find(blocks: list[list[str]], name: str, scope: str) -> int | None:
     """The one block with this name and scope, or None. Two is an error: the kernel keeps
     the last in file order, so a writer maintaining the first would leave the live one stale."""
-    key = _scope_key(scope)
+    key = scope_key(scope)
     hits = [j for j, b in enumerate(blocks)
             if name_of(b) == name and scope_of(b) is not None
-            and _scope_key(scope_of(b)) == key]
+            and scope_key(scope_of(b)) == key]
     if len(hits) > 1:
         raise SystemExit(f"{name} {scope}: {len(hits)} entries share this name and scope")
     return hits[0] if hits else None

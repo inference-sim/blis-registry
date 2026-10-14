@@ -42,8 +42,10 @@ routed-expert term (`kernel.go`, the routed SM and HBM halves are SUMMED):
 with M = T, the step's token count, as the kernel evaluates every ramp. The FLOPs are the
 rank's OWN work: vLLM shards each expert's intermediate width across tensor-parallel ranks
 (`intermediate_size_per_partition`), so at moe_tp > 1 a rank computes inter / tp of each
-expert. A consumer that charges a rank the whole expert's FLOPs -- blis-latency-kernel's
-documented pure-TP over-charge -- prices this ramp tp times too slow. B is the STORED
+expert. A consumer that charges a rank the whole expert's FLOPs prices this ramp tp times
+too slow; blis-latency-kernel#44 divides by tp on the weight-only ramps for that reason,
+keeping its pure-TP over-charge only on the native ones (blis-latency-kernel#47). B is the
+STORED
 bytes per weight: 0.5 for the e2m1 values plus one E8M0 scale per 32, 0.53125. So the ramp
 is the SM half that remains once the kernel's own memory half is charged, which is the
 only way a fitted ramp composes back to the measured latency inside the kernel.
@@ -255,7 +257,15 @@ def fit_part(data: Path, catalog: Path, sku: str, chip: str) -> dict:
         raise SystemExit(f"{chip}: the int4 Marlin holdout is missing or has moved "
                          f"({len(hold)} rows); refusing to commit an unvalidated ramp")
     ho = errors(*terms(hold, HOLDOUT_DTYPE, bw), peak, eps, mh)
-    return {"sku": sku, "chip": chip, "eps": eps, "mh": mh, "err": err, "signed": signed,
+    # Sensitivity to the byte count: what the fit becomes at payload-only MXFP4 bytes,
+    # which is what a consumer that omits E8M0 scales charges.
+    saved = BYTES_PER_WEIGHT[FIT_DTYPE]
+    BYTES_PER_WEIGHT[FIT_DTYPE] = 0.5
+    try:
+        eps05, mh05, _ = fit(*terms(train, FIT_DTYPE, bw), peak)
+    finally:
+        BYTES_PER_WEIGHT[FIT_DTYPE] = saved
+    return {"eps05": eps05, "mh05": mh05,"sku": sku, "chip": chip, "eps": eps, "mh": mh, "err": err, "signed": signed,
             "n": len(train), "geom": geom, "peak_tf": peak / 1e12,
             "holdout": ho, "holdout_n": len(hold),
             "form": form_check(data, sku, peak, bw, chip)}
@@ -283,8 +293,21 @@ def entry_lines(name: str, f: dict) -> list[str]:
                f"Geometric error {f['err']:.3f}x (signed {f['signed']:.3f}); held out on "
                f"vLLM's int4 Marlin MoE (hidden {hh}, inter {hi}, top-{hk} of {he}, group "
                f"128; {f['holdout_n']} token counts) at {f['holdout'][0]:.3f}x, signed "
-               f"{f['holdout'][1]:.3f}. Applies to the routed-expert term only; a dense "
-               f"MXFP4 linear runs a different Marlin kernel and is not measured. "
+               f"{f['holdout'][1]:.3f}. COUPLED TO THE CONSUMER'S ROUTED TERM, as checked "
+               f"against blis-latency-kernel#44 (483f6aa): compute and memory SUMMED; the "
+               f"ramp evaluated at the step's token count; compute at the BF16 peak; memory "
+               f"as ExpertsTouched experts' stored bytes at BwPeak x hbm_derate; imbalance and "
+               f"SM derate 1 (balanced rows, no concurrent fetch); FLOPs the rank's own "
+               f"(#44 divides routed FLOPs by tp on this ramp). A "
+               f"change to any of those -- sum versus max, the ramp's argument, the byte "
+               f"count -- needs a refit. The bytes are blis-schemas v0.3.0's StoredBytes for "
+               f"MXFP4 (0.5 + 1/32), which #44 charges; a consumer charging payload only "
+               f"(0.5, blis-latency-kernel main e9cf217) would need {f['eps05']:.3f} / "
+               f"{f['mh05']}. vLLM's Python side changed since 0.25.0 too: #48144 sets the M "
+               f"used for Marlin's block-size choice to ceil(M x local / global experts) under "
+               f"EP -- inert at ep 1, where this is fitted, but it means the 0.25.0 rows at "
+               f"ep > 1 do not describe v0.31.0. Applies to the routed-expert term only; a "
+               f"dense MXFP4 linear runs a different Marlin kernel and is not measured. "
                f"Reproduce with scripts/fit_marlin_grouped_ramp.py.")
     else:
         value, units = str(f["mh"]), "tokens"
@@ -312,9 +335,9 @@ def render(text: str, fits: dict[str, dict]) -> str:
     chip's last gemm_* entry, so the family sits with the part's other ramps. An entry of
     this family on a part outside PARTS is refused rather than left unmaintained."""
     blocks = cb.split(text)
-    owned = {f"{{hardware: [{chip}]}}" for chip in fits}
+    owned = {cb.scope_key(f"{{hardware: [{chip}]}}") for chip in fits}
     for b in blocks:
-        if cb.name_of(b) in NAMES and cb.scope_of(b) not in owned:
+        if cb.name_of(b) in NAMES and cb.scope_key(cb.scope_of(b) or "{}") not in owned:
             raise SystemExit(f"{cb.name_of(b)} {cb.scope_of(b)} is not a part this writer "
                              f"maintains; remove it or add the part to PARTS")
     for chip, f in fits.items():
@@ -322,7 +345,7 @@ def render(text: str, fits: dict[str, dict]) -> str:
         for name in NAMES:
             cb.upsert(blocks, entry_lines(name, f),
                       after=lambda b: (cb.name_of(b) or "").startswith("gemm_")
-                      and cb.scope_of(b) == scope)
+                      and cb.scope_key(cb.scope_of(b) or "{}") == cb.scope_key(scope))
     return cb.join(blocks)
 
 

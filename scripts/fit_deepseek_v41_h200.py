@@ -11,7 +11,7 @@ Owns six entries, two fitted and four assumed (inference-sim/blis-registry#37, #
   cost-model-attention.yaml, scoped {hardware: [h200], model: [deepseek-v4.1-flash]}
     attention_decode_rate_sparse_mla           measured  FlashMLA sparse decode
     attention_decode_floor_block_index_scores  measured  indexer MQA-logits scan floor
-    attention_decode_rate_block_index_scores   assumed   indexer scan rate (HBM bound)
+    attention_decode_rate_block_index_scores   assumed   indexer scan rate (empirical HBM)
   cost-model-primitives.yaml, scoped {hardware: [h200]}
     gemm_eps_max_w8a16_mxfp8, gemm_m_half_w8a16_mxfp8   assumed  Marlin MXFP8 W8A16 dense
     host_gather_rate_uva                                assumed  engram rows over UVA
@@ -63,9 +63,10 @@ THE TABLES, AND WHY EACH IS (OR IS NOT) A KERNEL MEASUREMENT.
   * `dsv4_paged_mqa_logits_module_perf` (vllm/0.25.0): times `fp8_fp4_paged_mqa_logits`
     itself under CUDA graphs. Its FLOOR is the kernel's. Its SLOPE is not an HBM rate: the
     collector gives every query row the same block table, so the unique key footprint is at
-    most 34.6 MB and stays resident in H200's 50 MB L2, and the fitted throughput is 1.12x
-    the HBM datasheet peak -- impossible from HBM. In serving each request's keys are its
-    own and HBM-resident, so the scan's rate is bounded by HBM, which is what is committed.
+    most 34.6 MB, and the fitted throughput is 1.12x the HBM datasheet peak -- impossible
+    from HBM, and consistent with the shared keys being served from cache. In serving each
+    request's keys are its own and HBM-resident, so the scan is HBM-bound, and NVIDIA's
+    empirical HBM rate is what is committed.
   * `dsv41/sglang/dev-1aa0e962.../dsv41_module_perf` is NOT used: it is SGLang, eager (no
     CUDA graph), a module timing (`MQALayer.forward`, projections included), batch <= 3 and
     context <= 2,049, flat at 0.8-2.0 ms -- launch-bound, not a kernel rate.
@@ -114,7 +115,6 @@ INDEXER_LANE = "vllm.utils.deep_gemm.fp8_fp4_paged_mqa_logits"
 # (`block_kv = 64`, collect_dsv4_attn.py), which is why one constant serves both.
 BLOCK = 64
 INDEXER_RATIO = 4     # the measured indexer rows are DeepSeek-V4's compress_ratio 4
-H200_L2_BYTES = 50e6  # the H100/H200 SXM product's L2 (the full GH100 die has 60 MB)
 
 # Engram rows: 256 FP8 values in one table, 8 UE8M0 scales in a separate one
 # (ParallelEngramEmbedding._allocate_weights). The value row is 256 B at a 256 B stride,
@@ -122,6 +122,9 @@ H200_L2_BYTES = 50e6  # the H100/H200 SXM product's L2 (the full GH100 die has 6
 # a global load moves (CUDA C++ Best Practices Guide, "Coalesced Access to Global Memory").
 ENGRAM_ROW_BYTES = 256 + 8
 ENGRAM_FETCHED_BYTES = 256 + 32
+# AISimulate's pcie_bw (64 GB/s, annotated "pcie 5.0") is the raw signalling rate per
+# direction; PCIe 5.0's 128b/130b line code leaves 128/130 of it for transactions.
+PCIE_LINE_CODE = 128 / 130
 
 RATE_FRACTIONS = [x / 1000 for x in range(5, 1001)]
 INDEXER_MODELS = {"sgl-project/DeepSeek-V4-Flash-FP8", "sgl-project/DeepSeek-V4-Pro-FP8"}
@@ -208,7 +211,7 @@ def check_geometry(data: Path) -> dict:
 
 def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
     t = read(data, FLASHMLA_TABLE)
-    pts, blocks_of = [], []
+    pts, blocks_of, batch_of = [], [], []
     for i in range(len(t["latency"])):
         if t["isl"][i] != 1 or t["model"][i] != FLASHMLA_FIT_MODEL:
             continue
@@ -226,6 +229,7 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
         pts.append((t["batch_size"][i] * blocks * BLOCK * g["record"],
                     t["latency"][i] * 1000.0))
         blocks_of.append(blocks)
+        batch_of.append(t["batch_size"][i])
     if len(pts) < 150:
         raise SystemExit(f"only {len(pts)} FlashMLA decode rows")
     best = min((geo(pts, floor, peak * f)[0], f) for f in RATE_FRACTIONS)
@@ -244,7 +248,16 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
     if g["v41_blocks"] > max(blocks_of):
         raise SystemExit(f"V4.1 reads {g['v41_blocks']} blocks per query, beyond the "
                          f"{max(blocks_of)} measured; the rate would be an extrapolation")
+    # The overall error hides a batch-dependent bias: report it per batch, signed.
+    by_batch = {b: geo([p for p, x in zip(pts, batch_of) if x == b], floor, rate)[1]
+                for b in sorted(set(batch_of))}
+    # Short-context rows the pinned floor over-prices: batch 1, at most one block.
+    short = [y for (w, y), b, n in zip(pts, blocks_of, batch_of) if n == 1 and b <= 1]
     return {"n": len(pts), "rate": rate, "frac": frac, "err": err, "signed": signed,
+            "by_batch": by_batch, "short_lo": min(short), "short_hi": max(short),
+            "hold_batch_max": max(n for n, b in zip(batch_of, blocks_of) if b >= 5),
+            "v41_batch_max": max((n for n, b in zip(batch_of, blocks_of)
+                                  if b == g["v41_blocks"]), default=0),
             "free_err": free[0], "free_floor": free[1],
             "hold_n": len(te), "hold": geo(te, floor, peak * trf),
             "v41_n": len(v41), "v41": geo(v41, floor, rate), "floor": floor,
@@ -316,13 +329,13 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
     fit_heads = g["fit_index_heads"]
     measured_tflops = ix["rate_rowkeys"] * fit_heads * 256 / 1e6
     # Speculative decoding scores k+1 rows per key read; at the measured compute rate,
-    # the key rate that sustains, as a fraction of the committed HBM bound, for k = 5.
+    # the key rate that sustains, as a fraction of the committed HBM rate, for k = 5.
     spec_keys = measured_tflops * 1e6 / (6 * g["v41_index_heads"] * 256)
     spec_frac = spec_keys * g["key"] / (peak * derate)
     floors = ", ".join(f"{v:.2f} us" for v in ix["per_model"].values())
     aisim = "NVIDIA AISimulate systems/data/h200_sxm/sparse_attention/vllm/0.25.0/"
     hbm_rate = int(round(peak * derate))
-    gather = int(round(host_bw * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
+    gather = int(round(host_bw * PCIE_LINE_CODE * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
     attn = [
         lines("attention_decode_rate_sparse_mla", f"{fm['rate']}.0", "bytes_per_us",
               "measured", True, MODEL_SCOPE,
@@ -339,38 +352,54 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"BLOCKS: per request, {g['record']} x 64 x (ceil(window "
               f"tokens / 64) + ceil(selected tokens / 64)), which once the context fills the "
               f"window and the top-{g['topk']} is {g['v41_blocks']} blocks, "
-              f"{g['v41_blocks'] * BLOCK * g['record']:,} B. The floor is this part's "
+              f"{g['v41_blocks'] * BLOCK * g['record']:,} B, at ONE query token per request "
+              f"(the sweep's decode rows are isl 1; a multi-token decode, as under DSpark "
+              f"speculation, is outside what was measured). THE FLOOR is this part's "
               f"part-wide attention_decode_floor ({fm['floor']:g} us), which "
-              f"blis-latency-kernel inherits for a kind with a rate and no floor; fitting "
-              f"it freely lands at {fm['free_floor']:.1f} us for "
-              f"{fm['free_err']:.3f}x against {fm['err']:.3f}x pinned, so the data does not "
-              f"ask for a separate one. Geometric error {fm['err']:.3f}x (signed "
-              f"{fm['signed']:.3f}) over {fm['n']} points spanning 1-{fm['max_blocks']} "
-              f"blocks per request, at ONE query token per request (the sweep's decode rows "
-              f"are isl 1; a multi-token decode, as under DSpark speculation, is outside "
-              f"what was measured); trained on requests of <= 3 blocks and held out on "
-              f">= 5 it predicts {fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, "
-              f"n={fm['hold_n']}); at exactly V4.1's {g['v41_blocks']} blocks "
-              f"{fm['v41'][0]:.3f}x (signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= 8 "
-              f"-- larger batches at {g['v41_blocks']} blocks are outside the sweep's batch x "
-              f"context <= 1M grid). WHY THIS SHIPS WHEN DEEPSEEK-V4-PRO'S WAS WITHDRAWN "
-              f"(methodology section 10.3): that rate was fitted on Pro's 128-head rows (the "
-              f"h128 instance, which Pro runs only below TP 2) and was to be charged against "
-              f"the kernel's selection rule for Pro's csa4 layers -- up to 262,912 tokens "
-              f"at a 1M context, far outside any measured row. Every V4.1 sparse layer reads "
-              f"at most {g['v41_tokens']} tokens per query ({g['window']} window + top-"
-              f"{g['topk']}) on the h64 instance at every TP width, inside the measured "
-              f"range; the kernel charges that read once blis-latency-kernel#32 drops the "
-              f"compressed tier and keeps the window. SCOPED TO THIS "
-              f"MODEL so no other sparse_mla deployment changes. The FlashMLA SM90 decode "
-              f"device code is unchanged between the FlashMLA pins of vLLM 0.25.0 and "
-              f"0.31.0 (a6ec2ba, 0eee43b: renames only). END-TO-END CHECK PENDING: FPM "
-              f"carries DeepSeek-V4.1-Flash on h200, but blis-latency-kernel cannot yet "
-              f"price this model -- it refuses the fp8_ds_mla cache, and its KV bytes, "
-              f"sparse selection rule and FlashMLA head padding are wrong for it "
-              f"(blis-latency-kernel#36, #30, #32, #39); tracked in blis-registry#42, "
-              f"see methodology section 10.5. Reproduce with "
-              f"scripts/fit_deepseek_v41_h200.py."),
+              f"blis-latency-kernel inherits for a kind with a rate and no floor. It "
+              f"over-prices the table's shortest reads: batch-1 rows of at most one block "
+              f"measure {fm['short_lo']:.1f}-{fm['short_hi']:.1f} us, so pinning costs "
+              f"{fm['floor'] / fm['short_hi'] - 1:.0%}-{fm['floor'] / fm['short_lo'] - 1:.0%} "
+              f"there; a free floor lands at {fm['free_floor']:.1f} us ({fm['free_err']:.3f}x "
+              f"against {fm['err']:.3f}x) only because a linear form cannot follow the step "
+              f"between one and two blocks. THE ERROR DEPENDS ON BATCH, which the overall "
+              f"{fm['err']:.3f}x (signed {fm['signed']:.3f}, {fm['n']} points, "
+              f"1-{fm['max_blocks']} blocks per request) hides. Signed by batch: "
+              f"{', '.join(f'{b}: {v:.2f}' for b, v in fm['by_batch'].items())}. Neither a "
+              f"per-request term nor an occupancy (wave-quantized) form removes it (both "
+              f"tried: 1.179x and 1.173x, the same pattern), so it is batch-dependent "
+              f"scheduling inside the call, not a missing term this form can carry. "
+              f"Trained on requests of <= 3 blocks and held out on >= 5 the rate predicts "
+              f"{fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, n={fm['hold_n']}, all at "
+              f"batch <= {fm['hold_batch_max']}); at exactly V4.1's {g['v41_blocks']} blocks "
+              f"{fm['v41'][0]:.3f}x (signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= "
+              f"{fm['v41_batch_max']}). SO V4.1'S OPERATING POINT IS INSIDE THE MEASURED RANGE "
+              f"ON THE BLOCK AXIS ONLY: it reads {g['v41_blocks']} blocks per query at any "
+              f"context past about 1k tokens, at batches the sweep's batch x context <= 1M "
+              f"grid never pairs with {g['v41_blocks']} blocks; across the measured batches "
+              f"the signed error spans the range above. WHY THIS SHIPS WHEN "
+              f"DEEPSEEK-V4-PRO'S WAS WITHDRAWN (methodology section 10.3): that rate was "
+              f"fitted on Pro's 128-head rows (the h128 instance, which Pro runs only below "
+              f"TP 2) and was to be charged against the kernel's selection rule for Pro's "
+              f"csa4 layers -- up to 262,912 tokens at a 1M context, far outside any measured "
+              f"row on the block axis. Every V4.1 sparse layer reads at most "
+              f"{g['v41_tokens']} tokens per query ({g['window']} window + top-{g['topk']}) "
+              f"on the h64 instance at every TP width. SCOPED TO THIS MODEL so no other "
+              f"sparse_mla deployment changes. WHAT THE TIMED OP DOES NOT CONTAIN: the "
+              f"0.25.0 ratio-128 rows take their indices from metadata, while v0.31.0's V4.1 "
+              f"decode also launches compute_global_topk_indices_and_lens (a Triton kernel "
+              f"translating the indexer's top-k to cache slots) on every sparse layer -- a "
+              f"known gap, one small launch per layer not priced here. The FlashMLA SM90 "
+              f"sparse decode device code is unchanged between the pins vLLM 0.25.0 and "
+              f"0.31.0 build (a6ec2ba, 0eee43b: renames only, the 584 B assert identical); "
+              f"its split-KV combine kernel's grid moves from (b, s_q, h) to (b*s_q, 1, h), "
+              f"inert at one query token, and gains 192/224/256-split cases that only "
+              f"requests needing more than 160 splits reach; the host API was rewritten, "
+              f"including skipping the split workspace for unsplit requests. END-TO-END "
+              f"CHECK PENDING: FPM carries DeepSeek-V4.1-Flash on h200; the kernel prices "
+              f"this model once blis-latency-kernel#44 lands (it closes #30, #32, #36 and "
+              f"#39); tracked in blis-registry#42, see methodology section 10.5. Reproduce "
+              f"with scripts/fit_deepseek_v41_h200.py."),
         lines("attention_decode_floor_block_index_scores", ix["floor"], "us_per_transfer",
               "measured", True, MODEL_SCOPE,
               [("model", f"{aisim}{INDEXER_TABLE} (NVIDIA H200), {INDEXER_LANE}, "
@@ -404,29 +433,34 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
                 f"{tb:g} TB/s HBM peak", "upper_bound"),
                ("model", "NVIDIA AISimulate systems/h200_sxm.yaml "
                 "mem_bw_empirical_scaling_factor (hbm_derate)", "primary")],
-              f"ASSUMED: the HBM bound, BwPeak x hbm_derate = {tb:g} TB/s x {derate:g}. "
+              f"ASSUMED: NVIDIA's empirical HBM rate, BwPeak x hbm_derate = {tb:g} TB/s x "
+              f"{derate:g} -- the descriptor's observed correction, not a bound; the bound is "
+              f"BwPeak itself. "
               f"Bytes are {g['key']} per compressed index key per request ({g['key'] - 4} "
               f"FP8 + one FP32 scale, _indexer_k_cache_head_dim), over ceil(context / "
               f"compress_ratio) keys -- V4.1's compress ratios are 1 and 2, so the scan "
               f"grows with context while the attention it feeds does not. WHY NOT THE "
               f"MEASURED SLOPE: the only kernel-level sweep gives every query row the same "
               f"block table, so its unique key footprint is at most "
-              f"{ix['max_unique'] / 1e6:.1f} MB and stays in H200's 50 MB L2; its fitted "
-              f"throughput, {ix['implied'] / 1e6:.2f} TB/s-equivalent, exceeds the HBM "
-              f"datasheet peak, which an HBM read cannot. In serving each request's keys are "
+              f"{ix['max_unique'] / 1e6:.1f} MB, and its fitted throughput, "
+              f"{ix['implied'] / 1e6:.2f} TB/s-equivalent, exceeds the HBM datasheet peak, "
+              f"which an HBM read cannot -- consistent with the shared keys being served "
+              f"from cache. In serving each request's keys are "
               f"its own and HBM-resident. Compute does not bind at one query token per "
               f"request: {g['v41_index_heads']} heads x 128 x 2 = "
               f"{g['v41_index_heads'] * 256:,} FLOP per {g['key']} B key is "
               f"{g['v41_index_heads'] * 256 / g['key']:.0f} FLOP/B against an FP8 ridge of "
-              f"{ridge:.0f}. DIRECTION: an upper bound on the rate, so a lower bound on scan "
-              f"time. Under speculative decoding each request scores k+1 query rows against "
+              f"{ridge:.0f}. DIRECTION: unknown at this fraction -- optimistic if this "
+              f"kernel streams index pages below NVIDIA's empirical HBM fraction, "
+              f"pessimistic if above -- and it can be optimistic by at most "
+              f"{1 / derate:.2f}x, the ratio to BwPeak. Under speculative decoding each request scores k+1 query rows against "
               f"each key, so k = 5 brings it to {6 * g['v41_index_heads'] * 256 / g['key']:.0f} "
               f"FLOP/B -- still under the ridge at datasheet peak, but at the "
               f"{measured_tflops:.0f} TFLOPS this kernel was measured sustaining (a lower "
               f"bound on what it can) the scan could become compute-bound at as little as "
               f"{spec_frac:.2f} of this rate. TO REPLACE IT: the same "
-              f"sweep with a distinct block table per query row, so the footprint exceeds "
-              f"L2. Scoped to this model; consumed by no reader yet (see the floor)."),
+              f"sweep with a distinct block table per query row, so the keys are read from "
+              f"HBM. Scoped to this model; consumed by no reader yet (see the floor)."),
     ]
     prim = [
         lines("gemm_eps_max_w8a16_mxfp8", bf16_eps, "dimensionless", "assumed", False,
@@ -477,7 +511,9 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"ASSUMED: an UPPER BOUND on the useful-byte rate of DeepSeek-V4.1's engram "
               f"lookup when the tables are in pinned host memory (EngramConfig.cpu_offload, "
               f"the v0.31.0 default) and read through UVA. Derived as host_link_bandwidth "
-              f"({host_bw / 1e3:g} GB/s, PCIe 5.0 x16 per direction) x {ENGRAM_ROW_BYTES}/"
+              f"({host_bw / 1e3:g} GB/s, AISimulate's 'pcie 5.0' figure: the raw rate per "
+              f"direction) x 128/130 (PCIe 5.0's 128b/130b line code, leaving "
+              f"{host_bw * PCIE_LINE_CODE / 1e3:.1f} GB/s) x {ENGRAM_ROW_BYTES}/"
               f"{ENGRAM_FETCHED_BYTES}: a row is {ENGRAM_ROW_BYTES} useful bytes -- 256 FP8 "
               f"values in one table at a 256 B stride (two whole 128 B lines) and 8 UE8M0 "
               f"scales in a separate table, which cost at least one 32 B sector -- so at "
@@ -528,11 +564,11 @@ def main(argv: list[str]) -> int:
     floor = committed(ATTN_PATH, "attention_decode_floor", CHIP)
     fm = fit_flashmla(data, g, peak, floor)
     ix = fit_indexer(data, g)
-    if ix["max_unique"] >= H200_L2_BYTES or ix["implied"] <= peak:
+    if ix["implied"] <= peak:
         raise SystemExit(
-            f"the indexer sweep no longer looks L2-resident (footprint "
+            f"the indexer sweep's throughput no longer exceeds the HBM peak (footprint "
             f"{ix['max_unique'] / 1e6:.1f} MB, throughput {ix['implied'] / 1e6:.2f} TB/s "
-            f"against {peak / 1e6:g} TB/s): fit its rate instead of assuming the HBM bound")
+            f"against {peak / 1e6:g} TB/s): fit its rate instead of assuming NVIDIA's HBM rate")
     derate = committed(PRIM_PATH, "hbm_derate", CHIP)
     bf16_eps = committed(PRIM_PATH, "gemm_eps_max_bf16", CHIP)
     bf16_mh = int(committed(PRIM_PATH, "gemm_m_half_bf16", CHIP))
@@ -545,15 +581,18 @@ def main(argv: list[str]) -> int:
           f"(n={fm['n']}); free floor {fm['free_floor']:.1f} us {fm['free_err']:.3f}x; "
           f"holdout >=5 blocks {fm['hold'][0]:.3f}x (n={fm['hold_n']}); "
           f"10 blocks {fm['v41'][0]:.3f}x (n={fm['v41_n']})")
+    print(f"{'':24}signed by batch: "
+          + ", ".join(f"{b}: {v:.2f}" for b, v in fm["by_batch"].items())
+          + f"; batch-1 <= 1 block measures {fm['short_lo']:.1f}-{fm['short_hi']:.1f} us")
     print(f"indexer scan            floor={ix['floor']} us  {ix['err']:.3f}x (n={ix['n']}) "
           f"per checkpoint {ix['per_model']}; "
           f"throughput {ix['rate_rowkeys']:,.0f} row-keys/us = "
           f"{ix['implied'] / 1e6:.2f} TB/s-equivalent, footprint <= "
-          f"{ix['max_unique'] / 1e6:.1f} MB (L2-resident): rate assumed at HBM bound "
+          f"{ix['max_unique'] / 1e6:.1f} MB, above the HBM peak: rate assumed at NVIDIA's HBM rate "
           f"{peak * derate:,.0f} B/us")
     print(f"w8a16 mxfp8 ramp        assumed = bf16 ({bf16_eps:g}, {bf16_mh})")
     print(f"host gather (UVA)       assumed = {host_bw:,.0f} x "
-          f"{ENGRAM_ROW_BYTES}/{ENGRAM_FETCHED_BYTES}")
+          f"128/130 x {ENGRAM_ROW_BYTES}/{ENGRAM_FETCHED_BYTES}")
 
     attn, prim = entries(g, fm, ix, peak, fp8_tflops, derate, bf16_eps, bf16_mh,
                          grouped_eps, grouped_mh, host_bw)

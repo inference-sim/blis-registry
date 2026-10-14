@@ -79,7 +79,7 @@ def main(argv: list[str]) -> int:
     args = argv[1:]
     chip = None
     catalog = Path(os.environ.get("BLIS_CATALOG",
-                                 "/Users/sri/Documents/Projects/blis-catalog"))
+                                 str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog")))
     if "--chip" in args:
         i = args.index("--chip")
         chip = args[i + 1]

@@ -212,7 +212,7 @@ def main(argv: list[str]) -> int:
     args = argv[1:]
     moe_dir: Path | None = None
     catalog = Path(os.environ.get("BLIS_CATALOG",
-                                 "/Users/sri/Documents/Projects/blis-catalog"))
+                                 str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog")))
     if "--moe" in args:
         i = args.index("--moe")
         if i + 1 >= len(args):

@@ -5,7 +5,8 @@ The nine `hardware/*.yaml` files the committed coefficients scope to, copied fro
 blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
 so the two repositories check against one revision. The previous pin was `747a2213`
 (2026-10-07); `0.2.2` changes one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7,
-and the two b300 rates fitted as a fraction of it were re-fitted with the bump.
+and the three b300 rates fitted as a fraction of it (`attention_decode_rate`, `_swa`, `_mla`)
+were re-fitted with the bump.
 
 [blis-catalog]: https://github.com/inference-sim/blis-catalog
 
@@ -13,10 +14,20 @@ and the two b300 rates fitted as a fraction of it were re-fitted with the bump.
 a100-80  a100-sxm  b200  b300  gb200-nvl72  gb300  h100  h200  l40s
 ```
 
-Copied verbatim. 40 KB, against the 16 M the catalog occupies: only the `hardware/`
-descriptors are here, because that is all `validator/test_coefficient_properties.py`
-opens — it reads `BwPeakTBs` and the memory figures to check that a fitted rate is
-physically possible.
+Copied verbatim, with three model graphs beside them:
+
+```
+models/deepseek-v3/graph.yaml   models/kimi-k3/graph.yaml   models/deepseek-v4-pro/graph.yaml
+```
+
+The hardware descriptors are what `validator/test_coefficient_properties.py` opens -- it
+reads `BwPeakTBs` and the memory figures to check that a fitted rate is physically
+possible -- and what every fitter reads its peaks from. The graphs are the ones the fitters
+resolve a latent or sparse geometry from (`fit_attention_mla.py`: deepseek-v3, kimi-k3;
+`fit_attention_sparse_mla.py`: deepseek-v4-pro). With them here, every writer and fitter in
+`scripts/` defaults to this directory, so `--check` gives the same answer on every machine
+whatever branch a local catalog checkout is on; `BLIS_CATALOG` still overrides it.
+`compare_registries.py`, the end-to-end scorer, is the exception: it needs a whole catalog.
 
 ## Why vendored
 

@@ -61,7 +61,7 @@ DEFAULT_DATA = os.environ.get(
     "AISIMULATE_DATA",
     "/private/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
 DEFAULT_CATALOG = os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+    "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 
 PARTS = [("h200_sxm", "h200"), ("h100_sxm", "h100"), ("b200_sxm", "b200"),
          ("b300_sxm", "b300"), ("gb200", "gb200-nvl72"), ("gb300", "gb300")]

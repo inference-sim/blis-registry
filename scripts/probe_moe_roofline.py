@@ -31,12 +31,14 @@ Usage (to reproduce the rejected fit):
 """
 
 import pyarrow.parquet as pq, math, yaml
+import os
+from pathlib import Path
 B='/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data/'
 ENV={'h200':(0.788,94),'h100':(0.784,144),'l40s':(0.586,135),'gb200-nvl72':(0.688,172)}
 for sku,chip in [('h200_sxm','h200'),('h100_sxm','h100'),('l40s','l40s'),('gb200','gb200-nvl72')]:
     try: d=pq.read_table(f'{B}{sku}/moe/trtllm/1.3.0rc20/moe_perf.parquet').to_pydict()
     except Exception: print(chip,'no data'); continue
-    hw=yaml.safe_load(open(f'/Users/sri/Documents/Projects/blis-catalog/hardware/{chip}.yaml'))
+    hw=yaml.safe_load(open(Path(os.environ.get('BLIS_CATALOG') or Path(__file__).resolve().parent.parent / 'validator' / 'testdata' / 'catalog') / 'hardware' / f'{chip}.yaml'))
     peak=hw['TFlopsFP8']*1e12; bw=hw['BwPeakTBs']*1e12
     eps,mh=ENV[chip]; eff=lambda M: eps*M/(M+mh)
     pts=[]

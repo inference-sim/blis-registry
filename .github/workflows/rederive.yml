@@ -91,6 +91,9 @@ jobs:
           test "$n" -gt 500
           # The vendored descriptors must be the catalog this job checks out.
           diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
+          for g in validator/testdata/catalog/models/*/graph.yaml; do
+            diff "$g" "$BLIS_CATALOG/models/${g#validator/testdata/catalog/models/}"
+          done
           python -m pytest validator/ -q -rs | tee pytest.log
           # With the data present, the only skips are the eight by-design ramp-form ones
           # (a part carries the one- or three-factor ramp, so the other gate does not

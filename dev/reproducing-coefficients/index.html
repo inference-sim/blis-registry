@@ -1393,10 +1393,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#cost-model-primitivesyaml-generated" class="md-nav__link">
+  <a href="#cost-model-primitivesyaml-per-family-writers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        cost-model-primitives.yaml — generated
+        cost-model-primitives.yaml — per-family writers
       
     </span>
   </a>
@@ -1723,10 +1723,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#cost-model-primitivesyaml-generated" class="md-nav__link">
+  <a href="#cost-model-primitivesyaml-per-family-writers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        cost-model-primitives.yaml — generated
+        cost-model-primitives.yaml — per-family writers
       
     </span>
   </a>
@@ -1991,6 +1991,14 @@ the data comes from, and which command regenerates which file.</p>
 <td>Fetch</td>
 <td><code>git clone https://github.com/ai-dynamo/aisimulate</code> — the sweeps are checked into git as Parquet. Git LFS is needed only for retained legacy <code>.txt</code> assets, which no fit in this registry reads. <code>pip install aisimulate</code> also ships the tree inside the wheel.</td>
 </tr>
+<tr>
+<td>Pin</td>
+<td>Every committed value re-derives at <code>2f0f4cd8606d580567b253d02f3d699fe36db865</code> (2026-10-10), with blis-catalog at release <code>0.2.2</code> (<code>3ed02ff</code>, the commit <code>validator/testdata/catalog</code> vendors). The <code>rederive</code> CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it.</td>
+</tr>
+<tr>
+<td>Python</td>
+<td><code>pip install -r requirements-fit.txt</code> — the validator's dependencies plus <code>numpy</code>, <code>pandas</code> and <code>pyarrow</code>, which the fitters need to read Parquet.</td>
+</tr>
 </tbody>
 </table>
 <p>The two trees the fits read are <strong>not</strong> at the repository root:</p>
@@ -2068,21 +2076,25 @@ printed value should match the committed entry.</p>
 <p>Entry counts quoted in this section were taken when each passage was written, and sets
 have grown since. The current count of every set, by method, is on the
 <a href="../reference/">reference pages</a>, which are generated from the committed files.</p>
-<h3 id="cost-model-primitivesyaml-generated"><code>cost-model-primitives.yaml</code> — generated<a class="headerlink" href="#cost-model-primitivesyaml-generated" title="Permanent link">&para;</a></h3>
+<h3 id="cost-model-primitivesyaml-per-family-writers"><code>cost-model-primitives.yaml</code> — per-family writers<a class="headerlink" href="#cost-model-primitivesyaml-per-family-writers" title="Permanent link">&para;</a></h3>
+<p>No single command regenerates this set; each family has an owner (table below), and
+<code>emit_primitives.py</code> owns only the <code>vendor_spec</code> descriptor entries. Those it reads from
+AISimulate's own <code>systems/&lt;sku&gt;.yaml</code> — the keys are <code>mem_bw_empirical_scaling_factor</code>,
+<code>pcie_bw</code>, <code>misc.nccl_mem</code> (the rank-count→bytes map) and <code>misc.other_mem</code>, several of
+which NVIDIA annotates in-file as "nonofficial correction based on observations". It takes
+the <code>systems</code> directory, not <code>systems/data</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>scripts/emit_primitives.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$BLIS_CATALOG</span><span class="s2">"</span><span class="w"> </span>&gt;<span class="w"> </span>coefficients/cost-model-primitives.yaml
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems<span class="w"> </span><span class="s2">"</span><span class="nv">$BLIS_CATALOG</span><span class="s2">"</span>
 </code></pre></div>
-<p>Note the argument is the <code>systems</code> directory, not <code>systems/data</code>: this generator reads both
-the descriptors and the sweeps. Its 122 entries split into 58 <code>measured</code> (the GEMM
-efficiency envelope per dtype and the MoE routing-imbalance order statistics, fitted from
-the sweeps) and 64 <code>vendor_spec</code> (read from AISimulate's own descriptors — the keys are
-<code>mem_bw_empirical_scaling_factor</code>, <code>mem_empirical_constant_latency</code>, <code>pcie_bw</code>,
-<code>p2p_latency</code>, and the <code>misc.nccl_mem</code> rank-count→bytes map; NVIDIA annotates several of
-them in-file as "nonofficial correction based on observations").</p>
-<p>The GEMM envelope alone can be re-derived, and checked against the committed value, with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>scripts/fit_gemm_envelope.py<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h200_sxm/gemm/trtllm/1.3.0rc20<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span>--moe<span class="w"> </span><span class="s2">"</span><span class="nv">$AISIMULATE_DATA</span><span class="s2">"</span>/h200_sxm/moe/trtllm/1.3.0rc20
+<p>and its output is a reference to compare the descriptor entries against, not a file to
+commit whole (see the warning at the end of this section). Two descriptor keys are
+deliberately not emitted — <code>mem_empirical_constant_latency</code> and <code>p2p_latency</code> — because
+nothing in BLIS reads them and a reader would double-count the measured floors
+(<a href="../methodology/#1-what-a-coefficient-is">methodology §1</a>). <code>a100_pcie</code> is skipped and the
+<code>a100_sxm</code> descriptor is scoped to both A100 names
+(<a href="../methodology/#a100-80-is-an-alias">methodology §5</a>).</p>
+<p>The GEMM envelope re-derives, and is checked against the committed value, with its owner:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>scripts/relane_gemm_envelope.py<span class="w"> </span>--check
 </code></pre></div>
 <h3 id="cost-model-collectivesyaml-generated"><code>cost-model-collectives.yaml</code> — generated<a class="headerlink" href="#cost-model-collectivesyaml-generated" title="Permanent link">&para;</a></h3>
 <p>This set is generated in two passes, because its entries come from two different lanes.</p>
@@ -2291,9 +2303,14 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td>AISimulate <code>gemm</code>, vLLM lane</td>
 </tr>
 <tr>
-<td><code>moe_routing_imbalance_*</code></td>
+<td><code>moe_routing_imbalance_median</code></td>
 <td><code>relane_moe_imbalance.py</code></td>
 <td>AISimulate <code>moe</code>, vLLM lane</td>
+</tr>
+<tr>
+<td><code>gemm_*_w4a16_mxfp4_grouped</code></td>
+<td><code>fit_marlin_grouped_ramp.py</code></td>
+<td>AISimulate <code>moe</code>, vLLM <code>MarlinExperts</code> MXFP4 rows, h200 and gb300; see methodology §10.5 for where each applies</td>
 </tr>
 <tr>
 <td><code>attention_decode_{floor,rate}</code></td>
@@ -2321,9 +2338,19 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td>derived from each part's own <code>attention_decode_floor</code> (the module tables are rejected for it)</td>
 </tr>
 <tr>
-<td><code>attention_decode_*_sparse_mla</code></td>
-<td>none — <strong>not fitted</strong>, see methodology §10</td>
-<td>a rate is identifiable for only one of deepseek-v4-pro's two sparse geometries; the fix is the kernel's per-layer byte count, which needs no coefficient</td>
+<td><code>attention_decode_rate_sparse_mla</code></td>
+<td><code>fit_deepseek_v41_h200.py</code> — scoped to deepseek-v4.1-flash on h200 only</td>
+<td>AISimulate <code>sparse_attention</code>, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5)</td>
+</tr>
+<tr>
+<td><code>attention_decode_*_block_index_scores</code></td>
+<td><code>fit_deepseek_v41_h200.py</code></td>
+<td>the floor from AISimulate's indexer-kernel table; the rate <code>assumed</code> at NVIDIA's empirical HBM rate, BwPeak × <code>hbm_derate</code> (methodology §10.5)</td>
+</tr>
+<tr>
+<td><code>gemm_*_w8a16_mxfp8</code>, <code>host_gather_rate_uva</code></td>
+<td><code>fit_deepseek_v41_h200.py</code> (<code>assumed</code>)</td>
+<td>upper bounds derived from committed siblings; no sweep measures them</td>
 </tr>
 <tr>
 <td><code>attention_prefill_*</code></td>
@@ -2356,9 +2383,9 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td>same, widths 8 and 16</td>
 </tr>
 <tr>
-<td>descriptors (<code>vendor_spec</code>)</td>
-<td><code>emit_primitives.py</code></td>
-<td>NVIDIA <code>systems/&lt;sku&gt;.yaml</code></td>
+<td>descriptors (<code>vendor_spec</code>) and A100's <code>moe_routing_imbalance_median</code></td>
+<td><code>emit_primitives.py --check</code> (entry-level)</td>
+<td>NVIDIA <code>systems/&lt;sku&gt;.yaml</code>; AISimulate <code>moe/sglang/0.5.10</code> for A100</td>
 </tr>
 <tr>
 <td>host overheads (<code>assumed</code>)</td>
@@ -2541,10 +2568,12 @@ alone; see the standing rule in <a href="../methodology/"><code>methodology.md</
 decide whether a reader gets the same figures, and each has silently produced
 wrong numbers during this work.</p>
 <h3 id="61-the-scorer-is-not-on-main">6.1 The scorer is not on <code>main</code><a class="headerlink" href="#61-the-scorer-is-not-on-main" title="Permanent link">&para;</a></h3>
-<p><code>cmd/metricscore</code> exists on inference-sim's <code>kernel-exclusive</code> branch only. It is
-on neither <code>main</code> nor <code>modeling</code>. A checkout of either will fail with
-<code>stat cmd/metricscore: directory not found</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>-C<span class="w"> </span>inference-sim<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>/tmp/blis-scorer<span class="w"> </span>kernel-exclusive
+<p><code>cmd/metricscore</code> exists only on the <code>kernel-exclusive</code> branch of the
+<code>sriumcp/inference-sim</code> fork, the head of the still-open
+<a href="https://github.com/inference-sim/inference-sim/pull/1851">inference-sim#1851</a>.
+<code>inference-sim/inference-sim</code> carries neither that branch nor the command, and a checkout
+of its <code>main</code> fails with <code>stat cmd/metricscore: directory not found</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>kernel-exclusive<span class="w"> </span>https://github.com/sriumcp/inference-sim<span class="w"> </span>/tmp/blis-scorer
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>/tmp/blis-scorer
 </code></pre></div>
 <h3 id="62-registry-defaults-to-the-sibling-checkout-not-to-your-work">6.2 <code>-registry</code> defaults to the sibling checkout, not to your work<a class="headerlink" href="#62-registry-defaults-to-the-sibling-checkout-not-to-your-work" title="Permanent link">&para;</a></h3>

@@ -1430,17 +1430,17 @@
 
 <h1 id="coefficient-sets">Coefficient sets<a class="headerlink" href="#coefficient-sets" title="Permanent link">&para;</a></h1>
 <p>Everything on the pages in this section is generated from the committed files when the
-site is built, at revision <a href="https://github.com/inference-sim/blis-registry/tree/b4d8e2b8a6ba4a240e3b66e244958d427939cf78"><code>b4d8e2b8a6ba</code></a>. Nothing is typed in by hand, so a count
+site is built, at revision <a href="https://github.com/inference-sim/blis-registry/tree/45ec59cc41d1ddf402233612462c4e04d0168521"><code>45ec59cc41d1</code></a>. Nothing is typed in by hand, so a count
 here cannot disagree with the data.</p>
 <h2 id="the-sets">The sets<a class="headerlink" href="#the-sets" title="Permanent link">&para;</a></h2>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>set</th><th class="reg-num">entries</th><th class="reg-num">coefficients</th><th class="reg-num"><code>measured</code></th><th class="reg-num"><code>vendor_spec</code></th><th class="reg-num"><code>assumed</code></th><th class="reg-num"><code>not_charged</code></th><th class="reg-num">parts</th></tr></thead><tbody>
-<tr><td><a href="sets/cost-model-attention/"><code>cost-model-attention</code></a></td><td class="reg-num">60</td><td class="reg-num">8</td><td class="reg-num">52</td><td class="reg-num">—</td><td class="reg-num">8</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
+<tr><td><a href="sets/cost-model-attention/"><code>cost-model-attention</code></a></td><td class="reg-num">63</td><td class="reg-num">11</td><td class="reg-num">54</td><td class="reg-num">—</td><td class="reg-num">9</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
 <tr><td><a href="sets/cost-model-collectives/"><code>cost-model-collectives</code></a></td><td class="reg-num">864</td><td class="reg-num">96</td><td class="reg-num">660</td><td class="reg-num">—</td><td class="reg-num">204</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
 <tr><td><a href="sets/cost-model-host-overheads/"><code>cost-model-host-overheads</code></a></td><td class="reg-num">7</td><td class="reg-num">7</td><td class="reg-num">—</td><td class="reg-num">—</td><td class="reg-num">7</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
 <tr><td><a href="sets/cost-model-memory/"><code>cost-model-memory</code></a></td><td class="reg-num">14</td><td class="reg-num">14</td><td class="reg-num">—</td><td class="reg-num">9</td><td class="reg-num">4</td><td class="reg-num">1</td><td class="reg-num">9</td></tr>
-<tr><td><a href="sets/cost-model-primitives/"><code>cost-model-primitives</code></a></td><td class="reg-num">140</td><td class="reg-num">18</td><td class="reg-num">68</td><td class="reg-num">72</td><td class="reg-num">—</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
+<tr><td><a href="sets/cost-model-primitives/"><code>cost-model-primitives</code></a></td><td class="reg-num">115</td><td class="reg-num">20</td><td class="reg-num">64</td><td class="reg-num">48</td><td class="reg-num">3</td><td class="reg-num">—</td><td class="reg-num">9</td></tr>
 <tr><td><a href="sets/cost-model-recurrent/"><code>cost-model-recurrent</code></a></td><td class="reg-num">36</td><td class="reg-num">6</td><td class="reg-num">36</td><td class="reg-num">—</td><td class="reg-num">—</td><td class="reg-num">—</td><td class="reg-num">6</td></tr>
-<tr><td><strong>all sets</strong></td><td class="reg-num"><strong>1,121</strong></td><td class="reg-num"><strong>149</strong></td><td class="reg-num"><strong>816</strong></td><td class="reg-num"><strong>81</strong></td><td class="reg-num"><strong>223</strong></td><td class="reg-num"><strong>1</strong></td><td class="reg-num"><strong>9</strong></td></tr>
+<tr><td><strong>all sets</strong></td><td class="reg-num"><strong>1,099</strong></td><td class="reg-num"><strong>154</strong></td><td class="reg-num"><strong>814</strong></td><td class="reg-num"><strong>57</strong></td><td class="reg-num"><strong>227</strong></td><td class="reg-num"><strong>1</strong></td><td class="reg-num"><strong>9</strong></td></tr>
 </tbody></table></div>
 
 <p><em>Entries</em> counts every (name, scope) pair. <em>Coefficients</em> counts distinct quantities,
@@ -1449,30 +1449,53 @@ after folding the part out of names that carry it, such as
 at least one entry.</p>
 <h2 id="what-each-set-rests-on">What each set rests on<a class="headerlink" href="#what-each-set-rests-on" title="Permanent link">&para;</a></h2>
 <p>The share of each set by method, with the number of entries at the right:</p>
-<p><svg class="reg-chart" viewBox="0 0 720 222" role="img" aria-labelledby="reg-chart-title" xmlns="http://www.w3.org/2000/svg"><title id="reg-chart-title">Share of each coefficient set by method</title><rect class="reg-fill-measured" x="210" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="224" y="15">measured</text><rect class="reg-fill-vendor_spec" x="306" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="320" y="15">vendor_spec</text><rect class="reg-fill-assumed" x="426" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="440" y="15">assumed</text><rect class="reg-fill-not_charged" x="514" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="528" y="15">not_charged</text><text class="reg-chart-text" x="200" y="47" text-anchor="end">cost-model-attention</text><rect class="reg-fill-measured" x="210.0" y="34" width="379.3" height="16" rx="2"><title>cost-model-attention: 52 of 60 measured (86.7%)</title></rect><rect class="reg-fill-assumed" x="591.3" y="34" width="58.7" height="16" rx="2"><title>cost-model-attention: 8 of 60 assumed (13.3%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="47">60</text><text class="reg-chart-text" x="200" y="77" text-anchor="end">cost-model-collectives</text><rect class="reg-fill-measured" x="210.0" y="64" width="334.1" height="16" rx="2"><title>cost-model-collectives: 660 of 864 measured (76.4%)</title></rect><rect class="reg-fill-assumed" x="546.1" y="64" width="103.9" height="16" rx="2"><title>cost-model-collectives: 204 of 864 assumed (23.6%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="77">864</text><text class="reg-chart-text" x="200" y="107" text-anchor="end">cost-model-host-overheads</text><rect class="reg-fill-assumed" x="210.0" y="94" width="440.0" height="16" rx="2"><title>cost-model-host-overheads: 7 of 7 assumed (100.0%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="107">7</text><text class="reg-chart-text" x="200" y="137" text-anchor="end">cost-model-memory</text><rect class="reg-fill-vendor_spec" x="210.0" y="124" width="280.9" height="16" rx="2"><title>cost-model-memory: 9 of 14 vendor_spec (64.3%)</title></rect><rect class="reg-fill-assumed" x="492.9" y="124" width="123.7" height="16" rx="2"><title>cost-model-memory: 4 of 14 assumed (28.6%)</title></rect><rect class="reg-fill-not_charged" x="618.6" y="124" width="31.4" height="16" rx="2"><title>cost-model-memory: 1 of 14 not_charged (7.1%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="137">14</text><text class="reg-chart-text" x="200" y="167" text-anchor="end">cost-model-primitives</text><rect class="reg-fill-measured" x="210.0" y="154" width="211.7" height="16" rx="2"><title>cost-model-primitives: 68 of 140 measured (48.6%)</title></rect><rect class="reg-fill-vendor_spec" x="423.7" y="154" width="226.3" height="16" rx="2"><title>cost-model-primitives: 72 of 140 vendor_spec (51.4%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="167">140</text><text class="reg-chart-text" x="200" y="197" text-anchor="end">cost-model-recurrent</text><rect class="reg-fill-measured" x="210.0" y="184" width="440.0" height="16" rx="2"><title>cost-model-recurrent: 36 of 36 measured (100.0%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="197">36</text></svg></p>
+<p><svg class="reg-chart" viewBox="0 0 720 222" role="img" aria-labelledby="reg-chart-title" xmlns="http://www.w3.org/2000/svg"><title id="reg-chart-title">Share of each coefficient set by method</title><rect class="reg-fill-measured" x="210" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="224" y="15">measured</text><rect class="reg-fill-vendor_spec" x="306" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="320" y="15">vendor_spec</text><rect class="reg-fill-assumed" x="426" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="440" y="15">assumed</text><rect class="reg-fill-not_charged" x="514" y="6" width="10" height="10" rx="2"/><text class="reg-chart-text" x="528" y="15">not_charged</text><text class="reg-chart-text" x="200" y="47" text-anchor="end">cost-model-attention</text><rect class="reg-fill-measured" x="210.0" y="34" width="375.1" height="16" rx="2"><title>cost-model-attention: 54 of 63 measured (85.7%)</title></rect><rect class="reg-fill-assumed" x="587.1" y="34" width="62.9" height="16" rx="2"><title>cost-model-attention: 9 of 63 assumed (14.3%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="47">63</text><text class="reg-chart-text" x="200" y="77" text-anchor="end">cost-model-collectives</text><rect class="reg-fill-measured" x="210.0" y="64" width="334.1" height="16" rx="2"><title>cost-model-collectives: 660 of 864 measured (76.4%)</title></rect><rect class="reg-fill-assumed" x="546.1" y="64" width="103.9" height="16" rx="2"><title>cost-model-collectives: 204 of 864 assumed (23.6%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="77">864</text><text class="reg-chart-text" x="200" y="107" text-anchor="end">cost-model-host-overheads</text><rect class="reg-fill-assumed" x="210.0" y="94" width="440.0" height="16" rx="2"><title>cost-model-host-overheads: 7 of 7 assumed (100.0%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="107">7</text><text class="reg-chart-text" x="200" y="137" text-anchor="end">cost-model-memory</text><rect class="reg-fill-vendor_spec" x="210.0" y="124" width="280.9" height="16" rx="2"><title>cost-model-memory: 9 of 14 vendor_spec (64.3%)</title></rect><rect class="reg-fill-assumed" x="492.9" y="124" width="123.7" height="16" rx="2"><title>cost-model-memory: 4 of 14 assumed (28.6%)</title></rect><rect class="reg-fill-not_charged" x="618.6" y="124" width="31.4" height="16" rx="2"><title>cost-model-memory: 1 of 14 not_charged (7.1%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="137">14</text><text class="reg-chart-text" x="200" y="167" text-anchor="end">cost-model-primitives</text><rect class="reg-fill-measured" x="210.0" y="154" width="242.9" height="16" rx="2"><title>cost-model-primitives: 64 of 115 measured (55.7%)</title></rect><rect class="reg-fill-vendor_spec" x="454.9" y="154" width="181.7" height="16" rx="2"><title>cost-model-primitives: 48 of 115 vendor_spec (41.7%)</title></rect><rect class="reg-fill-assumed" x="638.5" y="154" width="11.5" height="16" rx="2"><title>cost-model-primitives: 3 of 115 assumed (2.6%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="167">115</text><text class="reg-chart-text" x="200" y="197" text-anchor="end">cost-model-recurrent</text><rect class="reg-fill-measured" x="210.0" y="184" width="440.0" height="16" rx="2"><title>cost-model-recurrent: 36 of 36 measured (100.0%)</title></rect><text class="reg-chart-text reg-chart-muted" x="658" y="197">36</text></svg></p>
 <h2 id="which-sets-the-kernel-reads">Which sets the kernel reads<a class="headerlink" href="#which-sets-the-kernel-reads" title="Permanent link">&para;</a></h2>
 <p>A scenario names the sets it loads. The five <code>cost-model-*</code> sets for step time are the
 ones every committed scenario in blis-latency-kernel lists. Within them, a few families
 are committed but not looked up by the kernel. As of blis-latency-kernel
-<a href="https://github.com/inference-sim/blis-latency-kernel/commit/d20a227"><code>d20a227</code></a>:</p>
+<a href="https://github.com/inference-sim/blis-latency-kernel/commit/e9cf217"><code>e9cf217</code></a>:</p>
 <table>
 <thead>
 <tr>
 <th>Set</th>
 <th>Not read</th>
+<th>Reader</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>cost-model-primitives</code></td>
-<td><code>hbm_constant_latency</code>, <code>p2p_latency</code>, <code>moe_routing_imbalance_p90</code>, and every <code>gemm_*_fp8_block</code> entry: the kernel's dtype selection resolves to <code>bf16</code>, <code>fp8</code> or <code>nvfp4</code> only</td>
+<td>every <code>gemm_*_fp8_block</code> entry: the kernel's dtype selection resolves to <code>bf16</code>, <code>fp8</code> or <code>nvfp4</code> only</td>
+<td>selection by weight format and chip, <a href="https://github.com/inference-sim/blis-latency-kernel/issues/34">blis-latency-kernel#34</a></td>
+</tr>
+<tr>
+<td><code>cost-model-primitives</code></td>
+<td><code>gemm_*_w4a16_mxfp4_grouped</code> and <code>gemm_*_w8a16_mxfp8</code>, the Marlin weight-only ramps</td>
+<td>the same, <a href="https://github.com/inference-sim/blis-latency-kernel/issues/34">blis-latency-kernel#34</a>; the gb300 grouped ramp additionally needs a deployment that states a Marlin MoE backend, since stock v0.31.0 runs CUTLASS there</td>
+</tr>
+<tr>
+<td><code>cost-model-primitives</code></td>
+<td><code>host_gather_rate_uva</code></td>
+<td>a host-resident gather op, <a href="https://github.com/inference-sim/blis-schemas/issues/48">blis-schemas#48</a> and <a href="https://github.com/inference-sim/blis-latency-kernel/issues/38">blis-latency-kernel#38</a></td>
+</tr>
+<tr>
+<td><code>cost-model-attention</code></td>
+<td><code>attention_decode_{floor,rate}_block_index_scores</code></td>
+<td>a lookup keyed on the attention node's <code>role</code>; until then the kernel prices an indexer node with its layer kind's pair</td>
 </tr>
 <tr>
 <td><code>cost-model-memory</code></td>
-<td>the whole set. It is committed ahead of its reader, <a href="https://github.com/inference-sim/blis-latency-kernel/issues/22">blis-latency-kernel#22</a></td>
+<td>the whole set. It is committed ahead of its reader</td>
+<td><a href="https://github.com/inference-sim/blis-latency-kernel/issues/22">blis-latency-kernel#22</a></td>
 </tr>
 </tbody>
 </table>
+<p><code>attention_decode_rate_sparse_mla</code> IS read, for the one model it is scoped to; that model is
+not yet priceable end to end (<a href="../methodology/#105-deepseek-v41-flash-on-h200-what-vllm-v0310-runs-and-what-is-measured-of-it">methodology §10.5</a>).</p>
+<p>Three families that had no reader were removed rather than listed here:
+<code>hbm_constant_latency</code>, <code>p2p_latency</code> and <code>moe_routing_imbalance_p90</code>
+(<a href="../methodology/#1-what-a-coefficient-is">methodology §1</a>).</p>
 <p>An unread entry still passes every check, so this table is the place to look before
 assuming a change to one will move an estimate.</p>
 <h2 id="reading-a-set-page">Reading a set page<a class="headerlink" href="#reading-a-set-page" title="Permanent link">&para;</a></h2>

@@ -1604,7 +1604,8 @@ copy, so in CI they always skip.</p>
 <p>A test that cannot run says why. Treat an unexpected skip as a test that did not run.</p>
 <h2 id="the-end-to-end-check">The end-to-end check<a class="headerlink" href="#the-end-to-end-check" title="Permanent link">&para;</a></h2>
 <p>None of the above can tell whether a change makes BLIS more accurate. That needs the
-evaluation corpus and the scorer on inference-sim's <code>kernel-exclusive</code> branch, and is
+evaluation corpus and the scorer on the <code>kernel-exclusive</code> branch of the
+<code>sriumcp/inference-sim</code> fork (inference-sim#1851), and is
 described in <a href="../../methodology/#61-reproducing-the-end-to-end-evaluation-tables">methodology §6.1</a>.
 <a href="../../evaluation-baseline.json"><code>evaluation-baseline.json</code></a> records the last recorded
 figures, with the scorer and catalog revisions they were scored at.</p>

@@ -1450,8 +1450,9 @@ only if the coefficients behind it are.</p>
 promise.</p>
 <h2 id="run-blis-with-it">Run BLIS with it<a class="headerlink" href="#run-blis-with-it" title="Permanent link">&para;</a></h2>
 <p>The simulator prices steps through blis-latency-kernel when run with
-<code>--latency-model blis-latency-kernel</code>. That path is on inference-sim's <code>kernel-exclusive</code>
-branch (<a href="https://github.com/inference-sim/inference-sim/pull/1851">inference-sim#1851</a>).
+<code>--latency-model blis-latency-kernel</code>. That path is on the <code>kernel-exclusive</code> branch of
+the <code>sriumcp/inference-sim</code> fork, open as
+<a href="https://github.com/inference-sim/inference-sim/pull/1851">inference-sim#1851</a>.
 It reads the deployment from a scenario file, the model and hardware from a catalog
 clone, and the coefficients from a registry clone:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./blis<span class="w"> </span>run<span class="w"> </span>--latency-model<span class="w"> </span>blis-latency-kernel<span class="w"> </span><span class="se">\</span>

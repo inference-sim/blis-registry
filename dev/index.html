@@ -1498,11 +1498,11 @@
 latency estimate: the coefficients a cost model fits from measurements or, where no
 measurement exists, assumes. Each coefficient records how it was obtained and which
 hardware it applies to, so an estimate can be traced back to the evidence it rests on.</p>
-<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/b4d8e2b8a6ba4a240e3b66e244958d427939cf78"><code>b4d8e2b8a6ba</code></a>, the registry holds 1,121
+<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/45ec59cc41d1ddf402233612462c4e04d0168521"><code>45ec59cc41d1</code></a>, the registry holds 1,099
 coefficient entries in 6 sets, covering
-9 GPU parts. By method: 816
-<code>measured</code>, 81 <code>vendor_spec</code> (transcribed from NVIDIA's
-AISimulate), 223 <code>assumed</code>, and
+9 GPU parts. By method: 814
+<code>measured</code>, 57 <code>vendor_spec</code> (transcribed from NVIDIA's
+AISimulate), 227 <code>assumed</code>, and
 1 <code>not_charged</code> (a declared zero).</p>
 <h2 id="where-it-sits">Where it sits<a class="headerlink" href="#where-it-sits" title="Permanent link">&para;</a></h2>
 <p>BLIS keeps different kinds of number in different repositories. The registry holds
@@ -1536,7 +1536,7 @@ generated from the committed files, and every value links to its entry.</p>
 behind each decision, and the claims later withdrawn.</p>
 <h2 id="one-coefficient">One coefficient<a class="headerlink" href="#one-coefficient" title="Permanent link">&para;</a></h2>
 <p>Every entry looks like this one, quoted from the committed file when this page was built:</p>
-<div class="highlight"><span class="filename">coefficients/cost-model-primitives.yaml, line 126</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gemm_m_half_bf16</span><span class="p">:</span>
+<div class="highlight"><span class="filename">coefficients/cost-model-primitives.yaml, line 49</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gemm_m_half_bf16</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">94</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">units</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tokens</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">measured</span>
@@ -1547,7 +1547,7 @@ behind each decision, and the claims later withdrawn.</p>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">rationale</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="no">The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_bf16 on the same envelope; residual 0.0673.</span>
 </code></pre></div>
-<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/b4d8e2b8a6ba4a240e3b66e244958d427939cf78/coefficients/cost-model-primitives.yaml#L126">the committed file</a> at build time.</p>
+<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/45ec59cc41d1ddf402233612462c4e04d0168521/coefficients/cost-model-primitives.yaml#L49">the committed file</a> at build time.</p>
 
 <p>It is a measured, fitted constant of the GEMM efficiency ramp, scoped to two names for
 the same A100 silicon, citing the exact sweep it was fitted on. The

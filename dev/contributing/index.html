@@ -1468,10 +1468,10 @@ blis-latency-kernel looks the key up. Search the kernel for the name, not the re
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ai-dynamo/aisimulate
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span><span class="nv">$PWD</span>/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>/path/to/blis-catalog
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w"> </span>pyarrow<span class="w"> </span>pandas
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements-fit.txt
 </code></pre></div>
-<p><code>requirements.txt</code> covers what CI needs. The fitters also read Parquet, which needs
-<code>pyarrow</code>, and three of them use <code>pandas</code>.</p>
+<p><code>requirements.txt</code> covers the property tests. <code>requirements-fit.txt</code> adds what the
+fitters need to read the Parquet sweeps: <code>pyarrow</code>, <code>pandas</code> and <code>numpy</code>.</p>
 </li>
 <li>
 <p><strong>Run the family's writer.</strong> The
@@ -1480,8 +1480,9 @@ blis-latency-kernel looks the key up. Search the kernel for the name, not the re
    the committed file would change, and most take <code>--insert CHIP</code> to add a part.</p>
 </li>
 <li>
-<p><strong>Run the derivation tests with the data present.</strong> In CI these skip, because CI has
-   no AISimulate clone, so a local run is the only one that exercises them:</p>
+<p><strong>Run the derivation tests with the data present.</strong> CI's <code>rederive</code> job runs them at
+   the pinned AISimulate commit on any pull request that touches a coefficient, a writer
+   or a test; run them locally first:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w"> </span>-rs
 </code></pre></div>
 <p><code>-rs</code> prints the reason for every skip. A skip you did not expect is a test that did

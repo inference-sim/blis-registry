@@ -83,6 +83,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import pyarrow.parquet as pq
 import yaml
 
@@ -248,13 +249,29 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
     if g["v41_blocks"] > max(blocks_of):
         raise SystemExit(f"V4.1 reads {g['v41_blocks']} blocks per query, beyond the "
                          f"{max(blocks_of)} measured; the rate would be an extrapolation")
+    # Two richer forms, fitted on the same rows, to test whether the batch bias below is a
+    # missing term: a per-request cost, t = f + c * batch + bytes / r; and an occupancy
+    # form, t = f + a * ceil(batch * blocks / P), P fitted -- whole waves of P blocks.
+    us = np.array([y for _, y in pts]); wb = np.array([w for w, _ in pts])
+    nb = np.array(batch_of, dtype=float); tiles = nb * np.array(blocks_of, dtype=float)
+    rs = np.geomspace(5e5, 5e6, 200)
+    per_req = min(
+        (float(np.min(np.mean(np.abs(np.log((f + c * nb[:, None] + wb[:, None] / rs[None, :])
+                                              / us[:, None])), axis=0))), f, c)
+        for f in np.arange(5, 15, 0.25) for c in np.arange(0, 0.3, 0.002))
+    amps = np.geomspace(0.05, 20, 300)
+    wave = min(
+        (float(np.min(np.mean(np.abs(np.log((f + amps[None, :] * np.ceil(tiles / P)[:, None])
+                                              / us[:, None])), axis=0))), P, f)
+        for P in range(32, 400, 4) for f in np.arange(5, 15, 0.25))
     # The overall error hides a batch-dependent bias: report it per batch, signed.
     by_batch = {b: geo([p for p, x in zip(pts, batch_of) if x == b], floor, rate)[1]
                 for b in sorted(set(batch_of))}
     # Short-context rows the pinned floor over-prices: batch 1, at most one block.
     short = [y for (w, y), b, n in zip(pts, blocks_of, batch_of) if n == 1 and b <= 1]
     return {"n": len(pts), "rate": rate, "frac": frac, "err": err, "signed": signed,
-            "by_batch": by_batch, "short_lo": min(short), "short_hi": max(short),
+            "per_req_err": math.exp(per_req[0]), "wave_err": math.exp(wave[0]),
+            "wave_p": wave[1], "by_batch": by_batch, "short_lo": min(short), "short_hi": max(short),
             "hold_batch_max": max(n for n, b in zip(batch_of, blocks_of) if b >= 5),
             "v41_batch_max": max((n for n, b in zip(batch_of, blocks_of)
                                   if b == g["v41_blocks"]), default=0),
@@ -366,8 +383,9 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{fm['err']:.3f}x (signed {fm['signed']:.3f}, {fm['n']} points, "
               f"1-{fm['max_blocks']} blocks per request) hides. Signed by batch: "
               f"{', '.join(f'{b}: {v:.2f}' for b, v in fm['by_batch'].items())}. Neither a "
-              f"per-request term nor an occupancy (wave-quantized) form removes it (both "
-              f"tried: 1.179x and 1.173x, the same pattern), so it is batch-dependent "
+              f"per-request term (floor + c x batch + bytes / rate: {fm['per_req_err']:.3f}x) "
+              f"nor an occupancy form (floor + a x ceil(batch x blocks / P), P fitted at "
+              f"{fm['wave_p']}: {fm['wave_err']:.3f}x) removes it, so it is batch-dependent "
               f"scheduling inside the call, not a missing term this form can carry. "
               f"Trained on requests of <= 3 blocks and held out on >= 5 the rate predicts "
               f"{fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, n={fm['hold_n']}, all at "
@@ -388,7 +406,8 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"sparse_mla deployment changes. WHAT THE TIMED OP DOES NOT CONTAIN: the "
               f"0.25.0 ratio-128 rows take their indices from metadata, while v0.31.0's V4.1 "
               f"decode also launches compute_global_topk_indices_and_lens (a Triton kernel "
-              f"translating the indexer's top-k to cache slots) on every sparse layer -- a "
+              f"translating the indexer's top-k to cache slots) on every compressed "
+              f"(compress_ratio 1 or 2) layer -- a "
               f"known gap, one small launch per layer not priced here. The FlashMLA SM90 "
               f"sparse decode device code is unchanged between the pins vLLM 0.25.0 and "
               f"0.31.0 build (a6ec2ba, 0eee43b: renames only, the 584 B assert identical); "
@@ -452,8 +471,9 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{g['v41_index_heads'] * 256 / g['key']:.0f} FLOP/B against an FP8 ridge of "
               f"{ridge:.0f}. DIRECTION: unknown at this fraction -- optimistic if this "
               f"kernel streams index pages below NVIDIA's empirical HBM fraction, "
-              f"pessimistic if above -- and it can be optimistic by at most "
-              f"{1 / derate:.2f}x, the ratio to BwPeak. Under speculative decoding each request scores k+1 query rows against "
+              f"pessimistic if above. The real rate cannot exceed BwPeak, so this rate can "
+              f"be pessimistic by at most {1 / derate:.2f}x (scan time over-priced); how "
+              f"optimistic it can be is not bounded. Under speculative decoding each request scores k+1 query rows against "
               f"each key, so k = 5 brings it to {6 * g['v41_index_heads'] * 256 / g['key']:.0f} "
               f"FLOP/B -- still under the ridge at datasheet peak, but at the "
               f"{measured_tflops:.0f} TFLOPS this kernel was measured sustaining (a lower "
@@ -583,7 +603,9 @@ def main(argv: list[str]) -> int:
           f"10 blocks {fm['v41'][0]:.3f}x (n={fm['v41_n']})")
     print(f"{'':24}signed by batch: "
           + ", ".join(f"{b}: {v:.2f}" for b, v in fm["by_batch"].items())
-          + f"; batch-1 <= 1 block measures {fm['short_lo']:.1f}-{fm['short_hi']:.1f} us")
+          + f"; batch-1 <= 1 block measures {fm['short_lo']:.1f}-{fm['short_hi']:.1f} us"
+          + f"; per-request form {fm['per_req_err']:.3f}x, occupancy form (P={fm['wave_p']}) "
+          + f"{fm['wave_err']:.3f}x")
     print(f"indexer scan            floor={ix['floor']} us  {ix['err']:.3f}x (n={ix['n']}) "
           f"per checkpoint {ix['per_model']}; "
           f"throughput {ix['rate_rowkeys']:,.0f} row-keys/us = "

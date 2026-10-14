@@ -19,7 +19,7 @@ those experts on MarlinExperts W4A16 on every SM (AISimulate `collector/vllm/col
 and the FPM dataset's own runtime-dtype annotation records that build's GB300 runs as
 `moe_quant_mode: w4a16_mxfp4` (`fpm_identity_correction`, policy
 `runtime-dtype-annotation-v1`, in the Kimi-K3 gb300 `0.1.dev19262/tep8` metadata). That run is
-the only end-to-end evidence for the KDA pair (#41), so gb300 carries the family too.
+the only end-to-end evidence for the KDA pair (blis-registry#41), so gb300 carries the family too.
 
 A ramp here is a property of (kernel, part), not a claim about which kernel a deployment
 selects: a consumer applies it only where the deployment's MoE backend IS Marlin W4A16, and
@@ -121,7 +121,7 @@ BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 128, FORM_
 
 # The parts this family is committed for, and why each (see the module docstring): h200,
 # where stock v0.31.0 selects Marlin for MXFP4 experts; gb300, where the Kimi-K3 FPM run the
-# KDA validation (#41) scores against ran Marlin W4A16.
+# KDA validation (blis-registry#41) scores against ran Marlin W4A16.
 PARTS = [("h200_sxm", "h200"), ("gb300", "gb300")]
 
 # Where Marlin is the default on the part, and where it is not.
@@ -298,15 +298,18 @@ def entry_lines(name: str, f: dict) -> list[str]:
                f"ramp evaluated at the step's token count; compute at the BF16 peak; memory "
                f"as ExpertsTouched experts' stored bytes at BwPeak x hbm_derate; imbalance and "
                f"SM derate 1 (balanced rows, no concurrent fetch); FLOPs the rank's own "
-               f"(#44 divides routed FLOPs by tp on this ramp). A "
+               f"(#44 divides routed FLOPs by tp on this ramp). #44 also scales routed FLOPs "
+               f"and bytes by Marlin's round-up of inter / tp to a multiple of 128 (V4.1 at "
+               f"TP8: 288 -> 384); fitted at tp 1, where that pad is 1, the fit has not checked "
+               f"it -- it is the consumer's addition. A "
                f"change to any of those -- sum versus max, the ramp's argument, the byte "
                f"count -- needs a refit. The bytes are blis-schemas v0.3.0's StoredBytes for "
                f"MXFP4 (0.5 + 1/32), which #44 charges; a consumer charging payload only "
                f"(0.5, blis-latency-kernel main e9cf217) would need {f['eps05']:.3f} / "
                f"{f['mh05']}. vLLM's Python side changed since 0.25.0 too: #48144 sets the M "
                f"used for Marlin's block-size choice to ceil(M x local / global experts) under "
-               f"EP -- inert at ep 1, where this is fitted, but it means the 0.25.0 rows at "
-               f"ep > 1 do not describe v0.31.0. Applies to the routed-expert term only; a "
+               f"EP -- inert at ep 1, where this is fitted, but the 0.25.0 rows at ep > 1 "
+               f"may not describe v0.31.0 wherever it changes the chosen block size. Applies to the routed-expert term only; a "
                f"dense MXFP4 linear runs a different Marlin kernel and is not measured. "
                f"Reproduce with scripts/fit_marlin_grouped_ramp.py.")
     else:

@@ -27,7 +27,9 @@ resolve a latent or sparse geometry from (`fit_attention_mla.py`: deepseek-v3, k
 `fit_attention_sparse_mla.py`: deepseek-v4-pro). With them here, every writer and fitter in
 `scripts/` defaults to this directory, so `--check` gives the same answer on every machine
 whatever branch a local catalog checkout is on; `BLIS_CATALOG` still overrides it.
-`compare_registries.py`, the end-to-end scorer, is the exception: it needs a whole catalog.
+Two exceptions: `compare_registries.py`, the end-to-end scorer, needs a whole catalog; and
+`emit_primitives.py` takes its catalog as a required argument when it renders (its
+`--check`, the gate, reads no catalog).
 
 ## Why vendored
 
@@ -72,7 +74,6 @@ branch.
 
 ## Kept in step with CI
 
-`.github/workflows/rederive.yml` checks out blis-catalog at this same commit for the
-writers (the MLA writer reads `models/`, which is not vendored here) and fails if its
-`hardware/` differs from this copy, so the property tests and the re-derivation gates
-always read one revision.
+`.github/workflows/rederive.yml` checks out blis-catalog at this same commit and fails if
+its `hardware/` or any of the three vendored model graphs differs from this copy, so the
+property tests and the re-derivation gates always read one revision.

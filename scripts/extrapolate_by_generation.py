@@ -67,7 +67,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 CATALOG = Path(os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog"))
+    "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog")))
 
 # Architecture generation, which is what the holdout says these coefficients transfer
 # along. Not a marketing grouping: each set below shares a die family and a memory

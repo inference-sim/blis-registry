@@ -24,12 +24,22 @@ The share of each set by method, with the number of entries at the right:
 A scenario names the sets it loads. The five `cost-model-*` sets for step time are the
 ones every committed scenario in blis-latency-kernel lists. Within them, a few families
 are committed but not looked up by the kernel. As of blis-latency-kernel
-[`d20a227`](https://github.com/inference-sim/blis-latency-kernel/commit/d20a227):
+[`e9cf217`](https://github.com/inference-sim/blis-latency-kernel/commit/e9cf217):
 
-| Set | Not read |
-|---|---|
-| `cost-model-primitives` | `hbm_constant_latency`, `p2p_latency`, `moe_routing_imbalance_p90`, and every `gemm_*_fp8_block` entry: the kernel's dtype selection resolves to `bf16`, `fp8` or `nvfp4` only |
-| `cost-model-memory` | the whole set. It is committed ahead of its reader, [blis-latency-kernel#22](https://github.com/inference-sim/blis-latency-kernel/issues/22) |
+| Set | Not read | Reader |
+|---|---|---|
+| `cost-model-primitives` | every `gemm_*_fp8_block` entry: the kernel's dtype selection resolves to `bf16`, `fp8` or `nvfp4` only | selection by weight format and chip, [blis-latency-kernel#34](https://github.com/inference-sim/blis-latency-kernel/issues/34) |
+| `cost-model-primitives` | `gemm_*_w4a16_mxfp4_grouped` and `gemm_*_w8a16_mxfp8`, the Marlin weight-only ramps | the same, [blis-latency-kernel#34](https://github.com/inference-sim/blis-latency-kernel/issues/34); the gb300 grouped ramp additionally needs a deployment that states a Marlin MoE backend, since stock v0.31.0 runs CUTLASS there |
+| `cost-model-primitives` | `host_gather_rate_uva` | a host-resident gather op, [blis-schemas#48](https://github.com/inference-sim/blis-schemas/issues/48) and [blis-latency-kernel#38](https://github.com/inference-sim/blis-latency-kernel/issues/38) |
+| `cost-model-attention` | `attention_decode_{floor,rate}_block_index_scores` | a lookup keyed on the attention node's `role`; until then the kernel prices an indexer node with its layer kind's pair |
+| `cost-model-memory` | the whole set. It is committed ahead of its reader | [blis-latency-kernel#22](https://github.com/inference-sim/blis-latency-kernel/issues/22) |
+
+`attention_decode_rate_sparse_mla` IS read, for the one model it is scoped to; that model is
+not yet priceable end to end ([methodology §10.5](../methodology.md#105-deepseek-v41-flash-on-h200-what-vllm-v0310-runs-and-what-is-measured-of-it)).
+
+Three families that had no reader were removed rather than listed here:
+`hbm_constant_latency`, `p2p_latency` and `moe_routing_imbalance_p90`
+([methodology §1](../methodology.md#1-what-a-coefficient-is)).
 
 An unread entry still passes every check, so this table is the place to look before
 assuming a change to one will move an estimate.

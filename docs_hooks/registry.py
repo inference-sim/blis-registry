@@ -273,11 +273,17 @@ def _fold(e: Entry) -> tuple[str, list[str]]:
     column even when its scope lists more parts, because a kernel on another part builds a
     different name and never looks this one up.
     """
+    # An entry scoped beyond hardware (today: to one model) is a different row from the
+    # part-wide entry of the same name, because the kernel admits it only for that
+    # deployment. The extra scope is carried in the row label so the matrix stays one
+    # value per (row, part) and a reader sees the restriction.
+    tag = "".join(f" ‹{k}: {', '.join(str(x) for x in (v if isinstance(v, list) else [v]))}›"
+                  for k, v in sorted(e.other_scope.items()))
     for part in e.hardware:
         suffix = "_" + part.replace("-", "_")
         if e.name.endswith(suffix):
-            return e.name[: -len(suffix)] + "_‹part›", [part]
-    return e.name, e.hardware
+            return e.name[: -len(suffix)] + "_‹part›" + tag, [part]
+    return e.name + tag, e.hardware
 
 
 def _stem(e: Entry) -> str:
@@ -290,10 +296,15 @@ def matrix(s: CoefficientSet):
     rows: dict[str, dict[str, list[Entry]]] = {}
     units: dict[str, str] = {}
     for e in s.entries:
-        if e.other_scope:
+        if set(e.other_scope) - {"model"}:
             raise PluginError(
-                f"registry hook: {s.name}:{e.line} {e.name} is scoped beyond hardware "
-                f"({e.other_scope}); the matrix view cannot show it. Extend the hook.")
+                f"registry hook: {s.name}:{e.line} {e.name} is scoped by "
+                f"{sorted(set(e.other_scope) - {'model'})}; the matrix view shows hardware "
+                f"and model scopes only. Extend the hook.")
+        if not e.hardware:
+            raise PluginError(
+                f"registry hook: {s.name}:{e.line} {e.name} names no hardware, so it has "
+                f"no column in the matrix view. Extend the hook.")
         stem, columns = _fold(e)
         cells = rows.setdefault(stem, {})
         if units.setdefault(stem, e.body["units"]) != e.body["units"]:

@@ -29,7 +29,7 @@ achievable bandwidth can. The first belongs in the catalog, the second in the re
 | [blis-catalog](https://github.com/inference-sim/blis-catalog) | Models, chips, fabrics, workloads: declared facts | The registry's `scope.hardware` values are the catalog's chip names (`h200`, `gb200-nvl72`, …). |
 | **blis-registry** | Coefficient sets: learned numbers with provenance | — |
 | [blis-latency-kernel](https://github.com/inference-sim/blis-latency-kernel) | The cost model: prices one forward pass | Reads coefficient sets by name and evaluates its cost laws with them. Holds no numbers of its own. |
-| [inference-sim](https://github.com/inference-sim/inference-sim) | The discrete-event simulator (BLIS) | Calls the kernel once per simulated step. The kernel-backed path is [inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851), branch `kernel-exclusive`. |
+| [inference-sim](https://github.com/inference-sim/inference-sim) | The discrete-event simulator (BLIS) | Calls the kernel once per simulated step. The kernel-backed path is [inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851), branch `kernel-exclusive` of the `sriumcp/inference-sim` fork. |
 
 Dependencies run one way. `blis-schemas` depends on no other BLIS repository. The
 catalog and the registry are data, validated against the schemas. The kernel imports

@@ -72,7 +72,7 @@ DEFAULT_DATA = os.environ.get(
     "AISIMULATE_DATA",
     "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
 DEFAULT_CATALOG = os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+    "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 
 # a100_sxm IS included: its vLLM gemm sweep (0.14.0) covers M = 1..8192 over 21 token
 # counts with a highest observed efficiency of 0.958, and scored against that envelope the

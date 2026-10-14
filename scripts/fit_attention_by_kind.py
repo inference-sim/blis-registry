@@ -237,7 +237,7 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default=atm.DEFAULT_DATA)
     ap.add_argument("--catalog", default=os.environ.get(
-        "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog"))
+        "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog")))
     ap.add_argument("--sku")
     ap.add_argument("--chip")
     ap.add_argument("--lane", default=None, help="kernel_source to fit; default the most populous")

@@ -1,8 +1,12 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at `747a2213e13030ae675f9872c3e2a76b6b770d50` (2026-10-07) — the same commit
-blis-latency-kernel vendors, so the two repositories check against one revision.
+[blis-catalog] at release `0.2.2`, `3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5` (2026-10-13).
+blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
+so the two repositories check against one revision. The previous pin was `747a2213`
+(2026-10-07); `0.2.2` changes one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7,
+and the three b300 rates fitted as a fraction of it (`attention_decode_rate`, `_swa`, `_mla`)
+were re-fitted with the bump.
 
 [blis-catalog]: https://github.com/inference-sim/blis-catalog
 
@@ -10,10 +14,22 @@ blis-latency-kernel vendors, so the two repositories check against one revision.
 a100-80  a100-sxm  b200  b300  gb200-nvl72  gb300  h100  h200  l40s
 ```
 
-Copied verbatim. 40 KB, against the 16 M the catalog occupies: only the `hardware/`
-descriptors are here, because that is all `validator/test_coefficient_properties.py`
-opens — it reads `BwPeakTBs` and the memory figures to check that a fitted rate is
-physically possible.
+Copied verbatim, with three model graphs beside them:
+
+```
+models/deepseek-v3/graph.yaml   models/kimi-k3/graph.yaml   models/deepseek-v4-pro/graph.yaml
+```
+
+The hardware descriptors are what `validator/test_coefficient_properties.py` opens -- it
+reads `BwPeakTBs` and the memory figures to check that a fitted rate is physically
+possible -- and what every fitter reads its peaks from. The graphs are the ones the fitters
+resolve a latent or sparse geometry from (`fit_attention_mla.py`: deepseek-v3, kimi-k3;
+`fit_attention_sparse_mla.py`: deepseek-v4-pro). With them here, every writer and fitter in
+`scripts/` defaults to this directory, so `--check` gives the same answer on every machine
+whatever branch a local catalog checkout is on; `BLIS_CATALOG` still overrides it.
+Two exceptions: `compare_registries.py`, the end-to-end scorer, needs a whole catalog; and
+`emit_primitives.py` takes its catalog as a required argument when it renders (its
+`--check`, the gate, reads no catalog).
 
 ## Why vendored
 
@@ -55,3 +71,9 @@ Re-copy the nine files from an upstream checkout and update the commit above. A 
 rename or a changed `BwPeakTBs` is *supposed* to break the tests that name it — that
 coupling is the point, and it is why the copy is pinned to a commit rather than tracking a
 branch.
+
+## Kept in step with CI
+
+`.github/workflows/rederive.yml` checks out blis-catalog at this same commit and fails if
+its `hardware/` or any of the three vendored model graphs differs from this copy, so the
+property tests and the re-derivation gates always read one revision.

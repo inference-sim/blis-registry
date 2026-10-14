@@ -35,8 +35,11 @@ Six sets are committed. Five price a forward pass and are the ones blis-latency-
 scenarios load: `cost-model-primitives`, `cost-model-collectives`,
 `cost-model-attention`, `cost-model-recurrent` and `cost-model-host-overheads`. The
 sixth, `cost-model-memory`, holds memory-occupancy magnitudes and is committed ahead of
-its reader. The [reference pages](https://inference-sim.github.io/blis-registry/latest/reference/)
-list every entry, generated from these files.
+its reader. A few families inside the other five are committed ahead of their reader too;
+the [reference overview](https://inference-sim.github.io/blis-registry/latest/reference/#which-sets-the-kernel-reads)
+names each one and the change that will read it. The
+[reference pages](https://inference-sim.github.io/blis-registry/latest/reference/) list
+every entry, generated from these files.
 
 ## A coefficient
 
@@ -68,14 +71,26 @@ pip install -r requirements.txt
 python -m pytest validator/ -q -rs
 ```
 
-CI runs three jobs on every pull request:
+CI runs these jobs on a pull request:
 
 - **schema-validate** runs blis-schemas' validator (`cmd/validate-registry`, pinned by
   tag) over every set, the same rules a consumer applies when it loads one.
-- **derivation-tests** runs `validator/`. The property tests always run. The
-  re-derivation tests need a local clone of AISimulate and skip in CI; run them locally,
-  with `AISIMULATE_DATA` set, before changing a fitted value.
+- **derivation-tests** runs `validator/` without the AISimulate sweeps, so the property
+  tests run and the re-derivation tests skip.
+- **rederive** runs the same suite with AISimulate checked out at the pinned commit
+  every committed value re-derives at, so a fitted value its writer no longer produces
+  fails here. It runs when a pull request touches `coefficients/`, `scripts/`,
+  `validator/` or a requirements file.
 - **docs** builds the documentation in strict mode.
+
+To run the re-derivation gates locally:
+
+```sh
+pip install -r requirements-fit.txt
+git clone https://github.com/ai-dynamo/aisimulate
+export AISIMULATE_DATA=$PWD/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
+python -m pytest validator/ -q -rs
+```
 
 ## Documentation
 

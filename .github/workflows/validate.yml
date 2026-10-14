@@ -53,12 +53,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           # Pinned to a blis-schemas release tag. cmd/validate-registry and the full
-          # coefficient-set ruleset arrived in v0.2.1 (#38); v0.2.2 adds deployment-side
-          # layout checks and DCP/PCP knobs and leaves the coefficient-set rules unchanged,
-          # so the bump is non-breaking for this repository. Bump this tag deliberately on a
-          # schema release.
+          # coefficient-set ruleset arrived in v0.2.1 (#38); v0.2.2 added deployment-side
+          # layout checks and DCP/PCP knobs; v0.3.0 adds the vLLM 0.31.0 rules pack and the
+          # graph/kernel keys DeepSeek-V4.1 needs (blis-schemas#55). Neither touched
+          # spec/coefficient or vocab, so each bump was non-breaking for this repository.
+          # Bump this tag deliberately on a schema release.
           repository: inference-sim/blis-schemas
-          ref: v0.2.2
+          ref: v0.3.0
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

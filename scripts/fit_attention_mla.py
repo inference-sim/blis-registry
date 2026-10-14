@@ -225,7 +225,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--data", required=True, type=Path)
     ap.add_argument("--catalog", type=Path,
                     default=Path(os.environ.get(
-                        "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")))
+                        "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))))
     ap.add_argument("--sku")
     ap.add_argument("--chip")
     ap.add_argument("--lane", default="*", help="a vLLM version directory, or * for newest")

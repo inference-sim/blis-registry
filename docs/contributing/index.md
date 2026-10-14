@@ -40,19 +40,20 @@ blis-latency-kernel looks the key up. Search the kernel for the name, not the re
     git clone https://github.com/ai-dynamo/aisimulate
     export AISIMULATE_DATA=$PWD/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
     export BLIS_CATALOG=/path/to/blis-catalog
-    pip install -r requirements.txt pyarrow pandas
+    pip install -r requirements-fit.txt
     ```
 
-    `requirements.txt` covers what CI needs. The fitters also read Parquet, which needs
-    `pyarrow`, and three of them use `pandas`.
+    `requirements.txt` covers the property tests. `requirements-fit.txt` adds what the
+    fitters need to read the Parquet sweeps: `pyarrow`, `pandas` and `numpy`.
 
 2. **Run the family's writer.** The
    [writer table](../reproducing-coefficients.md#every-committed-value-and-the-one-command-that-regenerates-it)
    names the script that owns each family. Each takes `--check`, which exits non-zero if
    the committed file would change, and most take `--insert CHIP` to add a part.
 
-3. **Run the derivation tests with the data present.** In CI these skip, because CI has
-   no AISimulate clone, so a local run is the only one that exercises them:
+3. **Run the derivation tests with the data present.** CI's `rederive` job runs them at
+   the pinned AISimulate commit on any pull request that touches a coefficient, a writer
+   or a test; run them locally first:
 
     ```sh
     python -m pytest validator/ -q -rs

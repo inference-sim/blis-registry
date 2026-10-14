@@ -149,7 +149,7 @@ DEFAULT_DATA = os.environ.get(
     "AISIMULATE_DATA",
     "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
 DEFAULT_CATALOG = os.environ.get(
-    "BLIS_CATALOG", "/Users/sri/Documents/Projects/blis-catalog")
+    "BLIS_CATALOG", str(Path(__file__).resolve().parent.parent / "validator" / "testdata" / "catalog"))
 
 TABLE = "dsv4_hca_attn_module_perf.parquet"
 

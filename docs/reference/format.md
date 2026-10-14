@@ -2,9 +2,9 @@
 
 A coefficient set is a YAML file under `coefficients/`. The rules on this page are
 enforced by [blis-schemas](https://github.com/inference-sim/blis-schemas), at the
-release the registry's CI pins (`v0.2.2`), in
-[`spec/coefficient`](https://github.com/inference-sim/blis-schemas/tree/v0.2.2/spec/coefficient)
-and [`vocab`](https://github.com/inference-sim/blis-schemas/blob/v0.2.2/vocab/vocab.go).
+release the registry's CI pins (`v0.3.0`), in
+[`spec/coefficient`](https://github.com/inference-sim/blis-schemas/tree/v0.3.0/spec/coefficient)
+and [`vocab`](https://github.com/inference-sim/blis-schemas/blob/v0.3.0/vocab/vocab.go).
 Where this page and the schema disagree, the schema is right.
 
 ## Shape

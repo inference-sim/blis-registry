@@ -54,9 +54,35 @@ def test_every_entry_appears_in_its_matrix_and_only_under_its_own_parts(s):
                 placed.setdefault(id(e), []).append((row, part))
     for e in s.entries:
         assert id(e) in placed, f"{name}:{e.line} {e.name} is missing from the matrix"
-        if registry._fold(e)[0] != e.name:
+        if "_‹part›" in registry._fold(e)[0]:
             # a name carrying its part fills exactly that part's cell
             assert len(placed[id(e)]) == 1, f"{e.name} fills {placed[id(e)]}"
+
+
+def test_a_model_scoped_entry_is_its_own_row_labelled_with_its_model():
+    """A model-scoped entry is admitted only for that model, so it must not share a row
+    with the part-wide entry of the same name, and the label must say which model."""
+    e = registry.Entry("attention_decode_rate_sparse_mla",
+                       {"scope": {"hardware": ["h200"], "model": ["deepseek-v4.1-flash"]},
+                        "units": "bytes_per_us", "method": "measured", "value": 1.0}, 1)
+    row, columns = registry._fold(e)
+    assert row == "attention_decode_rate_sparse_mla ‹model: deepseek-v4.1-flash›"
+    assert columns == ["h200"]
+
+
+def test_a_scalar_model_scope_is_one_label_not_its_characters():
+    e = registry.Entry("x", {"scope": {"hardware": ["h200"], "model": "m-1"},
+                             "units": "tokens", "method": "measured", "value": 1}, 1)
+    assert registry._fold(e)[0] == "x ‹model: m-1›"
+
+
+@pytest.mark.parametrize("scope", [{"hardware": ["h200"], "tp": [8]}, {"model": ["m"]}],
+                         ids=["unshown-scope-key", "no-hardware"])
+def test_the_matrix_refuses_an_entry_it_cannot_show(scope):
+    e = registry.Entry("x", {"scope": scope, "units": "tokens", "method": "measured",
+                             "value": 1}, 1)
+    with pytest.raises(registry.PluginError):
+        registry.matrix(registry.CoefficientSet("s", "s.yaml", [e]))
 
 
 @pytest.mark.parametrize("s", all_sets(), ids=lambda s: s.name)

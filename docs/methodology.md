@@ -35,9 +35,30 @@ registry comes to describe a fit nobody ran, and the validator re-derives values
 sweep its citation names, so a stale citation fails rather than lies.
 
 **A coefficient with no reader is not live.** `dtypeFit` in the kernel can return only
-three dtype suffixes — `bf16`, `fp8`, `nvfp4` — so the 12 `gemm_*_fp8_block` entries are
+three dtype suffixes — `bf16`, `fp8`, `nvfp4` — so the 14 `gemm_*_fp8_block` entries are
 unreachable. That was discovered by grepping the kernel for the key, not the registry.
 Check both.
+
+Each unread family is either given a reader or removed, and the decision is recorded
+(inference-sim/blis-registry#36):
+
+* **Removed:** `hbm_constant_latency` and `p2p_latency`, the two NVIDIA-simulator constants
+  whose fixed cost the kernel's measured attention and collective floors already carry, so
+  a reader would double-count; and `moe_routing_imbalance_p90`, a tail a mean-step model
+  does not price (its value is stated in each median's rationale). A property test keeps
+  them out.
+* **Kept, with a named reader:** the `gemm_*_fp8_block` ramps. They are what vLLM runs for
+  a 128×128 block-scaled FP8 checkpoint (DeepGEMM and FlashInfer block-scaled kernels), and
+  their fit differs from per-tensor FP8 (h100: 0.749 / 160 against 0.648 / 131). The kernel
+  change that selects a ramp by weight format and chip, blis-latency-kernel#34, is what
+  reads them.
+* **Committed ahead of their reader**, each naming it: `cost-model-memory`
+  (blis-latency-kernel#22); the weight-only Marlin ramps, the indexer pair and the
+  host-gather rate (§10.5), read once blis-latency-kernel#44 lands (it closes #34 and #38
+  and adds the role-keyed attention lookup). The V4.1 sparse rate's name is looked up by
+  kernel `main` too, but a V4.1 scenario fails at construction there first (#36), so it is
+  read once #44 lands as well.
+  The reference overview lists every one, so "committed" is never read as "live".
 
 ## 2. The lane rule: fit the engine you predict
 
@@ -257,8 +278,17 @@ Aliasing is done two ways, deliberately:
   the other. The kernel matches scope by membership (`resolve.Scope.Admits`).
 * The collective names DO carry a chip suffix, because the kernel builds the key as
   `collective_<kind>_<op>_<dtype>_<rank>rank_<chip>` with `-` replaced by `_`. A
-  membership scope cannot satisfy that, so 72 `*_a100_80` entries carry A100-SXM's values
-  with the alias stated in each rationale. **Re-fit both together.**
+  membership scope cannot satisfy that, so 72 measured `*_a100_80` entries carry
+  A100-SXM's values with the alias stated in each rationale (24 more are the derived
+  16-rank widths). **Re-fit both together.** Every `*_a100_sxm` entry is scoped to
+  `a100-sxm` alone: an `a100-80` deployment builds the `_a100_80` name and never looks
+  them up, so the 72 that listed it in their scope said nothing.
+* The descriptor entries (`hbm_derate`, `host_link_bandwidth`, the NCCL buffer sizes,
+  `engine_workspace_bytes`) come from `systems/a100_sxm.yaml` alone, scoped to both names.
+  An earlier revision also emitted `systems/a100_pcie.yaml` for `a100-80`, which put two
+  entries of every descriptor name in scope for it; the values were equal, so nothing was
+  mispriced, but the kernel kept whichever came later and a refit of one copy would have
+  moved the answer silently.
 
 ### Deliberate absences
 
@@ -272,8 +302,12 @@ Absent is not the same as missing:
 * int8 all-reduce on A100 stays on NCCL — `allreduce_dtype` in the custom_allreduce sweep
   is bfloat16 across all 138 rows, so there is no vLLM int8 measurement. Unmeasured is not
   unchanged.
-* L40S sliding-window decode stays on TRT-LLM — the vLLM-lane fit is WORSE (2.110x
-  against the committed entry's), so it is reported and not applied.
+* L40S sliding-window decode is on the vLLM lane (`vllm/0.24.0`, its newest vLLM attention
+  collection) **by decision, at a measured cost**. Commit 5be809b moved it for lane
+  correctness — the alternative sums two engines in one step for every windowed model on
+  the part — knowing its held-out folds favour TRT-LLM (§7.1: 2.073x against 1.681x, 0 of
+  2 folds won). The trade is recorded here rather than reverted. An earlier revision of
+  this bullet said it stayed on TRT-LLM; the committed entries never did after 5be809b.
 * L40S all-reduce stays on NCCL — the vLLM-graph floors agree with NCCL to within 13%,
   because L40S has no NVLink (PCIe Gen4, 32 GB/s) and `custom_allreduce` needs peer-to-peer
   NVLink to help. A100-SXM has NVLink 3 at 300 GB/s and its floors drop 2.1-3.8x, which is
@@ -307,16 +341,16 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 ### 6.0 What is reproducible, and what is not
 
 Four kinds of value live in this registry. Counted from the coefficient files
-themselves (1,121 entries in six sets):
+themselves (1,099 entries in six sets):
 
 | `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 816 | a named fitter in `scripts/`, re-run by the validator |
-| `vendor_spec` | 81 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
-| `assumed` | 223 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
+| `measured` | 814 | a named fitter in `scripts/`, re-run by the validator |
+| `vendor_spec` | 57 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
+| `assumed` | 227 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
 | `not_charged` | 1 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`) |
 
-The 223 `assumed` entries are of two different kinds, and the difference matters
+The 227 `assumed` entries are of three different kinds, and the difference matters
 to a reader weighing one:
 
 * **Derived from this project's own measurements** — 212 entries, each
@@ -326,6 +360,12 @@ to a reader weighing one:
   its own measured full-attention floor and rate by its kernel sibling's
   windowed/full ratio (`extrapolate_by_generation.py`); six `attention_decode_floor_mla` entries are set from
   the part's own measured attention floor (`correct_mla_floor.py`, §3).
+* **Derived from committed siblings** — 4 entries, all `fit_deepseek_v41_h200.py` (§10.5):
+  the h200 indexer-scan rate at NVIDIA's empirical HBM rate (BwPeak × `hbm_derate`, not a
+  bound; at most 1.25x pessimistic, its optimism unbounded), the weight-only MXFP8 ramp at the measured BF16 envelope
+  (an upper bound on the asymptote; the knee is not a bound), and the engram host-gather
+  rate at the PCIe 5.0 line rate (an upper bound). Each states its direction where one is
+  known, and each is re-derived from its siblings by a property test that needs no sweep.
 * **Not derivable from any dataset this project reads** — 11 entries. The seven
   host overheads in `cost-model-host-overheads.yaml`: no dataset measures
   client-observed host time (AISimulate times kernels, FPM times one synchronized
@@ -355,7 +395,7 @@ wrong number during this work:
 
 | what | why it matters |
 |---|---|
-| the scorer checkout | `cmd/metricscore` is on inference-sim's `kernel-exclusive` branch only — not `main`, not `modeling`. A checkout of either fails with `stat cmd/metricscore: directory not found` |
+| the scorer checkout | `cmd/metricscore` is on the `kernel-exclusive` branch of the `sriumcp/inference-sim` fork (48ca63f at the time of writing). `inference-sim/inference-sim` carries neither that branch nor `cmd/metricscore`, and a checkout of its `main` fails with `stat cmd/metricscore: directory not found` |
 | `-registry` | defaults to the sibling `blis-registry` checkout, so scoring a branch without passing it explicitly scores a different registry |
 | `-catalog` | the figures move with the catalog revision; a comparison across catalog revisions once produced an apparent 0.03pp "effect" that was two catalog commits |
 | `-config-tier`, `-framework`, `-length-range-ratio` | each changes every figure. On one kernel revision the same command with and without `-length-range-ratio 1.0` gives 11.62/12.05/15.23/52.94 against 11.22/12.19/16.22/57.13 |
@@ -383,16 +423,18 @@ table in the companion documents carries its invocation.
 ### 6.1.1 The scorer's kernel is pinned, and the pin is not this registry's concern
 
 One asymmetry in the reproduce recipe is worth stating because it looks like an
-oversight and is not. `inference-sim`'s scoring branch clones the catalog and the
-registry with `-b modeling`, because both are read at RUN TIME by path and the
-scorer takes `-catalog` and `-registry` flags. It clones `blis-latency-kernel`
-WITHOUT a branch flag, because the kernel is a COMPILED dependency pinned by
-module version in `go.mod`, and its default branch is `main`.
+oversight and is not. The scoring branch clones the catalog and the registry at
+release tags (`blis-catalog` `0.2.1`, `blis-registry` `v0.1.1` at 48ca63f), because both
+are read at RUN TIME by path and the scorer takes `-catalog` and `-registry` flags. It
+does not clone `blis-latency-kernel` at all: the kernel is a COMPILED dependency pinned
+by module version in `go.mod`. An earlier revision of this section said the catalog and
+registry were cloned with `-b modeling`; none of the three repositories has a
+`modeling` branch.
 
 The consequence for a reader: changing this registry changes the figures
 immediately, while changing the kernel does not until its pin is advanced. At the
-time of writing the scoring branch pins kernel `0bbcb97`, which is an ancestor of
-the kernel's `modeling` branch by 17 commits. A figure recorded by
+time of writing the scoring branch pins blis-latency-kernel `v0.1.0` and
+blis-schemas `v0.2.2`. A figure recorded by
 `compare_registries.py --record` therefore states the scorer revision alongside
 the registry, and `--check` reports when it has moved, because a figure is a claim
 about the pair.
@@ -459,15 +501,19 @@ the others hold out 3-6%); a mean over folds this uneven would describe none of 
 | b200 | vllm/0.25.0 | **1.344x** | 1.475x | 2/3 | relane |
 | b300 | vllm/0.25.0 | **1.317x** | 1.498x | 2/2 | relane |
 | gb200-nvl72 | vllm/0.25.0 | **1.276x** | 1.358x | 3/3 | relane |
-| l40s | vllm/0.24.0 | 2.073x | **1.681x** | 0/2 | **keep TRT-LLM** |
+| l40s | vllm/0.24.0 | 2.073x | **1.681x** | 0/2 | **relane, at a stated cost** (5be809b) |
 
 Twelve of thirteen shared folds favour vLLM on the five relaned parts; the single exception
 is b200 at window 2048 (1.259x against 1.244x). The vLLM sweep also covers five widths
 where TRT-LLM covers two or three, so the TRT-LLM fit was never tested at 512 or 1024 on
 any part.
 
-L40S is the documented exception and now has held-out evidence rather than a residual: its
-vLLM fit is worse on BOTH folds. Note that L40S has no `vllm/0.25.0` attention collection
+L40S is the documented exception and has held-out evidence rather than a residual: its
+vLLM fit is worse on BOTH folds. It was relaned anyway, deliberately, in 5be809b: the
+decision rule there was lane correctness — one engine per predicted step — with the fit
+penalty recorded rather than hidden, and `relane_attention_swa.py --check` now maintains
+the L40S and GB300 pairs alongside the five 0.25.0 parts. An earlier revision of this
+paragraph and of that script's header said L40S stayed on TRT-LLM. Note that L40S has no `vllm/0.25.0` attention collection
 at all — `vllm/0.24.0` is its newest — so the comparison uses that, and an earlier reading
 of "no vLLM data" for this part was wrong.
 
@@ -574,7 +620,7 @@ which four are borrowed because no alternative exists.
 |---|---|---|---|
 | `nccl` | 498 | 68.8% | all_gather, reduce_scatter, all_to_all, and the int8 all-reduce |
 | `vllm` | 152 | 21.0% | attention, GEMM, MoE imbalance, KDA, and the fp16 all-reduce |
-| descriptor | 64 | 8.8% | NVIDIA's own `systems/<sku>.yaml` — HBM derate, PCIe, p2p, NCCL buffers |
+| descriptor | 64 | 8.8% | NVIDIA's own `systems/<sku>.yaml` — HBM derate, PCIe, NCCL buffers (p2p and the memory-access constant then; both since retired) |
 | none | 6 | 0.8% | host overheads, all `method: assumed` |
 | `trtllm` | 2 | 0.3% | mamba2 — **borrow** |
 | `sglang` | 2 | 0.3% | A100 MoE imbalance — **borrow** |
@@ -586,6 +632,13 @@ those operators because there is nothing to measure. Of the 654 data-fitted coef
 **650 (99.4%) rest on vLLM's actual execution path** — 152 vLLM-lane plus 498 NCCL. The
 remaining four are the borrows in §8.3.
 
+*Since this census* (#36, §10.5): the `moe_routing_imbalance_p90` family is retired, so the
+A100 borrow is one entry and the vLLM lane loses seven; the descriptor rows are 48 now that
+`hbm_constant_latency`, `p2p_latency` and the a100_pcie duplicates are gone; and the vLLM
+lane gains six entries (the Marlin ramp on h200 and gb300, the V4.1 sparse rate and
+indexer floor on h200).
+The reference pages carry the current counts.
+
 ### 8.2 Per-family detail
 
 | set | family | n | lanes |
@@ -596,8 +649,11 @@ remaining four are the borrows in §8.3.
 | collectives | all-reduce fp16 (floor, peak, transition) | 69 | **vllm** 0.24.0 ×36, 0.14.0 ×18, nccl ×15 |
 | collectives | every other collective | 429 | nccl 2.29.2 / 2.27.3 |
 | primitives | `gemm_{eps_max,m_half}` | 52 | vllm 0.27.1 ×32, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
-| primitives | `moe_routing_imbalance_{median,p90}` | 16 | vllm ×14, **sglang 0.5.10 ×2 (A100)** |
-| primitives | descriptors | 72 | AISimulate `systems/<sku>.yaml` |
+| primitives | `moe_routing_imbalance_median` | 8 | vllm ×7, **sglang 0.5.10 ×1 (A100)** — the p90 family was retired in #36 |
+| primitives | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 4 | vllm 0.25.0 ×4 (h200, gb300), §10.5 |
+| primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 3 | `assumed` bounds (h200), §10.5 |
+| primitives | descriptors | 48 | AISimulate `systems/<sku>.yaml` |
+| attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 3 | vllm 0.25.0 ×2 + 1 `assumed` (h200, deepseek-v4.1-flash), §10.5 |
 | recurrent | `recurrent_decode_*_kda` | 6 | vllm 0.1.dev19262 |
 | recurrent | `recurrent_decode_*_mamba2` | 2 | **trtllm 1.3.0rc20** |
 | host-overheads | all | 7 | none — `method: assumed` |
@@ -619,7 +675,7 @@ Nemotron-3 hybrids at all. The entries remain a documented LOWER BOUND regardles
 the sweep has only `causal_conv1d_fn` and `causal_conv1d_update`, so the selective-scan
 kernel that does the rest of a Mamba2 layer is in no collection.
 
-**A100 MoE imbalance (2 entries, sglang/0.5.10).** A100's only vLLM MoE collection
+**A100 MoE imbalance (1 entry since the p90 family was retired; 2 when written, sglang/0.5.10).** A100's only vLLM MoE collection
 (`vllm/0.14.0`) contains `power_law_1.01` and `power_law_1.2` rows and **no `balanced`
 rows at all**. The coefficient is a ratio of skewed to balanced latency at identical
 shape, so with no balanced measurement there is no ratio to take. SGLang's sweep carries
@@ -655,6 +711,22 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
   at 8 and 16 ranks, from vLLM's own custom kernel. The second artifact,
   `vllm/0.29.0/tp8-dcp8`, is `moe_ep=1` / `pure_tp`, so it exercises no expert
   all-to-all and is the cleaner first cell to score.
+
+  Which MoE kernel that run used matters, and it is not stock v0.31.0's. The FPM metadata
+  for the `0.1.dev19262/tep8` leaves records `moe_quant_mode: w4a16_mxfp4` as the
+  effective runtime identity (`fpm_identity_correction`, policy
+  `runtime-dtype-annotation-v1`): the Kimi-K3 preview build ran its MXFP4 experts on
+  MarlinExperts W4A16, because its CUTLASS path rejected SiTU (AISimulate
+  `collector/vllm/collect_moe.py`). Stock v0.31.0 would instead select
+  `CutlassExpertsMxfp4` (W4A4) on SM100. So scoring that run needs the kernel to price
+  Marlin W4A16 experts at the BF16 rate class, which is what
+  `gemm_*_w4a16_mxfp4_grouped` on gb300 measures (§10.5). blis-latency-kernel#44 selects
+  ramps by weight format and chip, which on gb300 is the FP4 class -- right for stock
+  v0.31.0 -- so this entry stays unread until a deployment can state that its MoE backend
+  is Marlin. The scoring attempt recorded on
+  #25 also over-predicted by ~2x with the FASTER FP4 rate class, and making the KDA read
+  free left that unchanged, so the MoE/GEMM composition is a second blocker. #41 carries
+  the validation forward.
 
   Note also that FPM carries no per-kernel or per-node column at all — the truth
   parquets hold one `latency_ms` per `(batch_size, total_prefill_tokens,
@@ -893,7 +965,9 @@ geometries** — 30 `csa128_moe` layers (window 128, ratio 128) and 30 `csa4_moe
 `dsv4_csa_*` tables, and every one of those is a module measurement (floors 61.4–80.6 µs).
 Fitting a `csa4_moe` rate from them would re-import the projection double-charge. A rate
 covering half a model's layers is not a coefficient — it is a bias with a provenance string,
-so no `attention_decode_rate_sparse_mla` ships.
+so no part-wide `attention_decode_rate_sparse_mla` ships. (One ships scoped to
+DeepSeek-V4.1-Flash on h200, whose every sparse layer is inside the measured range; §10.5
+says why that is a different question.)
 
 `scripts/fit_attention_sparse_mla.py` is kept as a negative result, the way
 `fit_attention_mla.py` and `probe_moe_roofline.py` are: the fit is clean, physical, and
@@ -917,6 +991,153 @@ The generalizable point, and it is the same one §3 makes from the other directi
 coefficient can be *measurable* and still not be *identifiable for the thing it will be
 charged against*. Here the quantity was measured cleanly on one of two layer geometries,
 and only the end-to-end check could tell that this made it unusable.
+
+### 10.5 DeepSeek-V4.1-Flash on H200: what vLLM v0.31.0 runs, and what is measured of it
+
+inference-sim/blis-registry#37, #38 and #39 asked for the coefficients the kernels vLLM
+v0.31.0 runs for DeepSeek-V4.1-Flash on SM90 need. Every kernel identity below is read from
+the v0.31.0 tag (`db9527a4`); every number is written by
+`scripts/fit_deepseek_v41_h200.py` or `scripts/fit_marlin_grouped_ramp.py`, both with
+`--check`.
+
+**No vLLM 0.31 sweep exists, so the timed path was compared instead.** AISimulate's newest
+vLLM collection for h200 is `vllm/0.25.0`. For each kernel used here, the source the two
+tags build was diffed, and what the 0.25.0 timing does and does not contain is stated:
+
+| what | v0.25.0 → v0.31.0 | effect on the fit |
+|---|---|---|
+| FlashMLA SM90 sparse decode (`flash_mla_with_kvcache`) | vllm-project/FlashMLA `a6ec2ba` → `0eee43b`: namespace, include paths, `MODEL1` → `V4`; the 584 B `BYTES_PER_TOKEN` assert unchanged | none |
+| FlashMLA split-KV combine, same call | grid `(b, s_q, h)` → `(b·s_q, 1, h)`; 192/224/256-split cases added | inert at one query token per request; the new cases are reached only past 160 splits |
+| FlashMLA host API | rewritten; the split workspace is skipped for unsplit requests (`0397728d`) | host-side, not in the device time |
+| top-k → cache-slot translation | V4.1 launches `compute_global_topk_indices_and_lens` on every compressed (ratio 1 or 2) decode layer (`nvidia/flashmla.py:181-188`, under `if not swa_only`); the 0.25.0 ratio-128 rows take indices from metadata | **a known gap**: one small Triton launch per layer the rate does not price |
+| DeepGEMM `fp8_fp4_paged_mqa_logits` | deepseek-ai/DeepGEMM `a6b593d` → vllm-project/DeepGEMM `e1f418c` (v0.31.0 builds vLLM's fork): renames; bounds handling for zero-length contexts and block-table rows past a request's pages | none |
+| Marlin MoE template (`marlin_moe_wna16`) | the runtime act-order path removed (#54809), compile-time dead for MXFP4's group-32 instantiation | none |
+| Marlin MoE Python (`fused_moe/experts/marlin_moe.py`) | 10 commits; #48144 sets the M used for block-size selection under EP to `ceil(M · local / global experts)` | inert at ep 1, where the ramp is fitted; the 0.25.0 rows at ep > 1 may not describe v0.31.0 wherever it changes the chosen block size |
+
+**What ships.**
+
+| entry | scope | method | value | from |
+|---|---|---|---|---|
+| `attention_decode_rate_sparse_mla` | h200, deepseek-v4.1-flash | measured | 1,123,200 B/µs (0.234 of peak), floor inherited (13.5 µs) | `dsv4_hca_attn_module_perf`, V4-Flash rows: the `h64` FlashMLA instance and 584 B record V4.1 runs |
+| `attention_decode_floor_block_index_scores` | h200, deepseek-v4.1-flash | measured | 4.3 µs | `dsv4_paged_mqa_logits_module_perf`, the kernel itself under CUDA graphs |
+| `attention_decode_rate_block_index_scores` | h200, deepseek-v4.1-flash | assumed | 3,840,000 B/µs, NVIDIA's empirical HBM rate (BwPeak × `hbm_derate`), not a bound | see below |
+| `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | h200, gb300 | measured | 0.245 / 26 (h200), 0.114 / 55 (gb300), of the BF16 peak | vLLM's `MarlinExperts` MXFP4 rows, fitted under the kernel's routed-term composition. On gb300 it applies only where the MoE backend is Marlin W4A16 (the Kimi-K3 preview build FPM measured), not to stock v0.31.0 |
+| `gemm_{eps_max,m_half}_w8a16_mxfp8` | h200 | assumed | the BF16 envelope: an upper bound on the asymptote; the knee is not a bound | no dense Marlin sweep exists on any part |
+| `host_gather_rate_uva` | h200 | assumed | 57,764 B/µs: the PCIe 5.0 raw rate × 128/130 line code × 264/288 | no host-gather measurement exists |
+
+**The sparse rate's error depends on batch, and V4.1 runs where the table has no rows.**
+The overall 1.182x hides a batch-dependent bias. Signed, predicted over measured, by batch:
+
+| batch | 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512 | 1024 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| signed | 0.99 | 1.04 | 1.07 | 1.09 | 1.08 | 1.05 | 1.25 | 1.45 | 1.10 | 0.80 | 0.65 |
+
+* **Not a missing term this form can carry.** A per-request term, `floor + c · batch +
+  bytes / rate` (1.179x), and an occupancy form, `floor + a · ceil(batch · blocks / P)` with
+  P fitted at 64 (1.173x), leave the same pattern, so it is batch-dependent scheduling inside
+  the call. The writer fits and prints both.
+* **Inside the measured range on the block axis only.** V4.1 reads at most 640 tokens per
+  query, 10 FlashMLA blocks (2 window + 8 top-k), inside the 1–130 the table covers. But
+  the sweep's batch × context ≤ 1 M grid pairs 10 blocks only with batch ≤ 8, while V4.1
+  reads 10 blocks at any context past about 1k tokens, at whatever batch it serves. Above
+  batch 8 the rate's error is what the table says about neighbouring cells: at batch 64 and
+  up, 10–45% slow or 20–35% fast.
+* **The holdout is in the small-batch region too.** Trained on requests of at most 3 blocks
+  and tested on 5 or more, it predicts 1.210x, signed 0.83 — but all 16 held-out rows are at
+  batch ≤ 16.
+
+**The pinned floor over-prices the shortest reads.** The floor is this part's 13.5 µs
+part-wide attention floor, which the kernel inherits for a kind with a rate and no floor.
+Batch-1 rows of at most one block measure 9.8–11.8 µs, so pinning costs 14–38% there. A free
+floor lands at 13.3 µs (1.181x against 1.182x) only because a linear form cannot follow the
+step between one and two blocks. On V4.1 a read of one block occurs on the window-only
+layers (0, 1, and the DSpark drafts) at contexts up to 64 tokens, and on a ratio-2 layer at
+context 1, where the indexer emits `min((pos + 1) // ratio, topk)` = 0 compressed tokens; past
+that every compressed layer reads at least two blocks.
+
+**Why a sparse rate ships for V4.1 when §10.3 withdrew one for V4-Pro.** The withdrawn rate
+was fitted on Pro's 128-head rows — the `h128` instance, which Pro runs only below TP 2,
+since FlashMLA pads `n_local_heads` — and was to be charged against the kernel's selection
+rule for Pro's csa4 layers: up to 262,912 tokens at a 1 M context, outside every measured
+row on the block axis (vLLM itself reads far less there; blis-latency-kernel#32). Every V4.1
+sparse read is on the `h64` instance at every TP width and inside the block axis. The entry
+is scoped to this model, so no other deployment moves.
+
+**Why the indexer's rate is assumed when its floor is measured.** The collector gives every
+query row one block table, so the unique key footprint is at most 34.6 MB, and the fitted
+throughput, 5.35 TB/s-equivalent, exceeds the 4.8 TB/s HBM peak — impossible from HBM, and
+consistent with the shared keys being served from cache. A fit of that slope would be clean
+and wrong in the §3 sense. The floor is a launch cost: the 238 points whose work term is
+under 5% of it identify it at 1.050x, and each checkpoint alone gives 4.29 and 4.28 µs. In
+serving each request's keys are its own, read at `ceil(context / ratio) × 132 B`; V4.1's
+ratios are 1 and 2, so the scan grows with context while the attention it feeds does not.
+The committed rate is NVIDIA's empirical HBM fraction (BwPeak × `hbm_derate`), not a bound:
+the real rate cannot exceed BwPeak, so it can be pessimistic by at most 1.25x (scan time
+over-priced), while how optimistic it can be is not bounded. The writer refuses to keep
+assuming it if a future sweep's throughput stops exceeding the HBM peak.
+
+**Why the Marlin ramp is fitted in the kernel's composition, and what it is coupled to.** A
+weight-only GEMM is two costs, a BF16 `mma.sync` compute and a narrow weight read. The
+kernel sums them for the routed term, and fitting the ramp as what remains after the
+kernel's own memory half is the only way it composes back to the measurement. That couples
+it to blis-latency-kernel's routed term as #44 (`483f6aa`) implements it:
+
+* compute and memory summed, the ramp evaluated at the step's token count, compute at the
+  BF16 peak, memory as `ExpertsTouched` experts' stored bytes at BwPeak × `hbm_derate`,
+  imbalance and SM derate 1;
+* FLOPs the rank's own, the intermediate width divided by tp, which #44 applies on this ramp;
+* no Marlin padding: #44 also scales routed FLOPs and bytes by Marlin's round-up of
+  `inter / tp` to a multiple of 128 (V4.1 at TP8: 288 → 384). Fitted at tp 1, where that pad
+  is 1, the fit has not checked it; it is the consumer's addition;
+* stored bytes per weight as blis-schemas v0.3.0's `StoredBytes` gives them for MXFP4,
+  0.5 + 1/32, which #44 charges. At payload-only bytes (0.5, what kernel `main` `e9cf217`
+  charges) the fit would be 0.240 / 28 on h200, 0.114 / 58 on gb300.
+
+A change to any of those — sum versus max, the ramp's argument, the byte count — needs a
+refit. The fit holds out on vLLM's int4 Marlin MoE, a different geometry and weight type:
+1.196x on h200 and 1.266x on gb300. Its error grows with expert and tensor parallelism; the
+committed BF16 ramp does the same on BF16 Triton experts (on h200, 2.83x at ep 8 and 8.33x
+at ep 32, printed by the writer's form check), so that growth is a property of the
+routed-term form — though #48144 above means the 0.25.0 ep > 1 rows may not be v0.31.0's.
+
+For scale: kernel `main` prices MXFP4 experts on H200 at the FP8 peak with the FP8 ramp.
+That is 1,456 TFLOPS effective where Marlin sustains about 242.
+
+**What does not ship, and why.**
+
+* **A ramp for `CutlassExpertsMxfp4`**, what stock v0.31.0 runs for compressed-tensors
+  MXFP4 experts on Blackwell. AISimulate carries no such rows on any Blackwell part.
+* **Prefill pairs for either kernel.** No kernel-level table carries V4.1's prefill path
+  (`flash_mla_sparse_fwd` over a gathered compressed region, `fp8_fp4_mqa_logits`), and
+  the kernel has no per-kind prefill name to read one with.
+* **SGLang's `dsv41_module_perf`** (h200). It is eager, a module timing (`MQALayer.forward`
+  with projections), at batch ≤ 3 and context ≤ 2,049, and flat at 0.8–2.0 ms. That is
+  launch-bound, not a kernel rate.
+
+**The end-to-end check is pending, and that is stated rather than waived.** FPM carries
+DeepSeek-V4.1-Flash on h200-sxm, the arbiter §3 requires. blis-latency-kernel `main` cannot
+price the model: it refuses the `fp8_ds_mla` cache (#36), charges 20,480 KV bytes per token
+against roughly 1,790 (#30), drops the 128-token window from the sparse read (#32) and
+does not pad FlashMLA's heads (#39). blis-latency-kernel#44 closes all four. The check is
+the first thing to run once it lands, tracked in inference-sim/blis-registry#42. Three
+consumer-contract points go with it, each stated in the entries:
+
+* **Multi-token decode.** The sparse rate was fitted at one query token per request. Under
+  DSpark speculation a request decodes 1 + num_spec_tokens query tokens, and FlashMLA treats
+  each as its own query; how much of that read the tokens of one request share is
+  unmeasured. #44 charges the read per query row and records that as an assumption
+  (`sparse_read_per_query`), which is what this entry asks of a consumer.
+* **Routed FLOPs under pure TP.** This ramp's FLOPs are each rank's own (`inter / tp`). #44
+  divides routed FLOPs by tp on the weight-only Marlin ramps, as this fit requires, and keeps
+  its documented over-charge on the native ramps, where it cancels a measured error;
+  blis-latency-kernel#47 tracks removing it there. A consumer that charged this ramp the
+  whole expert would price its compute half tp times too slow.
+* **gb300's Marlin ramp stays unread** while ramps are chosen by format and chip, which on
+  gb300 is the FP4 class — right for stock v0.31.0. It is for scoring the Kimi-K3 preview
+  build's FPM run, for blis-registry#41 (the Kimi-K3/GB300 FPM check of the KDA pair).
+
+Every V4.1 attention read in blis-catalog 0.2.2 is `sparse_mla`, the window-only layers (0,
+1, and the DSpark drafts at a 133-token window) included, all inside the block axis above.
 
 ## 11. Memory occupancy: what composes, and where each term comes from
 

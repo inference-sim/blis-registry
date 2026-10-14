@@ -1,0 +1,107 @@
+name: rederive
+
+# The re-derivation gates, with the data present.
+#
+# `validate.yml`'s derivation-tests job runs validator/ without the AISimulate sweeps, so
+# test_generated_from_aisimulate.py and test_writers_are_idempotent.py skip there: a pull
+# request that hand-edits a fitted value, or changes a writer, was caught only if its
+# author ran them locally (inference-sim/blis-registry#36). This job checks out AISimulate
+# at the commit every committed value re-derives at and runs the whole suite, so a value
+# that its own fitter no longer produces fails on the pull request.
+#
+# Path-filtered, because the checkout is ~135 MB and the gates take ~20 minutes: a change that
+# touches no coefficient, writer or test cannot move a re-derivation.
+
+on:
+  pull_request:
+    paths:
+      - "coefficients/**"
+      - "scripts/**"
+      - "validator/**"
+      - "requirements*.txt"
+      - ".github/workflows/rederive.yml"
+  push:
+    branches: [main]
+    paths:
+      - "coefficients/**"
+      - "scripts/**"
+      - "validator/**"
+      - "requirements*.txt"
+      - ".github/workflows/rederive.yml"
+  workflow_dispatch:
+
+jobs:
+  rederive:
+    runs-on: ubuntu-latest
+    env:
+      # The AISimulate commit the committed values re-derive at. Pinned by SHA because the
+      # repository's history moves; bump it deliberately, together with the diff the
+      # writers produce at the new commit (docs/reproducing-coefficients.md).
+      AISIMULATE_SHA: 2f0f4cd8606d580567b253d02f3d699fe36db865
+      # The blis-catalog commit validator/testdata/catalog vendors (VENDORED.md). A full
+      # checkout rather than the vendored hardware: the MLA writer reads the DeepSeek-V3
+      # graph's latent width, and only a catalog carries models/.
+      CATALOG_SHA: 3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5   # release 0.2.2
+    steps:
+      - name: Check out the registry
+        uses: actions/checkout@v4
+
+      # The whole aisimulate_core package (~135 MB): the sweeps under systems/, the model
+      # configs fit_deepseek_v41_h200.py asserts geometry from, and the sdk/ source
+      # emit_memory.py reads NVIDIA's activation table out of. A narrower checkout once
+      # left sdk/ out and failed the memory writer.
+      - name: Check out AISimulate (pinned, the aisimulate_core package only)
+        uses: actions/checkout@v4
+        with:
+          repository: ai-dynamo/aisimulate
+          ref: ${{ env.AISIMULATE_SHA }}
+          path: aisimulate
+          fetch-depth: 1
+          sparse-checkout: |
+            python/aisimulate/src/aisimulate_core
+
+      - name: Check out blis-catalog (pinned to the vendored commit)
+        uses: actions/checkout@v4
+        with:
+          repository: inference-sim/blis-catalog
+          ref: ${{ env.CATALOG_SHA }}
+          path: blis-catalog
+          fetch-depth: 1
+          sparse-checkout: |
+            hardware
+            models
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-fit.txt
+
+      - name: Install the fitters' dependencies
+        run: pip install -r requirements-fit.txt
+
+      - name: Run every gate with the data present
+        env:
+          AISIMULATE_DATA: ${{ github.workspace }}/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
+          BLIS_CATALOG: ${{ github.workspace }}/blis-catalog
+        run: |
+          set -o pipefail
+          n=$(find "$AISIMULATE_DATA" -name '*.parquet' | wc -l)
+          echo "AISimulate parquets present: $n"
+          test "$n" -gt 500
+          # The vendored descriptors must be the catalog this job checks out.
+          diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
+          for g in validator/testdata/catalog/models/*/graph.yaml; do
+            diff "$g" "$BLIS_CATALOG/models/${g#validator/testdata/catalog/models/}"
+          done
+          python -m pytest validator/ -q -rs | tee pytest.log
+          # With the data present, the only skips are the eight by-design ramp-form ones
+          # (a part carries the one- or three-factor ramp, so the other gate does not
+          # apply). Any other skip -- missing data, a missing catalog, a gate whose
+          # premise quietly disappeared -- is a gate that did not run, and fails the job.
+          unexpected=$(grep '^SKIPPED' pytest.log | grep -Ev 'carries the (one|three)-factor ramp' || true)
+          if [ -n "$unexpected" ]; then
+            echo "unexpected skips with the data present:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi

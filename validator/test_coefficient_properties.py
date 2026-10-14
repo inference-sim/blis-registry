@@ -48,8 +48,8 @@ REPO = Path(__file__).resolve().parent.parent
 # worse than no bound: it reports the invariant as protected.
 #
 # 40 KB for the nine chips the committed coefficients scope to, pinned to blis-catalog
-# 747a2213e13030ae675f9872c3e2a76b6b770d50 (2026-10-07) -- the same commit
-# blis-latency-kernel vendors. BLIS_CATALOG still overrides, so a working copy can be
+# release 0.2.2 (3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5, 2026-10-13), the revision
+# blis-latency-kernel should vendor too. BLIS_CATALOG still overrides, so a working copy can be
 # checked against a live catalog; a chip rename there is SUPPOSED to break these tests,
 # which is why the copy tracks a commit rather than a branch.
 #
@@ -149,33 +149,123 @@ def test_gemm_efficiency_asymptotes_are_fractions():
     assert checked >= 20, f"only {checked} eps_max entries checked"
 
 
-def test_moe_imbalance_is_near_one_and_p90_is_not_below_median():
+def test_moe_imbalance_is_near_one():
     """The imbalance multiplier is a ratio of skewed to balanced latency at one shape.
 
     It cannot be far from 1 -- it is the same work on the same kernel, differing only in
-    routing distribution -- and the p90 of a distribution cannot sit below its median.
-    The second is a metamorphic check: it relates two entries that must move together.
+    routing distribution. (A companion p90 family was retired in #36 because nothing
+    read it; its value is stated in each median's rationale.)
     """
     med = {}
-    p90 = {}
     for _, name, body in ENTRIES:
         for chip in (body.get("scope") or {}).get("hardware", []):
             if name == "moe_routing_imbalance_median":
                 med[chip] = body["value"]
-            elif name == "moe_routing_imbalance_p90":
-                p90[chip] = body["value"]
     assert med, "no imbalance medians found"
     for chip, v in sorted(med.items()):
         assert 0.5 <= v <= 2.0, (
             f"moe_routing_imbalance_median on {chip} is {v}, implausible for a ratio of "
             f"the same kernel at the same shape under two routing distributions."
         )
-        if chip in p90:
-            assert p90[chip] >= v, (
-                f"{chip}: p90 {p90[chip]} is below the median {v}. These are order "
-                f"statistics of one paired distribution, so p90 >= median by definition "
-                f"-- a violation means the two were computed from different row sets."
-            )
+
+
+def test_retired_families_stay_retired():
+    """Families removed because nothing in BLIS reads them (#36) must not creep back.
+
+    hbm_constant_latency and p2p_latency are NVIDIA-simulator constants whose fixed cost
+    the kernel's measured attention and collective floors already carry, so a reader
+    would double-count; moe_routing_imbalance_p90 is a tail a mean-step model does not
+    price. Re-adding one needs a reader first, and this test is where that is decided.
+    """
+    retired = {"hbm_constant_latency", "p2p_latency", "moe_routing_imbalance_p90"}
+    found = sorted({name for _, name, _ in ENTRIES} & retired)
+    assert not found, f"retired families are committed again: {found}"
+
+
+def test_a_model_scoped_entry_never_shadows_a_part_wide_one():
+    """A name may be scoped to one model, or part-wide, on a given part -- not both.
+
+    blis-latency-kernel admits every entry whose scope covers the deployment and keeps
+    the LAST in file order, so a model-scoped entry and a part-wide one of the same name
+    on the same part would make the price depend on where each sits in the file.
+    """
+    partwide, scoped = set(), []
+    for setname, name, body in ENTRIES:
+        scope = body.get("scope") or {}
+        for hw in scope.get("hardware", []):
+            if "model" in scope:
+                scoped.append((setname, name, hw, scope["model"]))
+            else:
+                partwide.add((name, hw))
+    clashes = [s for s in scoped if (s[1], s[2]) in partwide]
+    assert not clashes, (
+        f"model-scoped entries that a part-wide entry of the same name also admits: "
+        f"{clashes}. Give the model-scoped quantity its own name, or scope both."
+    )
+
+
+def test_every_name_resolves_to_one_entry_per_part_and_model():
+    """blis-latency-kernel keeps the LAST admitted entry of a name, so two entries that
+    admit the same (part, model) make the price depend on file order and leave one copy
+    unmaintained -- the a100-80 descriptor duplicates were this, with equal values only by
+    luck. Holds for every set, with no sweep."""
+    seen: dict = {}
+    clashes = []
+    for setname, name, body in ENTRIES:
+        scope = body.get("scope") or {}
+        models = scope.get("model") or [None]
+        for hw in scope.get("hardware", []):
+            for m in (models if isinstance(models, list) else [models]):
+                key = (setname, name, hw, m)
+                if key in seen:
+                    clashes.append(key)
+                seen[key] = True
+    assert not clashes, f"names admitted twice for one part and model: {clashes}"
+
+
+def _single(name: str, chip: str, model: str | None = None) -> float:
+    hits = [b["value"] for _, n, b in ENTRIES
+            if n == name and (b.get("scope") or {}).get("hardware") == [chip]
+            and (b.get("scope") or {}).get("model") == ([model] if model else None)]
+    assert len(hits) == 1, f"expected one {name} on {chip} (model {model}), got {hits}"
+    return hits[0]
+
+
+def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
+    """Marlin multiplies BF16 activations with mma.sync after dequantizing the weights.
+
+    Its ramp is a fraction of the BF16 peak, so on any part it cannot exceed the dense
+    BF16 envelope measured on cuBLAS. A grouped fit above it would mean the routed term's
+    FLOP or byte count in the fit was wrong, not that Marlin is faster.
+    """
+    checked = 0
+    for _, name, body in ENTRIES:
+        # The W8A16 entry is assumed EQUAL to the BF16 envelope (see the derived-entry test
+        # below), so only the fitted grouped ramp can actually violate this bound.
+        if name != "gemm_eps_max_w4a16_mxfp4_grouped":
+            continue
+        for hw in body["scope"]["hardware"]:
+            bf16 = _single("gemm_eps_max_bf16", hw)
+            assert body["value"] <= bf16, (
+                f"{name} on {hw} is {body['value']}, above the part's dense BF16 envelope "
+                f"{bf16}; a weight-only BF16-compute kernel cannot exceed it.")
+            checked += 1
+    assert checked >= 1, f"only {checked} Marlin ramp entries checked"
+
+
+def test_the_derived_deepseek_v41_h200_entries_equal_what_they_are_derived_from():
+    """The four `assumed` entries fit_deepseek_v41_h200.py writes are each a function of
+    committed siblings and the catalog, so the relation is checkable in CI with no sweep.
+    A sibling refitted without re-running the writer fails here rather than leaving an
+    assumed value derived from a number the registry no longer carries."""
+    m = "deepseek-v4.1-flash"
+    bw = chip_facts("h200")["BwPeakTBs"] * 1e6
+    assert _single("attention_decode_rate_block_index_scores", "h200", m) == round(
+        bw * _single("hbm_derate", "h200"))
+    assert _single("gemm_eps_max_w8a16_mxfp8", "h200") == _single("gemm_eps_max_bf16", "h200")
+    assert _single("gemm_m_half_w8a16_mxfp8", "h200") == _single("gemm_m_half_bf16", "h200")
+    assert _single("host_gather_rate_uva", "h200") == round(
+        _single("host_link_bandwidth", "h200") * 128 / 130 * (256 + 8) / (256 + 32))
 
 
 # --------------------------------------------------------------------------------------
@@ -440,7 +530,7 @@ def _by_hardware(prefix: str) -> dict[str, float]:
     """hardware name -> value, for every entry whose name is exactly `prefix`."""
     out: dict[str, float] = {}
     for _, name, body in ENTRIES:
-        if name != prefix:
+        if name != prefix or "model" in (body.get("scope") or {}):
             continue
         for hw in (body.get("scope") or {}).get("hardware", []):
             out[hw] = body["value"]

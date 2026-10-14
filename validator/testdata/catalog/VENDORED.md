@@ -1,8 +1,11 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at `747a2213e13030ae675f9872c3e2a76b6b770d50` (2026-10-07) — the same commit
-blis-latency-kernel vendors, so the two repositories check against one revision.
+[blis-catalog] at release `0.2.2`, `3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5` (2026-10-13).
+blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
+so the two repositories check against one revision. The previous pin was `747a2213`
+(2026-10-07); `0.2.2` changes one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7,
+and the two b300 rates fitted as a fraction of it were re-fitted with the bump.
 
 [blis-catalog]: https://github.com/inference-sim/blis-catalog
 

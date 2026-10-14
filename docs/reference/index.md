@@ -29,7 +29,7 @@ are committed but not looked up by the kernel. As of blis-latency-kernel
 | Set | Not read | Reader |
 |---|---|---|
 | `cost-model-primitives` | every `gemm_*_fp8_block` entry: the kernel's dtype selection resolves to `bf16`, `fp8` or `nvfp4` only | selection by weight format and chip, [blis-latency-kernel#34](https://github.com/inference-sim/blis-latency-kernel/issues/34) |
-| `cost-model-primitives` | `gemm_*_w4a16_mxfp4_grouped` and `gemm_*_w8a16_mxfp8`, the Marlin weight-only ramps | the same, [blis-latency-kernel#34](https://github.com/inference-sim/blis-latency-kernel/issues/34) |
+| `cost-model-primitives` | `gemm_*_w4a16_mxfp4_grouped` and `gemm_*_w8a16_mxfp8`, the Marlin weight-only ramps | the same, [blis-latency-kernel#34](https://github.com/inference-sim/blis-latency-kernel/issues/34); the gb300 grouped ramp additionally needs a deployment that states a Marlin MoE backend, since stock v0.31.0 runs CUTLASS there |
 | `cost-model-primitives` | `host_gather_rate_uva` | a host-resident gather op, [blis-schemas#48](https://github.com/inference-sim/blis-schemas/issues/48) and [blis-latency-kernel#38](https://github.com/inference-sim/blis-latency-kernel/issues/38) |
 | `cost-model-attention` | `attention_decode_{floor,rate}_block_index_scores` | a lookup keyed on the attention node's `role`; until then the kernel prices an indexer node with its layer kind's pair |
 | `cost-model-memory` | the whole set. It is committed ahead of its reader | [blis-latency-kernel#22](https://github.com/inference-sim/blis-latency-kernel/issues/22) |

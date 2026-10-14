@@ -39,7 +39,11 @@ routed-expert term (`kernel.go`, the routed SM and HBM halves are SUMMED):
     t = T*top_k*6*h*i / (BF16_peak * eff(T))  +  touched(T) * 3*h*i*B / (BwPeak * hbm_derate)
     touched(T) = E * (1 - ((E - top_k)/E)^T)          # price.ExpertsTouched
 
-with M = T, the step's token count, as the kernel evaluates every ramp. B is the STORED
+with M = T, the step's token count, as the kernel evaluates every ramp. The FLOPs are the
+rank's OWN work: vLLM shards each expert's intermediate width across tensor-parallel ranks
+(`intermediate_size_per_partition`), so at moe_tp > 1 a rank computes inter / tp of each
+expert. A consumer that charges a rank the whole expert's FLOPs -- blis-latency-kernel's
+documented pure-TP over-charge -- prices this ramp tp times too slow. B is the STORED
 bytes per weight: 0.5 for the e2m1 values plus one E8M0 scale per 32, 0.53125. So the ramp
 is the SM half that remains once the kernel's own memory half is charged, which is the
 only way a fitted ramp composes back to the measured latency inside the kernel.
@@ -271,7 +275,9 @@ def entry_lines(name: str, f: dict) -> list[str]:
                f"multiplies against BF16 activations with mma.sync, so its rate is a "
                f"fraction of the BF16 peak, not of an FP8 or FP4 one. Fitted with "
                f"gemm_m_half_w4a16_mxfp4_grouped under the kernel's routed-expert "
-               f"composition -- the SM half summed with the distinct experts' stored weight "
+               f"composition -- the SM half, over the rank's OWN routed FLOPs "
+               f"(tokens x top_k / ep x 6 x hidden x inter / tp; fitted at tp = ep = 1), "
+               f"summed with the distinct experts' stored weight "
                f"bytes (0.53125 B/weight, E8M0 scales included) at BwPeak x hbm_derate -- so "
                f"the ramp is what remains once the kernel's own memory half is charged. "
                f"Geometric error {f['err']:.3f}x (signed {f['signed']:.3f}); held out on "

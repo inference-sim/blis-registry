@@ -339,11 +339,11 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 ### 6.0 What is reproducible, and what is not
 
 Four kinds of value live in this registry. Counted from the coefficient files
-themselves (1,097 entries in six sets):
+themselves (1,099 entries in six sets):
 
 | `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 812 | a named fitter in `scripts/`, re-run by the validator |
+| `measured` | 814 | a named fitter in `scripts/`, re-run by the validator |
 | `vendor_spec` | 57 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
 | `assumed` | 227 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
 | `not_charged` | 1 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`) |
@@ -717,8 +717,10 @@ GB300 (21), H200 (13), GB200 (4), B300_SXM (4). So:
   `collector/vllm/collect_moe.py`). Stock v0.31.0 would instead select
   `CutlassExpertsMxfp4` (W4A4) on SM100. So scoring that run needs the kernel to price
   Marlin W4A16 experts at the BF16 rate class, which is what
-  `gemm_*_w4a16_mxfp4_grouped` on gb300 measures (§10.5). It is read once
-  blis-latency-kernel#34 selects a ramp by MoE backend. The scoring attempt recorded on
+  `gemm_*_w4a16_mxfp4_grouped` on gb300 measures (§10.5). blis-latency-kernel#44 selects
+  ramps by weight format and chip, which on gb300 is the FP4 class -- right for stock
+  v0.31.0 -- so this entry stays unread until a deployment can state that its MoE backend
+  is Marlin. The scoring attempt recorded on
   #25 also over-predicted by ~2x with the FASTER FP4 rate class, and making the KDA read
   free left that unchanged, so the MoE/GEMM composition is a second blocker. #41 carries
   the validation forward.
@@ -1092,9 +1094,18 @@ it:
 
 * The kernel prices a `role: block_index_scores` node with its layer kind's pair. Until
   it looks up `attention_decode_<floor|rate>_<role>`, the indexer entries have no reader.
-* blis-catalog's V4.1 graph declares the window-only layers (0, 1 and the DSpark drafts)
-  `kind: mla` with `window: 128`. vLLM runs them through the same sparse FlashMLA call
-  with window indices only.
+* blis-catalog 0.2.2 declares every V4.1 attention read `sparse_mla`, the window-only layers
+  (0, 1, and the DSpark drafts at a 133-token window) included, so this rate covers all of
+  them; every one reads at most 10 FlashMLA blocks per query.
+* The rate was fitted at one query token per request. Under DSpark speculation a request
+  decodes 1 + num_spec_tokens query tokens, and FlashMLA treats each as its own query; how
+  much of that read the tokens of one request share is unmeasured, so the multi-token
+  charge is the consumer's assumption to state.
+* The Marlin ramp's FLOPs are each rank's own (the intermediate width divided by tp).
+  blis-latency-kernel keeps a documented pure-TP over-charge on routed FLOPs; applied with
+  this ramp, it prices the compute half of a TP8 expert term eight times too slow, and the
+  cancellation that over-charge rests on was measured at the FP8 rate class, where the
+  compute half was about six times cheaper.
 
 ## 11. Memory occupancy: what composes, and where each term comes from
 

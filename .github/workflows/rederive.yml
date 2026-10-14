@@ -41,7 +41,7 @@ jobs:
       # The blis-catalog commit validator/testdata/catalog vendors (VENDORED.md). A full
       # checkout rather than the vendored hardware: the MLA writer reads the DeepSeek-V3
       # graph's latent width, and only a catalog carries models/.
-      CATALOG_SHA: 747a2213e13030ae675f9872c3e2a76b6b770d50
+      CATALOG_SHA: 3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5   # release 0.2.2
     steps:
       - name: Check out the registry
         uses: actions/checkout@v4

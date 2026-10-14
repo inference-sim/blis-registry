@@ -48,8 +48,8 @@ REPO = Path(__file__).resolve().parent.parent
 # worse than no bound: it reports the invariant as protected.
 #
 # 40 KB for the nine chips the committed coefficients scope to, pinned to blis-catalog
-# 747a2213e13030ae675f9872c3e2a76b6b770d50 (2026-10-07) -- the same commit
-# blis-latency-kernel vendors. BLIS_CATALOG still overrides, so a working copy can be
+# release 0.2.2 (3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5, 2026-10-13), the revision
+# blis-latency-kernel should vendor too. BLIS_CATALOG still overrides, so a working copy can be
 # checked against a live catalog; a chip rename there is SUPPOSED to break these tests,
 # which is why the copy tracks a commit rather than a branch.
 #

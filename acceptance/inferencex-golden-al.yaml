@@ -22,6 +22,16 @@ caveats:
   (https://github.com/SemiAnalysisAI/InferenceX/actions/runs/34494319147), so those K have
   no value.
 - 'glm-5.3 mtp (K 3) is provisional: copied from glm5.2_mtp.yaml, not measured on glm-5.3.'
+- 'Deployment precision. The fp4 in the collectors'' names is the label speedbench-al.yml
+  gives every collection (PRECISION fp4, and the <prefix>_fp4_b300_vllm.sh name it requires),
+  not the precision served. Each collector serves its model''s checkpoint at that checkpoint''s
+  own weight precision, which is the catalog model''s. At InferenceX 9fa76586ed1e: dsv4_fp4_b300_vllm.sh
+  (deepseek-v4-pro) serves the staged checkpoint with no quantization flag, and --kv-cache-dtype
+  fp8 (line 123); glm52_fp4_b300_vllm.sh (glm-5.2-fp8) serves the staged checkpoint with no
+  quantization flag, and --kv-cache-dtype fp8 (line 131); minimaxm3_fp4_b300_vllm.sh (minimax-m3)
+  serves the staged checkpoint, which its comment (lines 16-19) states is unquantized BF16,
+  with no --kv-cache-dtype. kv_cache_dtype is recorded where a collector sets it; a collector
+  may have changed since its run.'
 - 'The source files for deepseek-v4-pro, glm-5.2-fp8, minimax-m3 name no engine image, so
   their engine_image reads "unrecorded: the source file names no engine image".'
 - 'Not carried: dsv4-pro-0813-dspark.yaml (deepseek-v4-pro-0813), because its model deepseek-v4-pro-0813
@@ -58,6 +68,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 2
@@ -74,6 +86,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 3
@@ -90,6 +104,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 4
@@ -106,6 +122,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 5
@@ -122,6 +140,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 6
@@ -138,6 +158,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 7
@@ -154,6 +176,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 8
@@ -170,6 +194,8 @@ profiles:
     sampling:
       temperature: 1.0
       max_tokens: 4096
+    settings:
+      kv_cache_dtype: fp8
 - model: deepseek-v4-pro
   speculative_method: mtp
   num_spec_tokens: 1
@@ -187,6 +213,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -205,6 +232,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -223,6 +251,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -241,6 +270,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -259,6 +289,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -277,6 +308,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -295,6 +327,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4-pro
   speculative_method: mtp
@@ -313,6 +346,7 @@ profiles:
       temperature: 1.0
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"thinking": true, "reasoning_effort": "high"}'
 - model: deepseek-v4.1-flash
   speculative_method: dspark
@@ -592,6 +626,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -611,6 +646,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -630,6 +666,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -649,6 +686,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -668,6 +706,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -687,6 +726,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -706,6 +746,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.2-fp8
   speculative_method: mtp
@@ -725,6 +766,7 @@ profiles:
       top_p: 0.95
       max_tokens: 4096
     settings:
+      kv_cache_dtype: fp8
       chat_template_kwargs: '{"enable_thinking": true}'
 - model: glm-5.3
   speculative_method: mtp

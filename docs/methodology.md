@@ -1296,8 +1296,12 @@ Every value comes from SemiAnalysis InferenceX's
 `validator/testdata/inferencex/` at the commit `scripts/emit_acceptance_profiles.py` cites.
 The emitter reads each acceptance length, and every provenance field a file's header
 states (the source Actions run, benchmark, category, sampling, image, TP and engine
-settings), and types none of them. A header key it does not know how to transcribe fails
-the run, so a setting cannot be silently dropped. An acceptance length is `measured`; the
+settings, including `speculative-config: a=b | c=d` lines), and types none of them. Every
+header is read, carried or not: a piece stating a value, as `key: value` or `key=value`
+with any spelling of key, that the emitter does not know how to transcribe fails the run,
+so a setting cannot be silently dropped. Only named prose lines are exempt. A header that
+states `method:` must state the curve's method; one that does not is checked against its
+"Measured on (..., vLLM <method>)" line. An acceptance length is `measured`; the
 one file InferenceX marks provisional is `copied`, with `copied_from` naming the measured
 profile it repeats, and the emitter checks that the two values agree.
 
@@ -1334,6 +1338,13 @@ contradicts that, and the run is what is recorded. The emitter's `RUN_HARDWARE` 
 holds each run's runner, read through the GitHub API, and is checked against every header
 that also states a part. Files that name no engine image say so in `engine_image`: their
 runs' logs have expired, so the image cannot be recovered.
+
+The collectors are named `<prefix>_fp4_b300_vllm.sh` because `speedbench-al.yml` requires
+that name and labels every collection `PRECISION: fp4`; the fp4 is not what they serve.
+Each serves its checkpoint's own weights, and the DeepSeek-V4-Pro and GLM-5.2 collectors
+set `--kv-cache-dtype fp8`, which their profiles record as `kv_cache_dtype`. The
+emitter's `COLLECTORS` table holds what each collector serves, and a curve whose
+collector it has not read fails the run.
 
 ### 12.5 Gates
 

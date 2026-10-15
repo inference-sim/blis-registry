@@ -101,10 +101,41 @@ SETTING_KEYS = {
     "rejection_sample_method": "rejection_sample_method",
     "enable_adaptive_verification": "enable_adaptive_verification",
     "engram cpu_offload": "engram_cpu_offload",
+    "draft": "draft_model",
 }
 OTHER_KEYS = {"Source GitHub Actions run", "dataset", "model", "image", "TP", "method",
               "thinking_on chat_template_kwargs", "thinking_off chat_template_kwargs"}
-PIECE = re.compile(r"([A-Za-z_][A-Za-z_ ]*?)\s*:\s*(\S.*)")
+KNOWN_KEYS = SAMPLING_KEYS.keys() | SETTING_KEYS.keys() | OTHER_KEYS
+PIECE = re.compile(r"([^:=]+?)\s*:\s*(\S.*)")
+# `speculative-config: a=b | c=d`: every piece after the prefix is `key=value`.
+SPEC_CONFIG = "speculative-config:"
+# `thinking_on : temp 0.6 ...` or `thinking_on: temperature=1.0, ...`: per-mode sampling.
+PER_MODE = re.compile(r"(thinking_on|thinking_off)\s*:\s*(\S.*)")
+# `Measured on <key> (<HW>, vLLM <method>[, draft: <repo>]), per num_speculative_tokens.`
+MEASURED_ON = re.compile(r"Measured on (\S+) \(([^)]*)\), per num_speculative_tokens\.")
+# Lines with a ':' or '=' that are prose, or read by a pattern of their own in collect().
+# Every other such line must parse into keys this emitter transcribes.
+PROSE = [re.compile(p) for p in (
+    r"key = num_speculative_tokens\b.*",
+    r"Draft lengths \d+-\d+ rejected by the image \(no measured AL\): \S+",
+    r"Inherited value provenance \([^)]*\):",
+)]
+
+# The collector each carried curve's header names, at INFERENCEX_SHA: the precision it
+# serves at. speedbench-al.yml labels every collection PRECISION fp4 and requires the
+# collector be named <prefix>_fp4_b300_vllm.sh, so the fp4 in a name is not a precision.
+# Read from inferencex-e2e/benchmarks/single_node/speedbench/<collector>.
+COLLECTORS = {
+    "dsv4_fp4_b300_vllm.sh": (
+        "fp8", "serves the staged checkpoint with no quantization flag, and "
+               "--kv-cache-dtype fp8 (line 123)"),
+    "glm52_fp4_b300_vllm.sh": (
+        "fp8", "serves the staged checkpoint with no quantization flag, and "
+               "--kv-cache-dtype fp8 (line 131)"),
+    "minimaxm3_fp4_b300_vllm.sh": (
+        None, "serves the staged checkpoint, which its comment (lines 16-19) states is "
+              "unquantized BF16, with no --kv-cache-dtype"),
+}
 
 
 class Refused(Exception):
@@ -116,6 +147,8 @@ class Header:
     stem: str
     lines: list[str]
     keys: dict[str, str] = field(default_factory=dict)
+    per_mode: dict[str, str] = field(default_factory=dict)
+    measured_on: tuple[str, str, str] | None = None  # (model key, hardware, engine)
 
     def get(self, key: str) -> str | None:
         return self.keys.get(key)
@@ -126,28 +159,66 @@ class Header:
                 return m
         return None
 
+    def put(self, key: str, value: str) -> None:
+        if key not in KNOWN_KEYS:
+            raise SystemExit(f"{self.stem}.yaml: header key {key!r} is not transcribed; "
+                             "map it in emit_acceptance_profiles.py or refuse the curve")
+        if self.keys.setdefault(key, value) != value:
+            raise SystemExit(f"{self.stem}.yaml: {key!r} is stated twice, differently")
+
 
 def read_header(path: Path) -> Header:
+    """Every `key: value` or `key=value` a header states, or an error.
+
+    The measured-on line is parsed; any other line with neither ':' nor '=' is prose, and so
+    are the PROSE lines and the provisional block (its PROVISIONAL line to the inherited
+    provenance), which is quoted into a rationale. Every other piece stating a value must be
+    a key this emitter transcribes, so none is silently dropped.
+    """
     lines = []
     for raw in path.read_text().splitlines():
         if not raw.startswith("#"):
             break
         lines.append(raw.lstrip("#").strip())
     h = Header(path.stem, lines)
-    for line in lines:
+    start = next((i for i, l in enumerate(lines) if l.startswith("PROVISIONAL")), None)
+    end = next((i for i, l in enumerate(lines) if l.startswith("Inherited value")),
+               len(lines))
+    for i, line in enumerate(lines):
+        if start is not None and start <= i < end:
+            continue
+        if m := MEASURED_ON.fullmatch(line):
+            hardware, engine, *rest = (x.strip() for x in m.group(2).split(","))
+            for piece in rest:
+                key, sep, value = piece.partition(":")
+                if not sep:
+                    raise SystemExit(f"{path.name}: measured-on detail {piece!r} is not "
+                                     "transcribed")
+                h.put(key.strip(), value.strip())
+            if h.measured_on and h.measured_on != (m.group(1), hardware, engine):
+                raise SystemExit(f"{path.name}: two different measured-on lines")
+            h.measured_on = (m.group(1), hardware, engine)
+            continue
+        if not re.search(r"[:=]", line) or any(p.fullmatch(line) for p in PROSE):
+            continue
+        if m := PER_MODE.fullmatch(line):
+            h.per_mode[m.group(1)] = m.group(2)
+            continue
+        if line.startswith(SPEC_CONFIG):
+            for piece in line[len(SPEC_CONFIG):].split(" | "):
+                key, sep, value = piece.strip().partition("=")
+                if not sep or not key or not value:
+                    raise SystemExit(f"{path.name}: speculative-config piece {piece!r} is "
+                                     "not key=value")
+                h.put(key.strip(), value.strip())
+            continue
         for piece in line.split(" | "):
-            m = PIECE.fullmatch(piece.strip())
-            if not m:
-                continue
-            key, value = m.groups()
-            if key in ("thinking_on", "thinking_off"):
-                raise SystemExit(f"{path.name}: per-mode sampling ({key}: {value}) is not "
-                                 "transcribed; extend read_header before carrying it")
-            if key not in SAMPLING_KEYS and key not in SETTING_KEYS and key not in OTHER_KEYS:
-                raise SystemExit(f"{path.name}: header key {key!r} is not transcribed; "
-                                 "map it in emit_acceptance_profiles.py or refuse the curve")
-            if h.keys.setdefault(key, value) != value:
-                raise SystemExit(f"{path.name}: {key!r} is stated twice, differently")
+            piece = piece.strip()
+            if m := PIECE.fullmatch(piece):
+                h.put(*m.groups())
+            elif re.search(r"[:=]", piece):
+                raise SystemExit(f"{path.name}: header piece {piece!r} states a value this "
+                                 "emitter does not transcribe")
     return h
 
 
@@ -215,12 +286,29 @@ class Carried:
     alias: tuple[str, str] | None = None
     rejected: tuple[int, int, str] | None = None
     image_stated: bool = True
+    collector: str | None = None
+
+
+def collector_of(h: Header) -> str | None:
+    m = h.search(r"Auto-generated by \S*?([^/\s]+\.sh) ")
+    return m.group(1) if m else None
 
 
 def provenance(h: Header, method: str, measured_key: str):
     """The provenance a header states, its per-mode settings, a rationale if the hardware
     came from RUN_HARDWARE rather than the file, and the category."""
-    if method not in " ".join(h.lines).lower():
+    if h.per_mode:
+        raise SystemExit(f"{h.stem}: per-mode sampling ({h.per_mode}) is not transcribed; "
+                         "extend provenance() before carrying it")
+    if (stated_method := h.get("method")) is not None:
+        if stated_method.lower() != method:
+            raise SystemExit(f"{h.stem}: the header states method {stated_method!r}, "
+                             f"CURVES says {method!r}")
+    elif h.measured_on:
+        if h.measured_on[2].split()[-1].lower() != method:
+            raise SystemExit(f"{h.stem}: measured with {h.measured_on[2]!r}, CURVES says "
+                             f"{method!r}")
+    elif method not in " ".join(h.lines).lower():
         raise SystemExit(f"{h.stem}: the header never names method {method!r}")
     run = h.get("Source GitHub Actions run")
     if not run:
@@ -231,13 +319,13 @@ def provenance(h: Header, method: str, measured_key: str):
     if not bench or not category:
         raise SystemExit(f"{h.stem}: no benchmark or category stated")
     run_id = run.rstrip("/").rsplit("/", 1)[-1]
-    stated = h.search(r"Measured on (\S+) \(([A-Za-z0-9-]+),")
-    if stated and stated.group(1) != measured_key:
-        raise SystemExit(f"{h.stem}: measured on {stated.group(1)}, keyed {measured_key}")
+    stated = h.measured_on
+    if stated and stated[0] != measured_key:
+        raise SystemExit(f"{h.stem}: measured on {stated[0]}, keyed {measured_key}")
     observed = RUN_HARDWARE.get(run_id)
     rationale = None
     if stated:
-        hardware = stated.group(2).lower()
+        hardware = stated[1].lower()
         if observed and observed[0] != hardware:
             raise SystemExit(f"{h.stem}: file states {hardware}, run {run_id} ran on "
                              f"{observed[0]}")
@@ -261,6 +349,12 @@ def provenance(h: Header, method: str, measured_key: str):
         prov["tp"] = int(tp)
     prov["sampling"] = sampling
     settings = {name: h.get(key) for key, name in SETTING_KEYS.items() if h.get(key)}
+    if collector := collector_of(h):
+        if collector not in COLLECTORS:
+            raise SystemExit(f"{h.stem}: collector {collector} is not in COLLECTORS; read "
+                             "the precision it serves at before carrying the curve")
+        if kv := COLLECTORS[collector][0]:
+            settings["kv_cache_dtype"] = kv
     if settings:
         prov["settings"] = settings
     mode_settings = {}
@@ -279,6 +373,8 @@ def collect(golden: Path = GOLDEN, catalog: Path = CATALOG):
         raise SystemExit(f"classified curves absent from {golden}: {missing}")
     models = catalog_models(catalog)
     curves = {p.stem: read_curve(p) for p in files}
+    # Every header is read, carried or not, so a format change anywhere fails here.
+    headers = {p.stem: read_header(p) for p in files}
     carried: list[Carried] = []
     skipped: list[tuple[str, str, str]] = []
     categories = set()
@@ -290,7 +386,7 @@ def collect(golden: Path = GOLDEN, catalog: Path = CATALOG):
             if reason:
                 raise Refused(reason)
             model, alias = catalog_name(key, models)
-            h = read_header(path)
+            h = headers[stem]
             if (repo := h.get("model")) and repo != models[model]:
                 raise SystemExit(f"{stem}: states model {repo}, but the catalog's {model} "
                                  f"is {models[model]}")
@@ -302,7 +398,8 @@ def collect(golden: Path = GOLDEN, catalog: Path = CATALOG):
             continue
         categories.add(category)
         c = Carried(stem, model, method, values, prov, mode_settings, rationale,
-                    alias=(key, alias) if alias else None, image_stated=h.get("image") is not None)
+                    alias=(key, alias) if alias else None, image_stated=h.get("image") is not None,
+                    collector=collector_of(h))
         if m := h.search(r"Draft lengths (\d+)-(\d+) rejected by the image[^:]*: (\S+)"):
             c.rejected = (int(m.group(1)), int(m.group(2)), m.group(3))
         if copied:
@@ -381,6 +478,22 @@ def caveats(carried: list[Carried], skipped, category: str) -> list[str]:
             ks = sorted({k for v in c.values.values() for k in v})
             out.append(f"{c.model} {c.method} (K {', '.join(map(str, ks))}) is provisional: "
                        f"copied from {c.copied_source}.yaml, not measured on {c.model}.")
+    collected = {}
+    for c in carried:
+        if collector := c.collector:
+            collected.setdefault(collector, []).append(c.model)
+    if collected:
+        clauses = "; ".join(
+            f"{name} ({', '.join(sorted(set(models)))}) {COLLECTORS[name][1]}"
+            for name, models in sorted(collected.items()))
+        out.append(
+            "Deployment precision. The fp4 in the collectors' names is the label "
+            "speedbench-al.yml gives every collection (PRECISION fp4, and the "
+            "<prefix>_fp4_b300_vllm.sh name it requires), not the precision served. Each "
+            "collector serves its model's checkpoint at that checkpoint's own weight "
+            f"precision, which is the catalog model's. At InferenceX {INFERENCEX_SHA[:12]}: "
+            f"{clauses}. kv_cache_dtype is recorded where a collector sets it; a "
+            "collector may have changed since its run.")
     unimaged = sorted({c.model for c in carried if not c.image_stated and not c.copied_source})
     if unimaged:
         out.append(f"The source files for {', '.join(unimaged)} name no engine image, so "

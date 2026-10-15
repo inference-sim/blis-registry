@@ -120,3 +120,52 @@ def test_k_values_the_image_rejected_have_no_profile():
     model, lo, hi = re.match(r"(\S+) with \S+ at K (\d+)-(\d+) ", caveat).groups()
     ks = {p["num_spec_tokens"] for p in SET["profiles"] if p["model"] == model}
     assert ks and not ks & set(range(int(lo), int(hi) + 1))
+
+
+def _mutated(tmp_path, stem, old, new):
+    golden = tmp_path / "golden"
+    shutil.copytree(GOLDEN, golden)
+    f = golden / f"{stem}.yaml"
+    assert old in f.read_text()
+    f.write_text(f.read_text().replace(old, new, 1))
+    return golden
+
+
+@pytest.mark.parametrize("piece", ["min-p: 0.1", "min_p=0.1", "top_p2: 0.9"])
+def test_a_header_value_of_any_spelling_fails_unless_transcribed(tmp_path, piece):
+    """Hyphens, digits and `=` in a key must not let a stated value slip past the parser."""
+    golden = _mutated(tmp_path, "glm5.2_mtp", "| output_len: 4096", f"| output_len: 4096 | {piece}")
+    with pytest.raises(SystemExit, match="not transcribed|does not transcribe"):
+        emit.collect(golden, CATALOG)
+
+
+def test_an_uncarried_curve_header_is_still_read_strictly(tmp_path):
+    golden = _mutated(tmp_path, "qwen3.8next_mtp", "| output_len: 4096",
+                      "| output_len: 4096 | min-p: 0.1")
+    with pytest.raises(SystemExit, match="min-p"):
+        emit.collect(golden, CATALOG)
+
+
+def test_speculative_config_pieces_are_transcribed():
+    h = emit.read_header(GOLDEN / "dsv4-pro-0813-dspark.yaml")
+    assert h.get("method") == "dspark"
+    assert h.get("draft_sample_method") == "probabilistic"
+
+
+def test_a_stated_method_must_be_the_curves_method(tmp_path):
+    golden = _mutated(tmp_path, "dsv41flash_dspark", "# method: dspark |", "# method: mtp |")
+    with pytest.raises(SystemExit, match="states method 'mtp'"):
+        emit.collect(golden, CATALOG)
+
+
+def test_a_header_with_no_method_field_is_checked_by_its_measured_on_line(tmp_path):
+    assert emit.read_header(GOLDEN / "glm5.2_mtp.yaml").get("method") is None
+    golden = _mutated(tmp_path, "glm5.2_mtp", "(B300, vLLM MTP)", "(B300, vLLM EAGLE3)")
+    with pytest.raises(SystemExit, match="measured with 'vLLM EAGLE3'"):
+        emit.collect(golden, CATALOG)
+
+
+def test_an_unreviewed_collector_fails_rather_than_its_precision_going_unstated(tmp_path):
+    golden = _mutated(tmp_path, "glm5.2_mtp", "glm52_fp4_b300_vllm.sh", "glm53_fp4_b300_vllm.sh")
+    with pytest.raises(SystemExit, match="not in COLLECTORS"):
+        emit.collect(golden, CATALOG)

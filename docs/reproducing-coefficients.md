@@ -313,13 +313,13 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 |---|---|---|
 | `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
 | `moe_routing_imbalance_median` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
-| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200 and gb300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies |
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |
 | `attention_decode_rate_mla` | `relane_attention_mla.py --check-rate` | same; the FLOOR half is owned by `correct_mla_floor.py`, see methodology §3 |
 | `attention_decode_floor_mla` | `correct_mla_floor.py` | derived from each part's own `attention_decode_floor` (the module tables are rejected for it) |
-| `attention_decode_rate_sparse_mla` | `fit_deepseek_v41_h200.py` — scoped to deepseek-v4.1-flash on h200 only | AISimulate `sparse_attention`, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5) |
+| `attention_decode_rate_sparse_mla` | `fit_deepseek_v41_h200.py` — scoped to deepseek-v4.1-flash on h200 and h100 only, each fitted from its own part's rows | AISimulate `sparse_attention`, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5) |
 | `attention_decode_*_block_index_scores` | `fit_deepseek_v41_h200.py` | the floor from AISimulate's indexer-kernel table; the rate `assumed` at NVIDIA's empirical HBM rate, BwPeak × `hbm_derate` (methodology §10.5) |
 | `gemm_*_w8a16_mxfp8`, `host_gather_rate_uva` | `fit_deepseek_v41_h200.py` (`assumed`) | upper bounds derived from committed siblings; no sweep measures them |
 | `attention_prefill_*` | `relane_attention_prefill.py` | AISimulate `attention` context rows |

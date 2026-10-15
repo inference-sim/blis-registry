@@ -341,16 +341,16 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 ### 6.0 What is reproducible, and what is not
 
 Four kinds of value live in this registry. Counted from the coefficient files
-themselves (1,099 entries in six sets):
+themselves (1,107 entries in six sets):
 
 | `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 814 | a named fitter in `scripts/`, re-run by the validator |
+| `measured` | 818 | a named fitter in `scripts/`, re-run by the validator |
 | `vendor_spec` | 57 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
-| `assumed` | 227 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
+| `assumed` | 231 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
 | `not_charged` | 1 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`) |
 
-The 227 `assumed` entries are of three different kinds, and the difference matters
+The 231 `assumed` entries are of three different kinds, and the difference matters
 to a reader weighing one:
 
 * **Derived from this project's own measurements** — 212 entries, each
@@ -360,8 +360,9 @@ to a reader weighing one:
   its own measured full-attention floor and rate by its kernel sibling's
   windowed/full ratio (`extrapolate_by_generation.py`); six `attention_decode_floor_mla` entries are set from
   the part's own measured attention floor (`correct_mla_floor.py`, §3).
-* **Derived from committed siblings** — 4 entries, all `fit_deepseek_v41_h200.py` (§10.5):
-  the h200 indexer-scan rate at NVIDIA's empirical HBM rate (BwPeak × `hbm_derate`, not a
+* **Derived from committed siblings** — 8 entries, all `fit_deepseek_v41_h200.py` (§10.5),
+  four per part on h200 and h100, each from that part's own siblings and descriptor:
+  the indexer-scan rate at NVIDIA's empirical HBM rate (BwPeak × `hbm_derate`, not a
   bound; at most 1.25x pessimistic, its optimism unbounded), the weight-only MXFP8 ramp at the measured BF16 envelope
   (an upper bound on the asymptote; the knee is not a bound), and the engram host-gather
   rate at the PCIe 5.0 line rate (an upper bound). Each states its direction where one is
@@ -635,8 +636,8 @@ remaining four are the borrows in §8.3.
 *Since this census* (#36, §10.5): the `moe_routing_imbalance_p90` family is retired, so the
 A100 borrow is one entry and the vLLM lane loses seven; the descriptor rows are 48 now that
 `hbm_constant_latency`, `p2p_latency` and the a100_pcie duplicates are gone; and the vLLM
-lane gains six entries (the Marlin ramp on h200 and gb300, the V4.1 sparse rate and
-indexer floor on h200).
+lane gains ten entries (the Marlin ramp on h200, h100 and gb300, the V4.1 sparse rate and
+indexer floor on h200 and h100).
 The reference pages carry the current counts.
 
 ### 8.2 Per-family detail
@@ -650,10 +651,10 @@ The reference pages carry the current counts.
 | collectives | every other collective | 429 | nccl 2.29.2 / 2.27.3 |
 | primitives | `gemm_{eps_max,m_half}` | 52 | vllm 0.27.1 ×32, 0.25.0 ×12, 0.24.0 ×6, 0.14.0 ×2 |
 | primitives | `moe_routing_imbalance_median` | 8 | vllm ×7, **sglang 0.5.10 ×1 (A100)** — the p90 family was retired in #36 |
-| primitives | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 4 | vllm 0.25.0 ×4 (h200, gb300), §10.5 |
-| primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 3 | `assumed` bounds (h200), §10.5 |
+| primitives | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 6 | vllm 0.25.0 ×6 (h200, h100, gb300), §10.5 |
+| primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 6 | `assumed` bounds (h200, h100), §10.5 |
 | primitives | descriptors | 48 | AISimulate `systems/<sku>.yaml` |
-| attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 3 | vllm 0.25.0 ×2 + 1 `assumed` (h200, deepseek-v4.1-flash), §10.5 |
+| attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 6 | vllm 0.25.0 ×4 + 2 `assumed` (h200, h100; deepseek-v4.1-flash), §10.5 |
 | recurrent | `recurrent_decode_*_kda` | 6 | vllm 0.1.dev19262 |
 | recurrent | `recurrent_decode_*_mamba2` | 2 | **trtllm 1.3.0rc20** |
 | host-overheads | all | 7 | none — `method: assumed` |
@@ -1024,6 +1025,37 @@ tags build was diffed, and what the 0.25.0 timing does and does not contain is s
 | `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | h200, gb300 | measured | 0.245 / 26 (h200), 0.114 / 55 (gb300), of the BF16 peak | vLLM's `MarlinExperts` MXFP4 rows, fitted under the kernel's routed-term composition. On gb300 it applies only where the MoE backend is Marlin W4A16 (the Kimi-K3 preview build FPM measured), not to stock v0.31.0 |
 | `gemm_{eps_max,m_half}_w8a16_mxfp8` | h200 | assumed | the BF16 envelope: an upper bound on the asymptote; the knee is not a bound | no dense Marlin sweep exists on any part |
 | `host_gather_rate_uva` | h200 | assumed | 57,764 B/µs: the PCIe 5.0 raw rate × 128/130 line code × 264/288 | no host-gather measurement exists |
+
+**On H100 the same six entries ship, each fitted from H100's own rows.** H100 SXM is the
+same GH100 die and SM90 kernels as H200 with 0.70× its HBM (3.35 against 4.8 TB/s), and
+AISimulate's `h100_sxm` carries the same three tables. The writers fit every part they list
+from that part's sweep, catalog descriptor and committed siblings; no h200 number enters an
+h100 entry.
+
+| entry | h100 value | h200 value | fit |
+|---|---|---|---|
+| `attention_decode_rate_sparse_mla` | 1,105,500 B/µs (0.330 of peak), floor inherited (14.5 µs) | 1,123,200 (0.234) | 1.198x, signed 1.057, n = 207; held out ≥ 5 blocks 1.175x (signed 0.853, n = 16); at 10 blocks 1.069x (n = 4) |
+| `attention_decode_floor_block_index_scores` | 4.9 µs | 4.3 | 1.086x, n = 414; 246 floor-dominated points 1.067x; per checkpoint 4.95 / 4.90 |
+| `attention_decode_rate_block_index_scores` | 2,680,000 B/µs, BwPeak × `hbm_derate` (3.35 × 0.8) | 3,840,000 | `assumed`; the sweep's slope is 6.44 TB/s-equivalent, 1.92× H100's peak |
+| `gemm_{eps_max,m_half}_w4a16_mxfp4_grouped` | 0.282 / 15 | 0.245 / 26 | 1.140x, signed 1.039, n = 27; int4 holdout 1.161x, signed 1.068 |
+| `gemm_{eps_max,m_half}_w8a16_mxfp8` | 1.0 / 170, H100's BF16 envelope | 0.992 / 110 | `assumed` |
+| `host_gather_rate_uva` | 57,764 B/µs, H100's own `host_link_bandwidth` × 128/130 × 264/288 | 57,764 | `assumed` |
+
+**Neither fitted pair scales with bandwidth, and the rows say so directly.** On the 207
+FlashMLA rows both parts measure, H100 latency is a median 1.05× H200's (1.13× over the
+slowest tenth), where an HBM-bound read would be 1.43×; on the 27 Marlin token counts it is
+0.98–1.06×. So the sparse rate is close to H200's (0.98×) and a larger fraction of H100's
+peak: at reads of at most 10 blocks per request it is a cost per byte, not a bandwidth, and
+must not be rescaled between parts by BwPeak. The Marlin ramp differs from H200's because
+its memory half is charged at H100's lower BwPeak × `hbm_derate`, and the SM half carries
+what is left; the pair holds only with that part's own memory half. The sparse rate's batch
+bias has the same shape on H100 (signed 1.02 at batch 1, 1.44 at 128, 0.59 at 1,024), and
+the per-request and occupancy forms again leave it (1.186x, 1.179x). The pinned 14.5 µs floor
+over-prices batch-1 one-block reads (10.1–10.6 µs) by 37–44%.
+
+**No end-to-end check is possible on H100.** FPM carries DeepSeek-V4.1-Flash on b200-sxm,
+b300-sxm, gb200, gb300 and h200-sxm, not h100, so the h100 entries rest on the h200 check
+(blis-registry#42) through the shared kernels; each rationale says so.
 
 **The sparse rate's error depends on batch, and V4.1 runs where the table has no rows.**
 The overall 1.182x hides a batch-dependent bias. Signed, predicted over measured, by batch:

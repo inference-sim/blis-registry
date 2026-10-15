@@ -340,17 +340,18 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 
 ### 6.0 What is reproducible, and what is not
 
-Four kinds of value live in this registry. Counted from the coefficient files
-themselves (1,107 entries in six sets):
+Five kinds of value live in this registry. Counted from the coefficient files
+themselves (1,133 entries in six sets):
 
 | `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 818 | a named fitter in `scripts/`, re-run by the validator |
+| `measured` | 834 | a named fitter in `scripts/`, re-run by the validator |
 | `vendor_spec` | 57 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
-| `assumed` | 231 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
-| `not_charged` | 1 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`) |
+| `assumed` | 239 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
+| `copied` | 1 | nothing to reproduce: another scope's value carried, `copied_from` naming it -- an assumed transfer, not a derivation (DeepSeek-V4.1's `host_launch_eager_per_kernel` off h200, §10.6) |
+| `not_charged` | 2 | nothing to reproduce: a declared zero (`cudagraph_capture_bytes_none`; DeepSeek-V4.1's `host_admission_per_request`, §10.6, an inferred zero the schema requires to carry this method) |
 
-The 231 `assumed` entries are of three different kinds, and the difference matters
+The 239 `assumed` entries are of four different kinds, and the difference matters
 to a reader weighing one:
 
 * **Derived from this project's own measurements** — 212 entries, each
@@ -367,7 +368,11 @@ to a reader weighing one:
   (an upper bound on the asymptote; the knee is not a bound), and the engram host-gather
   rate at the PCIe 5.0 line rate (an upper bound). Each states its direction where one is
   known, and each is re-derived from its siblings by a property test that needs no sweep.
-* **Not derivable from any dataset this project reads** — 11 entries. The seven
+* **Fitted on a neighbouring kernel's measurements** — 6 entries, all
+  `fit_deepseek_v41_prefill.py` (§10.6): V4.1's prefill indexer, fitted on the paged
+  logits kernel's prefill-shaped rows because vLLM runs the ragged kernel there, which no
+  sweep measures.
+* **Not derivable from any dataset this project reads** — 13 entries. The seven
   host overheads in `cost-model-host-overheads.yaml`: no dataset measures
   client-observed host time (AISimulate times kernels, FPM times one synchronized
   forward pass — all 42 of its columns were enumerated, and there is no `ttft`,
@@ -375,9 +380,13 @@ to a reader weighing one:
   And the four capturing `cudagraph_capture_bytes_<mode>` entries in
   `cost-model-memory.yaml`, whose magnitude is anchored on vLLM's own start-up
   logs (§11); their anchor is reproducible from a committed CSV, but the samples
-  are uncontrolled deployments, which is why the method stays `assumed`.
+  are uncontrolled deployments, which is why the method stays `assumed`. And
+  DeepSeek-V4.1's `host_launch_eager_per_kernel`, backed out of a vendored end-to-end
+  enforce-eager anchor (`fit_deepseek_v41_host.py`, §10.6), and its
+  `host_admission_per_token`, a front-end timing taken on an Apple M1 Max and transferred to
+  every part, because no serving node's CPU was measured (§10.6).
 
-Each of those eleven carries the measurement that would replace it.
+Each of those thirteen carries the measurement that would replace it.
 `host_admission_per_request` names the exact experiment, a client-observed TTFT
 measurement at 1-token and 1,024-token prompts against a running vLLM server at
 concurrency 1 with a warm cache, whose intercept is the coefficient with no
@@ -655,9 +664,12 @@ The reference pages carry the current counts.
 | primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 6 | `assumed` bounds (h200, h100), §10.5 |
 | primitives | descriptors | 48 | AISimulate `systems/<sku>.yaml` |
 | attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 6 | vllm 0.25.0 ×4 + 2 `assumed` (h200, h100; deepseek-v4.1-flash), §10.5 |
+| attention | `attention_prefill_*_sparse_mla`, `attention_prefill_*_block_index_scores` | 14 | vllm 0.25.0 ×8 + 6 `assumed` proxy (h200, h100; deepseek-v4.1-flash), §10.6 |
+| primitives | `mhc_{floor,rate}_{pre,post}` | 8 | vllm 0.25.0 ×8 (h200, h100; deepseek-v4.1-flash), §10.6 |
 | recurrent | `recurrent_decode_*_kda` | 6 | vllm 0.1.dev19262 |
 | recurrent | `recurrent_decode_*_mamba2` | 2 | **trtllm 1.3.0rc20** |
-| host-overheads | all | 7 | none — `method: assumed` |
+| host-overheads | all part-wide | 7 | none — `method: assumed` |
+| host-overheads | deepseek-v4.1-flash | 4 | eager launch `assumed` on h200 (end-to-end anchor) and `copied` to the other eight parts (an assumed transfer), admission per token `assumed` (a front-end timing on an Apple M1 Max, transferred), per request `not_charged` 0.0 (an inference from what was timed, bounded end to end; blis-schemas requires `not_charged` for a zero), §10.6 |
 
 Regenerate this table rather than editing it: every count above is derivable from
 `coefficients/` with a group-by on the family stem, and a retyped count is the defect
@@ -1170,6 +1182,99 @@ consumer-contract points go with it, each stated in the entries:
 
 Every V4.1 attention read in blis-catalog 0.2.2 is `sparse_mla`, the window-only layers (0,
 1, and the DSpark drafts at a 133-token window) included, all inside the block axis above.
+
+### 10.6 DeepSeek-V4.1-Flash prefill attention, prefill indexer, mHC and host terms
+
+Before these entries the kernel priced three V4.1 operators with numbers fitted on a
+different kernel or with none: the sparse-MLA PREFILL attention and the indexer's prefill
+logits with the generic full-attention prefill pair (`attention_prefill_floor` /
+`attention_prefill_work_scale`, fitted on `context_attention_perf`), and mHC as Elementwise
+bytes at the HBM rate with no floor -- 0.07 ms a one-token decode step against 1.05 ms
+measured, one of the two terms behind V4.1's 19-30% fast low-load ITL. Every number below is
+written by `scripts/fit_deepseek_v41_prefill.py` or `scripts/fit_deepseek_v41_host.py`,
+both with `--check`; each part is fitted from its own rows. The per-call forms are stated in
+each entry's rationale.
+
+| entry (scope: h200 / h100, deepseek-v4.1-flash) | method | h200 | h100 | fit (h200) |
+|---|---|---|---|---|
+| `attention_prefill_{floor,per_request,per_token,rate}_sparse_mla` | measured | 14.8 µs, 1.323 µs, 0.049 µs, 3,159,685 B/µs | 15.5, 1.325, 0.0571, 3,509,505 | 1.067x, signed 1.003, n = 1,642; held out on blocks 1.137x, on chunk length 1.036x |
+| `attention_prefill_{floor,per_token,rate}_block_index_scores` | **assumed** (proxy kernel) | 4.1 µs, 0.00466 µs, 7,298,637 B/µs | 4.7, 0.00441, 7,364,876 | 1.066x, signed 0.969, n = 3,504; held out on context 1.054x, on rows 1.142x |
+| `mhc_{floor,rate}_pre` | measured | 8.9 µs, 1,799,384 B/µs | 9.3, 1,325,488 | 1.052x, n = 70; across hidden 1.103x / 1.073x |
+| `mhc_{floor,rate}_post` | measured | 3.0 µs, 1,850,611 B/µs | 3.1, 1,306,352 | 1.091x, n = 70; across hidden 1.178x / 1.109x |
+
+**Sparse-MLA prefill is fitted on the kernel table's prefill rows, in four terms.**
+`dsv4_hca_attn_module_perf` times `forward_mqa` alone; its `isl > 1` rows run the prefill
+branch (SWA and compressed gather, index combine, `flash_mla_sparse_fwd`). A floor plus a
+work rate over the decode fit's block-and-record count gives 1.390x with a strong batch bias
+(signed 0.15 at batch 1,024); a per-request and a per-query-token term remove it (1.067x,
+every batch within 0.96-1.05 signed). The per-token term, 0.049 µs, is the cost of a query's
+own traffic -- 64 padded heads of 512 BF16 in and out -- at about the part's empirical HBM
+rate. The fit uses only rows reading at most V4.1's 10 blocks a query. Its weak point is
+V4.1's operating point: the only 10-block rows are short chunks at step 65,536, under-priced
+1.31x (signed 0.81), and long chunks at 10 blocks are not in the table; long-chunk rows at
+11-67 blocks extrapolate at 1.05x. The SM90 sparse prefill device code is unchanged between
+the FlashMLA pins of vLLM 0.25.0 and 0.31.0 (renames only). V4.1's ratio-1/2 layers gather
+their whole compressed stream before the kernel; the ratio-128 rows hold that gather only at
+1/128 of the context, so it stays with the catalog's `prefill_dequant_gather` node.
+
+**The indexer's prefill is a proxy, and is labelled so.** vLLM v0.31.0's prefill indexer runs
+DeepGEMM's ragged `fp8_fp4_mqa_logits`; the only measurement is the paged
+`fp8_fp4_paged_mqa_logits` at prefill shapes. Unlike decode, the sweep's shared block table
+is representative here (every query row of a request reads the same keys), and the fitted
+throughput is compute-like (906 TFLOPS at 64 heads). The 32-head V4.1 indexer is scaled
+linearly from 64, an assumption. Most likely pessimistic: the ragged kernel is the one
+written for many rows over shared keys.
+
+**mHC is measured per site and interpolated by bytes.** `mhc_module_perf` times TileLang
+`mhc_pre` and `mhc_post` (two sites a row) at hidden 4096 and 7168; W = tokens x hidden x 8 B
+carries the hidden size, so one floor and rate per component fit both, and each hidden size
+predicted from the other lands within 1.06-1.18x. The pre includes the TF32 prenorm GEMM, so
+the catalog's `hc_*_fn` GEMM must not also be charged. On SM90 v0.31.0 runs the fused delayed
+post+pre, which above 32 tokens is the same two kernels and at <= 32 folds the post into the
+GEMM -- so at decode sizes the pair is an upper bound by about one launch.
+
+**Two terms were looked for and do not ship.** *Routed MoE at V4.1's geometry:* no vLLM
+collection holds a hidden 5120 / inter 2304 / 384-expert / top-6 W4A16 row on h200 or h100.
+The only rows at that geometry are SGLang `dev-1aa0e962` (`flashinfer_cutlass` at moe_tp 2,
+`mxfp4_humming` at moe_tp 4, ep 1, 15 token counts each) -- other kernels and another
+sharding than vLLM v0.31.0's Marlin at EP8 -- so the Kimi-K3-geometry Marlin ramp stays, with
+its evidence class. *The compressor:* no table isolates it; the csa/hca context-module tables
+time the whole attention module, projections included, and a residual from them would be a
+module-derived term of the kind §10.1 rejects. It stays at the catalog's bytes.
+
+**Host terms.** `host_launch_eager_per_kernel` (92.9 µs, `assumed`) is V4.1's per-launch
+Python dispatch in an eager (cudagraph NONE) step -- vLLM v0.31.0 cannot torch.compile this
+model, so NONE is plain eager PyTorch. It is backed out of an internal enforce-eager H200
+serving run of the same model (ITL flat at 93.8-101.6 ms from c1 to c64). The run's report
+is not redistributed: `validator/testdata/anchors/v41_h200_enforce_eager_anchor.json` holds
+only what the fit needs -- the plateau's levels, median, minimum and maximum ITL, the setup
+and the report's sha256 -- and `--check` re-derives it from a local copy of the report when
+`V41_EAGER_ANCHOR_REPORT` names one, and checks its internal consistency otherwise. The
+division is by the KERNEL's own launch count and device time for that step, a recorded input:
+`v41_kernel_eager_basis.json`, written by `--record-device` from `diagnosis/kdevice` (public
+kernel API) with clean kernel, registry and catalog commits. `--check` refuses a basis
+recorded for another anchor, scenario, host composition or step type: the anchor is a decode
+step, so the count must be the decode-only 972 (a step with a prefill row also launches the
+graph's 46 `phase: prefill` gathers, 1,018; kernel dd1fd67 used 1,018 on every step, which
+gave 89.4 µs). The committed basis is kernel c20d197 (972 launches, 3.18 ms with the mHC
+entries). The constant is valid only with the basis it was divided by. It is derived on H200 nodes only:
+the h200 entry is `assumed` (backed out of the anchor), and the other eight parts, h100
+included, carry it as a separate `copied` entry (`copied_from: hardware=h200,...`). That copy
+is an ASSUMPTION about host CPU and driver launch cost, not a derivation; an H100
+enforce-eager ITL anchor (same model, TP8, no speculation, c1-c64) would replace it. The host
+set's coverage rule is checked per name and model across entries, so the split is allowed.
+`host_admission_per_token` (2.67 µs, `assumed`) is a timing of vLLM v0.31.0's own V4.1 front
+end -- render, tokenize, block hash -- taken on the diagnosis workstation (Apple M1 Max, one
+Python thread) with synthetic text. No part it is scoped to matches that host, so on every
+part it is an assumed transfer of the measurement, labelled as the eager copy is; the same
+timing on the serving node's CPU would replace it. And `host_admission_per_request` is 0.0,
+`not_charged` only because blis-schemas requires that method for a zero value: what was timed has no fixed term above noise, but the bench does not time HTTP
+handling, validation, the IPC to EngineCore or scheduler admission, so the zero is an
+inference bounded only end to end (an 8,030-token c1 TTFT of 37.15 ms in total), not a
+structural zero. These two model-scoped entries sit after their
+part-wide namesakes in the same set, the one arrangement
+`test_a_model_scoped_entry_never_shadows_a_part_wide_one` allows: last-in-file-order and
+scoped-wins resolve it the same way.
 
 ## 11. Memory occupancy: what composes, and where each term comes from
 

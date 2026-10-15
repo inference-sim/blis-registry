@@ -183,21 +183,30 @@ def test_retired_families_stay_retired():
 
 
 def test_a_model_scoped_entry_never_shadows_a_part_wide_one():
-    """A name may be scoped to one model, or part-wide, on a given part -- not both.
+    """A name may be scoped to one model, or part-wide, on a given part -- not both, unless
+    the two resolve the same under either rule a kernel applies.
 
-    blis-latency-kernel admits every entry whose scope covers the deployment and keeps
-    the LAST in file order, so a model-scoped entry and a part-wide one of the same name
-    on the same part would make the price depend on where each sits in the file.
+    blis-latency-kernel through dd1fd67 admits every entry whose scope covers the
+    deployment and keeps the LAST in file order, so a model-scoped entry and a part-wide
+    one of the same name on the same part would make the price depend on where each sits
+    in the file. From the DeepSeek-V4.1 reader on, a model-scoped entry wins over an
+    unscoped one regardless of order. A model-scoped entry placed AFTER its part-wide
+    namesake in the SAME set is chosen by both rules -- last in file order, and scoped --
+    so that one arrangement is allowed: it is how a model with its own measured host cost
+    (DeepSeek-V4.1's admission) overrides the part-wide estimate without a new name the
+    kernel would not read. Any other arrangement still fails.
     """
-    partwide, scoped = set(), []
-    for setname, name, body in ENTRIES:
+    partwide: dict = {}
+    scoped = []
+    for i, (setname, name, body) in enumerate(ENTRIES):
         scope = body.get("scope") or {}
         for hw in scope.get("hardware", []):
             if "model" in scope:
-                scoped.append((setname, name, hw, scope["model"]))
+                scoped.append((setname, name, hw, scope["model"], i))
             else:
-                partwide.add((name, hw))
-    clashes = [s for s in scoped if (s[1], s[2]) in partwide]
+                partwide.setdefault((name, hw), []).append((setname, i))
+    clashes = [s[:4] for s in scoped
+               if any(ps != s[0] or pi > s[4] for ps, pi in partwide.get((s[1], s[2]), []))]
     assert not clashes, (
         f"model-scoped entries that a part-wide entry of the same name also admits: "
         f"{clashes}. Give the model-scoped quantity its own name, or scope both."
@@ -268,6 +277,32 @@ def test_the_derived_deepseek_v41_entries_equal_what_they_are_derived_from(hw):
     assert _single("gemm_m_half_w8a16_mxfp8", hw) == _single("gemm_m_half_bf16", hw)
     assert _single("host_gather_rate_uva", hw) == round(
         _single("host_link_bandwidth", hw) * 128 / 130 * (256 + 8) / (256 + 32))
+
+
+def test_the_v41_host_entries_re_derive_from_their_vendored_measurements():
+    """`fit_deepseek_v41_host.py --check`: the eager launch cost and the admission entries
+    re-derive from validator/testdata/anchors/, which needs no AISimulate tree, so this runs
+    in every CI job rather than only the rederive one."""
+    import subprocess
+    import sys
+
+    repo = Path(__file__).resolve().parent.parent
+    r = subprocess.run([sys.executable, str(repo / "scripts" / "fit_deepseek_v41_host.py"),
+                        "--check"], capture_output=True, text=True, cwd=str(repo),
+                       timeout=300)
+    assert r.returncode == 0, (
+        "the DeepSeek-V4.1 host entries are not what their vendored measurements give:\n"
+        f"{r.stdout}\n{r.stderr}")
+
+
+@pytest.mark.parametrize("hw", ["h200", "h100"])
+def test_the_v41_mhc_rates_are_below_the_parts_hbm_peak(hw):
+    """mHC streams the hc_mult residual copies through HBM once a step; a fitted rate over
+    those bytes above the datasheet bandwidth would mean the byte count W is wrong."""
+    m = "deepseek-v4.1-flash"
+    peak = chip_facts(hw)["BwPeakTBs"] * 1e6
+    for op in ("pre", "post"):
+        assert 0 < _single(f"mhc_rate_{op}", hw, m) < peak
 
 
 # --------------------------------------------------------------------------------------
@@ -435,22 +470,58 @@ def test_hardware_independent_sets_cover_every_catalog_part():
            for p in glob.glob(str(CATALOG / "hardware" / "*.yaml"))}
     if not cat:
         pytest.skip(f"catalog not present at {CATALOG}")
+    # A PART-WIDE entry (no model) must scope every part on its own, as before: a part-wide
+    # host term has no per-part value in its source, so splitting it is never allowed.
+    # A MODEL-SCOPED term may be split across entries -- DeepSeek-V4.1's eager launch cost is
+    # derived on h200 and copied to the other parts -- as long as together they cover every
+    # part AND the split carries one value: every entry of the (set, name, model) has the
+    # same value, and any entry beyond the first is `copied` with copied_from naming a
+    # sibling's scope. A split may not smuggle in a per-part value.
+    split: dict = {}
     for setname, name, body in ENTRIES:
+        if setname not in ("cost-model-host-overheads.yaml", "cost-model-memory.yaml"):
+            continue
+        scope = body.get("scope") or {}
+        models = tuple(scope.get("model") or ())
         # `host_*` in cost-model-host-overheads only. `host_link_bandwidth` lives in
         # cost-model-primitives and is a genuinely PER-PART figure -- NVIDIA's descriptor
         # states a different PCIe or NVLink-C2C rate per platform -- so it is scoped to
         # one chip by design and must not be swept into this rule by its name prefix.
         # cost-model-memory holds engine-structural memory terms with no per-part value in
         # their sources, scoped to every part for the same reason the host set is.
-        if setname not in ("cost-model-host-overheads.yaml", "cost-model-memory.yaml"):
+        if not models:
+            missing = sorted(cat - set(scope.get("hardware", [])))
+            assert not missing, (
+                f"{setname}: {name} does not scope {missing}, so it resolves to NOTHING "
+                f"there and the term is priced at zero. Every part-wide term in this set has "
+                f"no per-part value in its source, so the scope must list every catalog part."
+            )
             continue
-        scoped = set((body.get("scope") or {}).get("hardware", []))
-        missing = sorted(cat - scoped)
+        split.setdefault((setname, name, models), []).append(body)
+    for (setname, name, models), bodies in split.items():
+        covered = set().union(*(set(b["scope"].get("hardware", [])) for b in bodies))
+        missing = sorted(cat - covered)
         assert not missing, (
-            f"{setname}: {name} does not scope {missing}, so it resolves to NOTHING "
-            f"there and the term is priced at zero. Every term in this set has no "
-            f"per-part value in its source, so the scope must list every catalog part."
-        )
+            f"{setname}: {name} for {list(models)} does not scope {missing}, so the term is "
+            f"priced at zero there.")
+        if len(bodies) == 1:
+            continue
+        values = {b["value"] for b in bodies}
+        assert len(values) == 1, (
+            f"{setname}: {name} for {list(models)} is split across entries with values "
+            f"{sorted(values)}; a host term has no per-part value, so a split must carry one.")
+        originals = [b for b in bodies if b.get("method") != "copied"]
+        assert len(originals) == 1, (
+            f"{setname}: {name} for {list(models)}: a split needs exactly one original entry "
+            f"and every other `copied`, found {len(originals)} originals.")
+        orig = originals[0]["scope"].get("hardware", [])
+        for b in bodies:
+            if b is originals[0]:
+                continue
+            cf = b.get("copied_from", "")
+            assert cf.startswith(f"hardware={','.join(orig)}"), (
+                f"{setname}: {name} for {list(models)}: copied_from {cf!r} does not name the "
+                f"original entry's scope (hardware={','.join(orig)}).")
 
 
 def test_every_measured_entry_cites_a_source():

@@ -112,20 +112,23 @@ DEFAULT_CATALOG = (os.environ.get("BLIS_CATALOG")
 MODEL = "deepseek-v4.1-flash"
 COLLECTION = "vllm/0.25.0"
 
-# Per part: the AISimulate system, the name the datasheet gives it, and what the end-to-end
-# arbiter (methodology section 3) can say about it. `sibling` names a part on the same die
-# whose rows are compared to this part's, so the rationale states what a rate is not.
+# Per part: the AISimulate system, the name the datasheet gives it, and what an end-to-end
+# arbiter (methodology section 3) can say about it -- for V4.1 on vLLM, nothing yet.
+# `sibling` names a part on the same die whose rows are compared to this part's, so the
+# rationale states what a rate is not.
 PARTS = {
     "h200": {"sku": "h200_sxm", "name": "H200", "sibling": None,
-             "e2e": ("END-TO-END CHECK PENDING: FPM carries DeepSeek-V4.1-Flash on h200; "
-                     "the kernel prices this model once blis-latency-kernel#44 lands (it "
-                     "closes #30, #32, #36 and #39); tracked in blis-registry#42, see "
-                     "methodology section 10.5.")},
+             "e2e": ("NO END-TO-END CHECK EXISTS FOR vLLM: AISimulate FPM (revision "
+                     "03e006de) carries DeepSeek-V4.1-Flash on h200 under SGLang only -- "
+                     "another engine, MoE kernel and checkpoint revision -- so it cannot "
+                     "arbitrate vLLM v0.31.0 pricing; blis-registry#42 has no arbiter until "
+                     "a vLLM V4.1 forward-pass measurement exists, see methodology section "
+                     "10.5.")},
     "h100": {"sku": "h100_sxm", "name": "H100", "sibling": "h200",
-             "e2e": ("NO END-TO-END CHECK ON THIS PART: FPM carries DeepSeek-V4.1-Flash on "
-                     "b200, b300, gb200, gb300 and h200 but not h100, so nothing arbitrates "
-                     "this entry here; the nearest is the h200 check on the same SM90 kernel "
-                     "(blis-registry#42, methodology section 10.5).")},
+             "e2e": ("NO END-TO-END CHECK ON THIS PART: no forward-pass dataset carries "
+                     "DeepSeek-V4.1-Flash on h100 under any engine, and FPM's h200 V4.1 rows "
+                     "are SGLang (revision 03e006de), so nothing arbitrates this entry "
+                     "(methodology section 10.5).")},
 }
 
 

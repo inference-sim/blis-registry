@@ -264,6 +264,50 @@ def fit_indexer_prefill(data: Path, sku: str, g: dict) -> dict:
             "tflops": tflops}
 
 
+RAGGED_TABLE = "glm5_mqa_logits_module_perf.parquet"
+RAGGED_COLLECTION = "sglang/0.5.14"
+RAGGED_LANE = "deep_gemm.fp8_mqa_logits"
+RAGGED_MODEL = "zai-org/GLM-5"
+
+
+def ragged_gap(data: Path, sku: str, g: dict, ix: dict) -> dict:
+    """The committed proxy, applied to AISimulate's timing of the RAGGED DeepGEMM logits
+    kernel (SGLang 0.5.14 lane, GLM-5: 32 index heads x 128, FP8 keys, ratio 1) -- the
+    kernel family vLLM's prefill indexer calls. Not fitted (the lane decision is open);
+    reported so the proxy's error against the real kernel is stated, not guessed."""
+    path = data / sku / "sparse_attention" / RAGGED_COLLECTION / RAGGED_TABLE
+    if not path.is_file():
+        raise SystemExit(f"{path} is absent")
+    t = pq.read_table(path).to_pydict()
+    cfg = base.model_config(data, "zai-org--GLM-5")
+    heads, hd = cfg["index_n_heads"], cfg["index_head_dim"]
+    if hd != 128 or heads != g["v41_index_heads"]:
+        raise SystemExit(f"GLM-5 index geometry {heads}x{hd} is not V4.1's")
+    pred, y, rows, ctx = [], [], [], []
+    for i in range(len(t["latency"])):
+        if t["isl"][i] <= 1:
+            continue
+        if (t["kernel_source"][i] != RAGGED_LANE or t["model"][i] != RAGGED_MODEL
+                or t["compress_ratio"][i] != 1
+                or not (math.isfinite(t["latency"][i]) and t["latency"][i] > 0)):
+            raise SystemExit(f"unexpected ragged row {i}")
+        b, s, P = t["batch_size"][i], t["isl"][i], t["step"][i]
+        # Each of b requests scores keys [0, P + p] for local position p = 1..s.
+        keys = b * (s * P + s * (s + 1) / 2)
+        w = keys * g["key"] * heads / g["fit_index_heads"]
+        pred.append(ix["floor"] + ix["per_tok"] * b * s + w / ix["rate"])
+        y.append(t["latency"][i] * 1000.0)
+        rows.append(b * s)
+        ctx.append(P)
+    pred, y, rows, ctx = (np.asarray(v, float) for v in (pred, y, rows, ctx))
+    big = (rows >= 4096) & (ctx >= 8192)
+    chunk = rows == 8192
+    return {"n": len(y), "all": geo(pred, y), "big_n": int(big.sum()),
+            "big": geo(pred[big], y[big]), "chunk_n": int(chunk.sum()),
+            "chunk": geo(pred[chunk], y[chunk]) if chunk.any() else (math.nan, math.nan),
+            "heads": heads}
+
+
 # --------------------------------------------------------------------------------------
 # mHC
 # --------------------------------------------------------------------------------------
@@ -340,7 +384,7 @@ def fit_mhc(data: Path, sku: str, mg: dict) -> dict:
 # Entries
 # --------------------------------------------------------------------------------------
 
-def entries(chip: str, g: dict, mg: dict, sp: dict, ix: dict, mh: dict, peak: float,
+def entries(chip: str, g: dict, mg: dict, sp: dict, ix: dict, rg: dict, mh: dict, peak: float,
             fp8_tflops: float, gen_floor: float, gen_scale: float,
             hbm_rate: float) -> tuple[list, list]:
     part = PARTS[chip]
@@ -442,12 +486,29 @@ def entries(chip: str, g: dict, mg: dict, sp: dict, ix: dict, mh: dict, peak: fl
     ix_note = (
         f"ASSUMED -- A PROXY KERNEL, fitted on measured rows: vLLM v0.31.0's prefill indexer "
         f"runs DeepGEMM fp8_fp4_mqa_logits (the ragged kernel, sparse_attn_indexer.py prefill "
-        f"chunks, after cp_gather_indexer_k_quant_cache), while the only measurement is the "
-        f"PAGED kernel fp8_fp4_paged_mqa_logits that decode runs, at prefill shapes "
+        f"chunks, after cp_gather_indexer_k_quant_cache), and this is fitted on the PAGED kernel "
+        f"fp8_fp4_paged_mqa_logits that decode runs, at prefill shapes "
         f"({base.INDEXER_TABLE}, isl > 1: b x isl query rows packed into one causal sequence, "
-        f"every row on one block table). Both score FP8 keys against FP8 queries over 64 index "
-        f"heads with the same per-head weights; the ragged kernel is the one written for many "
-        f"rows sharing keys, so this proxy is most likely PESSIMISTIC (over-prices). THE FORM "
+        f"every row on one block table, 64 index heads). THE RAGGED KERNEL IS MEASURED, on "
+        f"another lane: AISimulate's sglang/0.5.14 {RAGGED_TABLE} times "
+        f"{RAGGED_LANE} at GLM-5's indexer geometry, {rg['heads']} index heads x 128, FP8 keys, "
+        f"ratio 1 -- V4.1's head count. Against those {rg['n']} rows this proxy is "
+        f"{rg['all'][0]:.3f}x, signed {rg['all'][1]:.3f}; on the {rg['big_n']} rows of at least "
+        f"4,096 query rows at a prefix of at least 8,192, signed {rg['big'][1]:.3f} "
+        f"({rg['big'][0]:.3f}x); at V4.1's 8,192-token chunk ({rg['chunk_n']} rows) signed "
+        f"{rg['chunk'][1]:.3f}, evaluated as the kernel will charge it, W scaled to "
+        f"{rg['heads']} of {g['fit_index_heads']} heads (an earlier review that read the "
+        f"table's num_heads, GLM-5's 64 ATTENTION heads, as index heads found the proxy "
+        f"over-pricing by 1.4-1.7x; at the config's {rg['heads']} index heads it is not). So "
+        f"on the real kernel the proxy is within about 20% either way, "
+        f"{'under' if rg['big'][1] < 1 else 'over'}-pricing long chunks over long prefixes "
+        f"and {'under' if rg['chunk'][1] < 1 else 'over'}-pricing V4.1's chunk size; on its "
+        f"own paged rows it is signed {ix['by_rows'].get(8192, float('nan')):.2f} at 8,192 "
+        f"rows. NOT FITTED on the ragged rows because the lane decision (methodology section "
+        f"2) is open: SGLang 0.5.14 calls upstream DeepGEMM's fp8_mqa_logits, vLLM v0.31.0 its "
+        f"fork's fp8_fp4_mqa_logits on the FP8 path, and the device code of the two pins has "
+        f"not been compared; the SGLang collector also splits large batches along the query "
+        f"axis. THE FORM "
         f"per index-source layer, per rank, per step with prefill: t = "
         f"attention_prefill_floor_block_index_scores + "
         f"attention_prefill_per_token_block_index_scores x prefill query tokens + W / "
@@ -471,7 +532,8 @@ def entries(chip: str, g: dict, mg: dict, sp: dict, ix: dict, mh: dict, peak: fl
         f"VERSIONS: the paged kernel and scheduler differ between the DeepGEMM pins of vLLM "
         f"0.25.0 and 0.31.0 only by renames and zero-length bounds handling (see the decode "
         f"floor's rationale). TO REPLACE IT: a sweep of fp8_fp4_mqa_logits over (query rows, "
-        f"keys) at 32 and 64 index heads on {name}. Scoped to this model. "
+        f"keys) at 32 and 64 index heads on {name}, or a recorded lane decision for the ragged "
+        f"rows above. Scoped to this model. "
         f"Reproduce with scripts/fit_deepseek_v41_prefill.py.")
     ix_src = [("model", f"{aisim}{base.INDEXER_TABLE} (NVIDIA {name}), {base.INDEXER_LANE}, "
                f"{ix['n']} prefill-shaped points (a proxy for fp8_fp4_mqa_logits)", "primary"),
@@ -582,6 +644,10 @@ def fit_part(data: Path, catalog: Path, chip: str, g: dict, mg: dict) -> tuple[l
     peak, fp8_tflops = base.catalog_facts(catalog, chip)
     sp = fit_sparse(data, sku, g)
     ix = fit_indexer_prefill(data, sku, g)
+    rg = ragged_gap(data, sku, g, ix)
+    print(f"ragged check     proxy on {RAGGED_TABLE}: {rg['all'][0]:.3f}x signed "
+          f"{rg['all'][1]:.3f} (n={rg['n']}); >=4096 rows at >=8k prefix signed "
+          f"{rg['big'][1]:.3f} (n={rg['big_n']}); 8192-row chunks signed {rg['chunk'][1]:.3f}")
     mh = fit_mhc(data, sku, mg)
     gen_floor = base.committed(ATTN_PATH, "attention_prefill_floor", chip)
     gen_scale = base.committed(ATTN_PATH, "attention_prefill_work_scale", chip)
@@ -608,7 +674,8 @@ def fit_part(data: Path, catalog: Path, chip: str, g: dict, mg: dict) -> tuple[l
     print(f"mhc site         6 tok {mh['site_us'][6]:.1f} us, 8192 tok "
           f"{mh['site_us'][8192]:.0f} us")
     hbm_rate = peak * derate
-    return entries(chip, g, mg, sp, ix, mh, peak, fp8_tflops, gen_floor, gen_scale, hbm_rate)
+    return entries(chip, g, mg, sp, ix, rg, mh, peak, fp8_tflops, gen_floor, gen_scale,
+                   hbm_rate)
 
 
 def main(argv: list[str]) -> int:

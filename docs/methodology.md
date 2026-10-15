@@ -370,8 +370,8 @@ to a reader weighing one:
   known, and each is re-derived from its siblings by a property test that needs no sweep.
 * **Fitted on a neighbouring kernel's measurements** — 6 entries, all
   `fit_deepseek_v41_prefill.py` (§10.6): V4.1's prefill indexer, fitted on the paged
-  logits kernel's prefill-shaped rows because vLLM runs the ragged kernel there, which no
-  sweep measures.
+  logits kernel's prefill-shaped rows because vLLM runs the ragged kernel there, which is
+  measured only on the SGLang lane, with the lane decision open (§10.6 states the gap).
 * **Not derivable from any dataset this project reads** — 13 entries. The seven
   host overheads in `cost-model-host-overheads.yaml`: no dataset measures
   client-observed host time (AISimulate times kernels, FPM times one synchronized
@@ -1065,9 +1065,9 @@ bias has the same shape on H100 (signed 1.02 at batch 1, 1.44 at 128, 0.59 at 1,
 the per-request and occupancy forms again leave it (1.186x, 1.179x). The pinned 14.5 µs floor
 over-prices batch-1 one-block reads (10.1–10.6 µs) by 37–44%.
 
-**No end-to-end check is possible on H100.** FPM carries DeepSeek-V4.1-Flash on b200-sxm,
-b300-sxm, gb200, gb300 and h200-sxm, not h100, so the h100 entries rest on the h200 check
-(blis-registry#42) through the shared kernels; each rationale says so.
+**No end-to-end check is possible on H100.** No forward-pass dataset carries
+DeepSeek-V4.1-Flash on h100 under any engine, and the h200 rows FPM does carry are SGLang
+(next paragraph), so nothing arbitrates the h100 entries either; each rationale says so.
 
 **The sparse rate's error depends on batch, and V4.1 runs where the table has no rows.**
 The overall 1.182x hides a batch-dependent bias. Signed, predicted over measured, by batch:
@@ -1158,13 +1158,18 @@ That is 1,456 TFLOPS effective where Marlin sustains about 242.
   with projections), at batch ≤ 3 and context ≤ 2,049, and flat at 0.8–2.0 ms. That is
   launch-bound, not a kernel rate.
 
-**The end-to-end check is pending, and that is stated rather than waived.** FPM carries
-DeepSeek-V4.1-Flash on h200-sxm, the arbiter §3 requires. blis-latency-kernel `main` cannot
+**No end-to-end check exists for vLLM, and that is stated rather than waived.** At FPM
+revision `03e006de`, DeepSeek-V4.1-Flash on h200, b200, b300, gb200 and gb300 is measured
+under **SGLang only** -- another engine, another MoE kernel (`w4a16_mxfp4_humming` on h200)
+and another checkpoint revision (`fb2764a5` against the catalog's `52544481`). The only vLLM
+V4.1 leaf is a historical GB200 dev build labelled "comparator". So FPM cannot be the arbiter
+§3 requires for V4.1's vLLM pricing; an earlier version of this section said it could.
+blis-registry#42 stays open with no arbiter until a vLLM V4.1 forward-pass measurement
+exists. Separately, blis-latency-kernel `main` cannot
 price the model: it refuses the `fp8_ds_mla` cache (#36), charges 20,480 KV bytes per token
 against roughly 1,790 (#30), drops the 128-token window from the sparse read (#32) and
-does not pad FlashMLA's heads (#39). blis-latency-kernel#44 closes all four. The check is
-the first thing to run once it lands, tracked in inference-sim/blis-registry#42. Three
-consumer-contract points go with it, each stated in the entries:
+does not pad FlashMLA's heads (#39). blis-latency-kernel#44 closes all four. Three
+consumer-contract points go with the entries, each stated in them:
 
 * **Multi-token decode.** The sparse rate was fitted at one query token per request. Under
   DSpark speculation a request decodes 1 + num_spec_tokens query tokens, and FlashMLA treats
@@ -1197,7 +1202,7 @@ each entry's rationale.
 
 | entry (scope: h200 / h100, deepseek-v4.1-flash) | method | h200 | h100 | fit (h200) |
 |---|---|---|---|---|
-| `attention_prefill_{floor,per_request,per_token,rate}_sparse_mla` | measured | 14.8 µs, 1.323 µs, 0.049 µs, 3,159,685 B/µs | 15.5, 1.325, 0.0571, 3,509,505 | 1.067x, signed 1.003, n = 1,642; held out on blocks 1.137x, on chunk length 1.036x |
+| `attention_prefill_{floor,per_request,per_token,rate}_sparse_mla` | measured | 14.8 µs, 1.323 µs, 0.049 µs, 3,159,685 B/µs | 15.5, 1.325, 0.0571, 3,509,505 | 1.067x, signed 1.003, n = 1,642 (not V4.1's operating point: signed 0.81 at 10 blocks); held out on blocks 1.137x (signed 0.91), on chunk length 1.036x |
 | `attention_prefill_{floor,per_token,rate}_block_index_scores` | **assumed** (proxy kernel) | 4.1 µs, 0.00466 µs, 7,298,637 B/µs | 4.7, 0.00441, 7,364,876 | 1.066x, signed 0.969, n = 3,504; held out on context 1.054x, on rows 1.142x |
 | `mhc_{floor,rate}_pre` | measured | 8.9 µs, 1,799,384 B/µs | 9.3, 1,325,488 | 1.052x, n = 70; across hidden 1.103x / 1.073x |
 | `mhc_{floor,rate}_post` | measured | 3.0 µs, 1,850,611 B/µs | 3.1, 1,306,352 | 1.091x, n = 70; across hidden 1.178x / 1.109x |
@@ -1212,18 +1217,38 @@ own traffic -- 64 padded heads of 512 BF16 in and out -- at about the part's emp
 rate. The fit uses only rows reading at most V4.1's 10 blocks a query. Its weak point is
 V4.1's operating point: the only 10-block rows are short chunks at step 65,536, under-priced
 1.31x (signed 0.81), and long chunks at 10 blocks are not in the table; long-chunk rows at
-11-67 blocks extrapolate at 1.05x. The SM90 sparse prefill device code is unchanged between
+11-67 blocks extrapolate at 1.05x. **So the 1.067x headline is not V4.1's error.** It is
+dominated by the rows V4.1 does not run: 980 of the 1,642 rows are at 3 blocks, 20 at 10 and
+none at 8-9. At V4.1's read the evidence is signed 0.81 in sample (under-priced) and, trained
+on fewer blocks, signed 0.91 held out on 7-10 blocks; the honest statement of this entry's
+error at V4.1's operating point is "about 10-20% fast, from 71 rows", not 1.067x.
+
+**These entries ship without the end-to-end check §3 and the evidence page ask for, as an
+explicit exception.** No vLLM forward-pass measurement of V4.1 exists on any part (§10.5:
+FPM's V4.1 rows are SGLang), so the rule cannot be met by waiting for the data on hand; the
+alternative is to keep pricing V4.1 with entries fitted on other kernels, which is the known
+larger error. Each entry therefore says it has no arbiter, and blis-registry#42 stays open
+until a vLLM V4.1 forward-pass measurement exists. The SM90 sparse prefill device code is unchanged between
 the FlashMLA pins of vLLM 0.25.0 and 0.31.0 (renames only). V4.1's ratio-1/2 layers gather
 their whole compressed stream before the kernel; the ratio-128 rows hold that gather only at
 1/128 of the context, so it stays with the catalog's `prefill_dequant_gather` node.
 
 **The indexer's prefill is a proxy, and is labelled so.** vLLM v0.31.0's prefill indexer runs
-DeepGEMM's ragged `fp8_fp4_mqa_logits`; the only measurement is the paged
+DeepGEMM's ragged `fp8_fp4_mqa_logits`; the entries are fitted on the paged
 `fp8_fp4_paged_mqa_logits` at prefill shapes. Unlike decode, the sweep's shared block table
 is representative here (every query row of a request reads the same keys), and the fitted
 throughput is compute-like (906 TFLOPS at 64 heads). The 32-head V4.1 indexer is scaled
-linearly from 64, an assumption. Most likely pessimistic: the ragged kernel is the one
-written for many rows over shared keys.
+linearly from 64, an assumption. **The ragged kernel is measured, on another lane:**
+SGLang 0.5.14's `glm5_mqa_logits_module_perf` times `deep_gemm.fp8_mqa_logits` at GLM-5's
+indexer geometry -- 32 index heads x 128, FP8 keys, ratio 1, V4.1's head count. Evaluated
+as the kernel charges it, the proxy is 1.50x there, signed 0.93 (h200) and 0.90 (h100);
+signed 0.89 / 0.82 on long chunks over long prefixes and 1.18 / 1.09 at V4.1's 8,192-token
+chunk. An earlier review read the table's `num_heads` (GLM-5's 64 attention heads) as index
+heads and found the proxy over-pricing by 1.4-1.7x; at the config's 32 it does not. The
+ragged rows are not fitted because the lane decision is open: SGLang 0.5.14 calls upstream
+DeepGEMM's `fp8_mqa_logits`, vLLM v0.31.0 its fork's `fp8_fp4_mqa_logits` on the FP8 path,
+and the two pins' device code has not been compared. `fit_deepseek_v41_prefill.py` prints
+the comparison and each rationale states it.
 
 **mHC is measured per site and interpolated by bytes.** `mhc_module_perf` times TileLang
 `mhc_pre` and `mhc_post` (two sites a row) at hidden 4096 and 7168; W = tokens x hidden x 8 B

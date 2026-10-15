@@ -296,6 +296,23 @@ def test_the_v41_host_entries_re_derive_from_their_vendored_measurements():
 
 
 @pytest.mark.parametrize("hw", ["h200", "h100"])
+def test_the_v41_sparse_decode_form_is_physical_and_complete(hw):
+    """The two-branch decode form ships all five members or none (the reader is all-or-none),
+    its throughput rate is below the part's HBM peak, and its launch floor is below the
+    part-wide attention floor it replaces at one block -- a floor above it would mean a
+    module, not the kernel, was timed."""
+    m = "deepseek-v4.1-flash"
+    names = ["launch_floor", "split_floor", "serial_rate", "per_token", "throughput_rate"]
+    vals = {n: _single(f"attention_decode_{n}_sparse_mla", hw, m) for n in names}
+    peak = chip_facts(hw)["BwPeakTBs"] * 1e6
+    assert 0 < vals["throughput_rate"] < peak
+    assert 0 < vals["serial_rate"] < vals["throughput_rate"]
+    assert 0 < vals["launch_floor"] <= _single("attention_decode_floor", hw)
+    assert 0 < vals["split_floor"] < vals["launch_floor"]
+    assert 0 < vals["per_token"] < 1.0
+
+
+@pytest.mark.parametrize("hw", ["h200", "h100"])
 def test_the_v41_mhc_rates_are_below_the_parts_hbm_peak(hw):
     """mHC streams the hc_mult residual copies through HBM once a step; a fitted rate over
     those bytes above the datasheet bandwidth would mean the byte count W is wrong."""

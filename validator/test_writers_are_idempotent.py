@@ -74,6 +74,10 @@ WRITERS = [
     # geometry change refuses in both.
     ("fit_deepseek_v41_prefill.py", "the DeepSeek-V4.1 h200 and h100 sparse-MLA prefill, "
                                     "indexer prefill and mHC entries"),
+    # The decode companion: V4.1's two-branch FlashMLA sparse decode form (five entries per
+    # part, new names the kernel does not read yet), fitted beside the committed single rate.
+    ("fit_deepseek_v41_decode.py", "the DeepSeek-V4.1 h200 and h100 sparse-MLA decode "
+                                   "two-branch form"),
     # Not a fitter -- it transcribes AISimulate's activation table and anchors the capture
     # bytes on a committed CSV -- but it renders a whole file, so byte-identity is the right
     # gate. The capture half needs no AISimulate tree and is also gated in CI by
@@ -240,6 +244,9 @@ def test_every_fitted_family_has_a_writer():
         "mhc_rate_pre": "fit_deepseek_v41_prefill.py",
         "mhc_floor_post": "fit_deepseek_v41_prefill.py",
         "mhc_rate_post": "fit_deepseek_v41_prefill.py",
+        **{f"attention_decode_{t}_sparse_mla": "fit_deepseek_v41_decode.py"
+           for t in ("launch_floor", "split_floor", "serial_rate", "per_token",
+                     "throughput_rate")},
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {

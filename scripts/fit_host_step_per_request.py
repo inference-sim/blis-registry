@@ -29,6 +29,11 @@ holdout unit is the cell (model x topology), and the seed is reported so the dra
 reproducible. FPM's model-system collinearity means a cell holdout is also a chip holdout;
 that is stated rather than hidden, and the fit is deliberately NOT per-cell.
 
+HELD-OUT EVIDENCE, never fitted: FPM's five GLM-5.3-Flash vLLM 0.31.0 GB300 leaves pair each
+held-out step with a "clean" timer excluding schedule() and update_from_output; decode
+(FPM - clean) rises 20-33 us per request over batch 1-32 (SGLang control: -1), though the
+slope is not identified at batch <= 8. Grace hosts, separate runs. Methodology section 10.7.
+
 Fitted on PURE-DECODE rows, where there is no prefill attention and no causal-FLOPs term,
 so the batch-dependent residual is isolated. Validated on the MIXED rows, which no fit
 sees.

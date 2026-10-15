@@ -341,11 +341,11 @@ Two traps these scripts exist to avoid, both of which produced wrong answers by 
 ### 6.0 What is reproducible, and what is not
 
 Five kinds of value live in this registry. Counted from the coefficient files
-themselves (1,133 entries in six sets):
+themselves (1,143 entries in six sets):
 
 | `method` | entries | reproducible by |
 |---|---|---|
-| `measured` | 834 | a named fitter in `scripts/`, re-run by the validator |
+| `measured` | 844 | a named fitter in `scripts/`, re-run by the validator |
 | `vendor_spec` | 57 | NVIDIA's own descriptor or simulator source, transcribed by a writer with `--check` |
 | `assumed` | 239 | a derivation script where one exists; otherwise nothing — each states its reasoning and what would replace it |
 | `copied` | 1 | nothing to reproduce: another scope's value carried, `copied_from` naming it -- an assumed transfer, not a derivation (DeepSeek-V4.1's `host_launch_eager_per_kernel` off h200, §10.6) |
@@ -664,6 +664,7 @@ The reference pages carry the current counts.
 | primitives | `gemm_{eps_max,m_half}_w8a16_mxfp8`, `host_gather_rate_uva` | 6 | `assumed` bounds (h200, h100), §10.5 |
 | primitives | descriptors | 48 | AISimulate `systems/<sku>.yaml` |
 | attention | `attention_decode_rate_sparse_mla`, `attention_decode_*_block_index_scores` | 6 | vllm 0.25.0 ×4 + 2 `assumed` (h200, h100; deepseek-v4.1-flash), §10.5 |
+| attention | `attention_decode_{launch_floor,split_floor,serial_rate,per_token,throughput_rate}_sparse_mla` | 10 | vllm 0.25.0 ×10 (h200, h100; deepseek-v4.1-flash), §10.7 |
 | attention | `attention_prefill_*_sparse_mla`, `attention_prefill_*_block_index_scores` | 14 | vllm 0.25.0 ×8 + 6 `assumed` proxy (h200, h100; deepseek-v4.1-flash), §10.6 |
 | primitives | `mhc_{floor,rate}_{pre,post}` | 8 | vllm 0.25.0 ×8 (h200, h100; deepseek-v4.1-flash), §10.6 |
 | recurrent | `recurrent_decode_*_kda` | 6 | vllm 0.1.dev19262 |
@@ -1300,6 +1301,79 @@ structural zero. These two model-scoped entries sit after their
 part-wide namesakes in the same set, the one arrangement
 `test_a_model_scoped_entry_never_shadows_a_part_wide_one` allows: last-in-file-order and
 scoped-wins resolve it the same way.
+
+### 10.7 DeepSeek-V4.1-Flash decode: a two-branch FlashMLA form, and what stays assumed
+
+The single decode rate (§10.5) is 1.18-1.20x with a batch bias it cannot carry: signed
+1.45-1.54 at batch 128 and 0.59-0.80 at 1,024. The FlashMLA decode rows show two regimes.
+At small batch the call is latency-bound and flat in batch to about 128 rows: one block
+costs about 10.2 µs (h200) / 10.4 µs (h100), any read of two or more blocks adds about
+3.5 µs at once (the split-KV combine launch), then 0.2-0.3 µs a block. At large batch it is
+linear in rows through the origin: one cost per query row and one per block read. So
+`scripts/fit_deepseek_v41_decode.py` fits, per part, on the rows of at most V4.1's 10
+blocks:
+
+    t = max(launch_floor + split_floor x [B > 1] + B x 37,376 B / serial_rate,
+            sum over query rows (per_token + blocks x 37,376 B / throughput_rate))
+
+| part | launch floor | split | serial rate | per token | throughput rate | fit | held out rows ≤ 256 → ≥ 512 | held out blocks ≤ 4 → ≥ 6 |
+|---|---|---|---|---|---|---|---|---|
+| h200 | 10.0 µs | 3.1 µs | 115,005 B/µs | 0.05437 µs | 1.30 TB/s | 1.061x (single rate 1.176x) | 1.038x (single rate 1.375x) | 1.059x |
+| h100 | 10.3 µs | 3.6 µs | 145,351 B/µs | 0.06567 µs | 1.27 TB/s | 1.060x (single rate 1.193x) | 1.028x (single rate 1.502x) | 1.058x |
+
+The per-token term lands near the prefill fit's own (0.049 / 0.057 µs), an independent
+check that it is each row's query and output traffic. The weakness is stated in each
+entry: the throughput branch is identified only by the batch ≥ 256 rows, which are at 1-3
+blocks. Trained on rows ≤ 64 the form predicts ≥ 128 at 1.8-1.9x, worse than the single
+rate (1.3x), because no training row reaches that branch. At 10 blocks the throughput
+branch binds above about 47 query rows per rank, a region the sweep's batch x context
+≤ 1M grid never measures; there the per-block cost is extrapolated from 1-3 blocks, as the
+single rate's is. Batches 16-64 at 4+ blocks are under-priced (signed 0.83-0.93).
+
+The names are new. `attention_decode_floor_sparse_mla` is deliberately not used: the
+kernel reads that name today as the floor of the single-rate pair, which was fitted over
+the inherited part-wide floor, and would silently re-price it. The kernel uses the form only
+when all five resolve.
+
+**What stays `assumed`, and why.**
+
+* *The indexer's decode scan rate* (`attention_decode_rate_block_index_scores`). Both
+  kernel-level sweeps of `fp8_fp4_paged_mqa_logits` -- vLLM 0.24.0/0.25.0 and SGLang
+  0.5.14 -- give every query row one shared block table, and none flushes L2. The largest
+  unique footprint, one request at a 1M context, is 34.6 MB, inside the 50 MB L2, and its
+  implied throughput is 7.2 TB/s-equivalent on h100 (above the 3.35 TB/s HBM peak) even at
+  batch 1. No row reads its keys from HBM, so no row identifies the HBM-bound scan V4.1
+  runs in serving, where it is the one decode term that grows with context (ratio 1 and 2
+  over all 40 layers' index sources). Its per-row term is identified (about 0.006-0.01 µs a
+  row at 64 heads, past 256 rows) but is under 3 µs a layer at V4.1's batches and is not
+  shipped.
+* *The decode top-k.* vLLM v0.31.0 runs `cooperative_topk` up to 64 rows and
+  `persistent_topk` beyond (`indexer_topk.py`, `index_topk` 512 on SM90). AISimulate
+  times only SGLang's `topk_transform_512` (`dsv4_csa_topk_calib_perf`) and its
+  GLM-5 fused variant, different kernels with mode switches visible in the rows (0 µs,
+  then a 48-85 µs plateau, then ~10 µs past 128k). Nothing measures vLLM's kernels, and the
+  catalog keeps pricing the logits write and top-k read as `index_logits_topk` bytes.
+* *`compute_global_topk_indices_and_lens`* and V4.1's candidate select/mask: unmeasured.
+* *Host and launch terms.* AISimulate carries no host, launch or graph-replay rows on any
+  part; every operator row is a device timing under CUDA-graph replay. The collective
+  floors on h100 and h200 are already `measured` (NCCL and vLLM custom all-reduce), so
+  they are not among the assumed terms. The only public timing of an engine's Python path
+  found is FPM's GLM-5.3-Flash vLLM 0.31.0 fidelity pairs on GB300 (next paragraph);
+  nothing times graph replay or eager launch on Hopper.
+
+**Held-out evidence for a per-request host term, not used to fit anything.** Each of FPM's
+five GLM-5.3-Flash vLLM 0.31.0 GB300 leaves (FP8 TP2/TP4, NVFP4 TP1/TP2/TP4, checkpoint
+`eb9eb208`, FULL_AND_PIECEWISE, async scheduling off) ships `source-fidelity.json`, pairing
+each held-out point's FPM step time with a "clean" timer that excludes `schedule()`, the
+scheduler-output send and `update_from_output`. Re-derived here from the five files: an OLS
+of decode (FPM - clean) on batch over 77 points a leaf gives 20.4, 24.9, 26.4, 27.6 and 32.6
+µs per request (intercepts 16-282 µs); the SGLang 0.5.20 control leaf gives -1.2. It does
+not hold at small batch: fitted on batch ≤ 8 alone the slopes range from -21 to +33 µs, and
+the residual at batch ≥ 16 is up to 1 ms, so the per-request reading rests on batch 16-32.
+Caveats: Grace (Arm) hosts, FPM and clean are separate runs, batch ≤ 32, and the clean
+timer's boundary is described only in words. It is the first in-version public timing of a
+per-request scheduler cost, and it agrees in magnitude with `fit_host_step_per_request.py`'s
+form; it is recorded as held-out evidence for that term on gb300 and moves no value.
 
 ## 11. Memory occupancy: what composes, and where each term comes from
 

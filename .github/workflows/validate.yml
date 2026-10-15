@@ -58,6 +58,11 @@ jobs:
           # graph/kernel keys DeepSeek-V4.1 needs (blis-schemas#55). Neither touched
           # spec/coefficient or vocab, so each bump was non-breaking for this repository.
           # Bump this tag deliberately on a schema release.
+          #
+          # acceptance/ (blis-schemas#65): cmd/validate-registry validates acceptance-profile
+          # sets from the first release carrying #65; v0.3.0 predates it and reads only
+          # coefficients/, so acceptance/ is schema-checked here once this tag is bumped.
+          # Until then, check it locally with that branch's `go run ./cmd/validate-registry`.
           repository: inference-sim/blis-schemas
           ref: v0.3.0
           path: blis-schemas

@@ -253,19 +253,21 @@ def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
     assert checked >= 1, f"only {checked} Marlin ramp entries checked"
 
 
-def test_the_derived_deepseek_v41_h200_entries_equal_what_they_are_derived_from():
-    """The four `assumed` entries fit_deepseek_v41_h200.py writes are each a function of
-    committed siblings and the catalog, so the relation is checkable in CI with no sweep.
-    A sibling refitted without re-running the writer fails here rather than leaving an
-    assumed value derived from a number the registry no longer carries."""
+@pytest.mark.parametrize("hw", ["h200", "h100"])
+def test_the_derived_deepseek_v41_entries_equal_what_they_are_derived_from(hw):
+    """The four `assumed` entries fit_deepseek_v41_h200.py writes per part are each a
+    function of THAT part's committed siblings and catalog descriptor, so the relation is
+    checkable in CI with no sweep. A sibling refitted without re-running the writer, or an
+    h100 value copied from h200, fails here rather than leaving an assumed value derived
+    from a number the registry no longer carries."""
     m = "deepseek-v4.1-flash"
-    bw = chip_facts("h200")["BwPeakTBs"] * 1e6
-    assert _single("attention_decode_rate_block_index_scores", "h200", m) == round(
-        bw * _single("hbm_derate", "h200"))
-    assert _single("gemm_eps_max_w8a16_mxfp8", "h200") == _single("gemm_eps_max_bf16", "h200")
-    assert _single("gemm_m_half_w8a16_mxfp8", "h200") == _single("gemm_m_half_bf16", "h200")
-    assert _single("host_gather_rate_uva", "h200") == round(
-        _single("host_link_bandwidth", "h200") * 128 / 130 * (256 + 8) / (256 + 32))
+    bw = chip_facts(hw)["BwPeakTBs"] * 1e6
+    assert _single("attention_decode_rate_block_index_scores", hw, m) == round(
+        bw * _single("hbm_derate", hw))
+    assert _single("gemm_eps_max_w8a16_mxfp8", hw) == _single("gemm_eps_max_bf16", hw)
+    assert _single("gemm_m_half_w8a16_mxfp8", hw) == _single("gemm_m_half_bf16", hw)
+    assert _single("host_gather_rate_uva", hw) == round(
+        _single("host_link_bandwidth", hw) * 128 / 130 * (256 + 8) / (256 + 32))
 
 
 # --------------------------------------------------------------------------------------

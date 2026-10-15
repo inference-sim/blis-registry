@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
-"""DeepSeek-V4.1-Flash on H200: the attention, indexer, weight-only GEMM and host-gather
-coefficients vLLM v0.31.0's kernels need, each measured where a kernel-level measurement
-of the right kernel exists and declared `assumed` where none does.
+"""DeepSeek-V4.1-Flash on SM90 (H200, H100): the attention, indexer, weight-only GEMM and
+host-gather coefficients vLLM v0.31.0's kernels need, each measured where a kernel-level
+measurement of the right kernel exists and declared `assumed` where none does.
 
-    python scripts/fit_deepseek_v41_h200.py            # print the fits, rewrite both sets
-    python scripts/fit_deepseek_v41_h200.py --check    # exit 1 if either set would change
+    python scripts/fit_deepseek_v41_h200.py              # print the fits, rewrite both sets
+    python scripts/fit_deepseek_v41_h200.py --check      # exit 1 if either set would change
+    python scripts/fit_deepseek_v41_h200.py --part h100  # one part only
 
-Owns six entries, two fitted and four assumed (inference-sim/blis-registry#37, #38, #39):
+Named for h200, the part it was written for; every part in PARTS is fitted from its own
+AISimulate rows, catalog descriptor and committed siblings, never from another part's
+values. Run fit_marlin_grouped_ramp.py first: the W8A16 rationale cites the part's grouped
+Marlin ramp.
 
-  cost-model-attention.yaml, scoped {hardware: [h200], model: [deepseek-v4.1-flash]}
+Owns six entries per part, two fitted and four assumed (inference-sim/blis-registry#37,
+#38, #39):
+
+  cost-model-attention.yaml, scoped {hardware: [<part>], model: [deepseek-v4.1-flash]}
     attention_decode_rate_sparse_mla           measured  FlashMLA sparse decode
     attention_decode_floor_block_index_scores  measured  indexer MQA-logits scan floor
     attention_decode_rate_block_index_scores   assumed   indexer scan rate (empirical HBM)
-  cost-model-primitives.yaml, scoped {hardware: [h200]}
+  cost-model-primitives.yaml, scoped {hardware: [<part>]}
     gemm_eps_max_w8a16_mxfp8, gemm_m_half_w8a16_mxfp8   assumed  Marlin MXFP8 W8A16 dense
     host_gather_rate_uva                                assumed  engram rows over UVA
 
@@ -30,7 +37,7 @@ WHAT vLLM v0.31.0 RUNS ON SM90 FOR THIS MODEL (read from the tag, db9527a4):
   * Indexer scan: `SparseAttnIndexer` -> DeepGEMM `fp8_fp4_paged_mqa_logits` over the
     compressed index keys, FP8 with an FP32 scale, 132 B per key
     (`_indexer_k_cache_head_dim`). MXFP4 keys and the sparse-logits path both require
-    SM100 (`dsa_indexer_uses_fp4`, `AttentionConfig.indexer_sparse_logits`), so on H200
+    SM100 (`dsa_indexer_uses_fp4`, `AttentionConfig.indexer_sparse_logits`), so on SM90
     the scan is dense over ceil(context / compress_ratio) keys per request.
   * Dense linears: `MarlinMxfp8LinearKernel`, "MXFP8 W8A16 GEMM via Marlin"
     (model_executor/kernels/linear/mxfp8/marlin.py); the FlashInfer MXFP8 kernels ahead of
@@ -39,8 +46,8 @@ WHAT vLLM v0.31.0 RUNS ON SM90 FOR THIS MODEL (read from the tag, db9527a4):
     gathered by `_engram_lookup_kernel` (models/deepseek_v41/common/engram.py) through UVA.
 
 WHY THE vLLM 0.25.0 SWEEPS MEASURE THE v0.31.0 KERNELS. AISimulate has no vLLM collection
-newer than 0.25.0 for h200_sxm. For the two attention kernels the device code was compared
-across the pins the two tags build:
+newer than 0.25.0 for h200_sxm or h100_sxm. For the two attention kernels the device code
+was compared across the pins the two tags build:
   * FlashMLA (vllm-project/FlashMLA a6ec2ba -> 0eee43b): `csrc/sm90/decode/sparse_fp8/*`
     became `csrc/kernels/sm90/decode/sparse/*` with only namespace, include-path and
     MODEL1 -> V4 renames; the 584 B `BYTES_PER_TOKEN` assert is unchanged.
@@ -51,8 +58,9 @@ across the pins the two tags build:
 
 THE TABLES, AND WHY EACH IS (OR IS NOT) A KERNEL MEASUREMENT.
   * `dsv4_hca_attn_module_perf` (vllm/0.25.0, FLASHMLA_SPARSE_DSV4): times `forward_mqa`,
-    i.e. the FlashMLA call with no projections, floor ~10 us -- below this part's 13.5 us
-    attention floor, so it is the kernel and not the block (methodology section 10.1). Fitted
+    i.e. the FlashMLA call with no projections, floor ~10 us -- below the 13.5 us (h200) and
+    14.5 us (h100) attention floors, so it is the kernel and not the block (methodology
+    section 10.1). Fitted
     on the DeepSeek-V4-Flash-FP8 rows: 64 query heads, the same h64 instantiation and 584 B
     record V4.1 runs. Its rows are compress_ratio 128, whose compressed tier is read in
     full; the kernel walks SWA blocks then extra blocks in one 64-token-block loop
@@ -63,8 +71,8 @@ THE TABLES, AND WHY EACH IS (OR IS NOT) A KERNEL MEASUREMENT.
   * `dsv4_paged_mqa_logits_module_perf` (vllm/0.25.0): times `fp8_fp4_paged_mqa_logits`
     itself under CUDA graphs. Its FLOOR is the kernel's. Its SLOPE is not an HBM rate: the
     collector gives every query row the same block table, so the unique key footprint is at
-    most 34.6 MB, and the fitted throughput is 1.12x the HBM datasheet peak -- impossible
-    from HBM, and consistent with the shared keys being served from cache. In serving each
+    most 34.6 MB, and the fitted throughput is 1.12x the HBM datasheet peak on h200 and
+    1.92x on h100 -- impossible from HBM, and consistent with the shared keys being served from cache. In serving each
     request's keys are its own and HBM-resident, so the scan is HBM-bound, and NVIDIA's
     empirical HBM rate is what is committed.
   * `dsv41/sglang/dev-1aa0e962.../dsv41_module_perf` is NOT used: it is SGLang, eager (no
@@ -101,10 +109,32 @@ DEFAULT_DATA = os.environ.get(
 DEFAULT_CATALOG = (os.environ.get("BLIS_CATALOG")
                    or str(HERE.parent / "validator" / "testdata" / "catalog"))
 
-SKU, CHIP, MODEL = "h200_sxm", "h200", "deepseek-v4.1-flash"
+MODEL = "deepseek-v4.1-flash"
 COLLECTION = "vllm/0.25.0"
-MODEL_SCOPE = f"{{hardware: [{CHIP}], model: [{MODEL}]}}"
-PART_SCOPE = f"{{hardware: [{CHIP}]}}"
+
+# Per part: the AISimulate system, the name the datasheet gives it, and what the end-to-end
+# arbiter (methodology section 3) can say about it. `sibling` names a part on the same die
+# whose rows are compared to this part's, so the rationale states what a rate is not.
+PARTS = {
+    "h200": {"sku": "h200_sxm", "name": "H200", "sibling": None,
+             "e2e": ("END-TO-END CHECK PENDING: FPM carries DeepSeek-V4.1-Flash on h200; "
+                     "the kernel prices this model once blis-latency-kernel#44 lands (it "
+                     "closes #30, #32, #36 and #39); tracked in blis-registry#42, see "
+                     "methodology section 10.5.")},
+    "h100": {"sku": "h100_sxm", "name": "H100", "sibling": "h200",
+             "e2e": ("NO END-TO-END CHECK ON THIS PART: FPM carries DeepSeek-V4.1-Flash on "
+                     "b200, b300, gb200, gb300 and h200 but not h100, so nothing arbitrates "
+                     "this entry here; the nearest is the h200 check on the same SM90 kernel "
+                     "(blis-registry#42, methodology section 10.5).")},
+}
+
+
+def model_scope(chip: str) -> str:
+    return f"{{hardware: [{chip}], model: [{MODEL}]}}"
+
+
+def part_scope(chip: str) -> str:
+    return f"{{hardware: [{chip}]}}"
 
 FLASHMLA_TABLE = "dsv4_hca_attn_module_perf.parquet"
 FLASHMLA_LANE = "FLASHMLA_SPARSE_DSV4"
@@ -153,14 +183,14 @@ def committed(path: Path, name: str, chip: str) -> float:
     raise SystemExit(f"{chip}: no committed part-wide {name}")
 
 
-def catalog_facts(catalog: Path) -> tuple[float, float]:
+def catalog_facts(catalog: Path, chip: str) -> tuple[float, float]:
     """(HBM datasheet bandwidth in bytes per microsecond, dense FP8 peak in TFLOPS)."""
-    facts = yaml.safe_load((catalog / "hardware" / f"{CHIP}.yaml").read_text())
+    facts = yaml.safe_load((catalog / "hardware" / f"{chip}.yaml").read_text())
     return float(facts["BwPeakTBs"]) * 1e6, float(facts["TFlopsFP8"])
 
 
-def read(data: Path, table: str) -> dict:
-    path = data / SKU / "sparse_attention" / COLLECTION / table
+def read(data: Path, sku: str, table: str) -> dict:
+    path = data / sku / "sparse_attention" / COLLECTION / table
     if not path.is_file():
         raise SystemExit(f"{path} is absent; the pinned collection is required")
     return pq.read_table(path).to_pydict()
@@ -210,9 +240,9 @@ def check_geometry(data: Path) -> dict:
     }
 
 
-def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
-    t = read(data, FLASHMLA_TABLE)
-    pts, blocks_of, batch_of = [], [], []
+def fit_flashmla(data: Path, sku: str, g: dict, peak: float, floor: float) -> dict:
+    t = read(data, sku, FLASHMLA_TABLE)
+    pts, blocks_of, batch_of, rows = [], [], [], {}
     for i in range(len(t["latency"])):
         if t["isl"][i] != 1 or t["model"][i] != FLASHMLA_FIT_MODEL:
             continue
@@ -231,6 +261,7 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
                     t["latency"][i] * 1000.0))
         blocks_of.append(blocks)
         batch_of.append(t["batch_size"][i])
+        rows[(t["batch_size"][i], t["step"][i])] = t["latency"][i]
     if len(pts) < 150:
         raise SystemExit(f"only {len(pts)} FlashMLA decode rows")
     best = min((geo(pts, floor, peak * f)[0], f) for f in RATE_FRACTIONS)
@@ -275,14 +306,14 @@ def fit_flashmla(data: Path, g: dict, peak: float, floor: float) -> dict:
             "hold_batch_max": max(n for n, b in zip(batch_of, blocks_of) if b >= 5),
             "v41_batch_max": max((n for n, b in zip(batch_of, blocks_of)
                                   if b == g["v41_blocks"]), default=0),
-            "free_err": free[0], "free_floor": free[1],
+            "free_err": free[0], "free_floor": free[1], "rows": rows,
             "hold_n": len(te), "hold": geo(te, floor, peak * trf),
             "v41_n": len(v41), "v41": geo(v41, floor, rate), "floor": floor,
             "max_blocks": max(blocks_of)}
 
 
-def fit_indexer(data: Path, g: dict) -> dict:
-    t = read(data, INDEXER_TABLE)
+def fit_indexer(data: Path, sku: str, g: dict) -> dict:
+    t = read(data, sku, INDEXER_TABLE)
     pts, uniq, models = [], [], []
     for i in range(len(t["latency"])):
         if t["isl"][i] != 1:
@@ -338,9 +369,34 @@ def lines(name, value, units, method, fitted, scope, sources, rationale):
     return out + ["      rationale: >", f"        {rationale}"]
 
 
-def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate: float,
-            bf16_eps: float, bf16_mh: int, grouped_eps: float, grouped_mh: int,
-            host_bw: float) -> tuple[list, list]:
+def sibling_note(chip: str, fm: dict, peak: float, sib: dict | None) -> str:
+    """For a part fitted beside a same-die sibling: the two parts' latency on the rows both
+    measure, against the ratio an HBM-bound read would show."""
+    if sib is None:
+        return ""
+    common = sorted(set(fm["rows"]) & set(sib["fm"]["rows"]))
+    if len(common) < 0.9 * len(fm["rows"]):
+        raise SystemExit(f"{chip} and {sib['chip']} share only {len(common)} FlashMLA rows")
+    r = sorted(fm["rows"][k] / sib["fm"]["rows"][k] for k in common)
+    top = sorted(common, key=lambda k: sib["fm"]["rows"][k])[-(len(common) // 10):]
+    r_top = sorted(fm["rows"][k] / sib["fm"]["rows"][k] for k in top)
+    return (f"THE SAME KERNEL AS ON {sib['chip'].upper()}, NOT A SCALED HBM RATE: on the "
+            f"{len(common)} rows both parts measure, this part's latency is a median "
+            f"{r[len(r) // 2]:.2f}x {sib['chip']}'s ({r_top[len(r_top) // 2]:.2f}x over the "
+            f"slowest tenth), where a read bound on HBM would be "
+            f"{sib['peak'] / peak:.2f}x ({sib['peak'] / 1e6:g} against {peak / 1e6:g} TB/s); "
+            f"so this rate is close to {sib['chip']}'s ({sib['fm']['rate'] / 1e6:.2f} TB/s) "
+            f"and a larger fraction of this part's peak -- the cost per byte of reads this "
+            f"short, not a bandwidth -- and must not be rescaled between parts by "
+            f"BwPeak. ")
+
+
+def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float,
+            derate: float, bf16_eps: float, bf16_mh: int, grouped_eps: float,
+            grouped_mh: int, host_bw: float, sib: dict | None) -> tuple[list, list]:
+    part = PARTS[chip]
+    sku, name = part["sku"], part["name"]
+    MODEL_SCOPE, PART_SCOPE = model_scope(chip), part_scope(chip)
     tb = peak / 1e6
     ridge = fp8_tflops * 1e6 / peak                       # FLOP per byte at the FP8 peak
     fit_heads = g["fit_index_heads"]
@@ -350,13 +406,13 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
     spec_keys = measured_tflops * 1e6 / (6 * g["v41_index_heads"] * 256)
     spec_frac = spec_keys * g["key"] / (peak * derate)
     floors = ", ".join(f"{v:.2f} us" for v in ix["per_model"].values())
-    aisim = "NVIDIA AISimulate systems/data/h200_sxm/sparse_attention/vllm/0.25.0/"
+    aisim = f"NVIDIA AISimulate systems/data/{sku}/sparse_attention/vllm/0.25.0/"
     hbm_rate = int(round(peak * derate))
     gather = int(round(host_bw * PCIE_LINE_CODE * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
     attn = [
         lines("attention_decode_rate_sparse_mla", f"{fm['rate']}.0", "bytes_per_us",
               "measured", True, MODEL_SCOPE,
-              [("model", f"{aisim}{FLASHMLA_TABLE} (NVIDIA H200), {FLASHMLA_LANE}, "
+              [("model", f"{aisim}{FLASHMLA_TABLE} (NVIDIA {name}), {FLASHMLA_LANE}, "
                 f"{FLASHMLA_FIT_MODEL} (64 query heads, the h64 kernel), "
                 f"{fm['n']} decode points", "primary"),
                ("model", "vLLM v0.31.0 models/deepseek_v41/nvidia/flashmla.py "
@@ -391,7 +447,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, n={fm['hold_n']}, all at "
               f"batch <= {fm['hold_batch_max']}); at exactly V4.1's {g['v41_blocks']} blocks "
               f"{fm['v41'][0]:.3f}x (signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= "
-              f"{fm['v41_batch_max']}). SO V4.1'S OPERATING POINT IS INSIDE THE MEASURED RANGE "
+              f"{fm['v41_batch_max']}). {sibling_note(chip, fm, peak, sib)}SO V4.1'S OPERATING POINT IS INSIDE THE MEASURED RANGE "
               f"ON THE BLOCK AXIS ONLY: it reads {g['v41_blocks']} blocks per query at any "
               f"context past about 1k tokens, at batches the sweep's batch x context <= 1M "
               f"grid never pairs with {g['v41_blocks']} blocks; across the measured batches "
@@ -414,14 +470,11 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"its split-KV combine kernel's grid moves from (b, s_q, h) to (b*s_q, 1, h), "
               f"inert at one query token, and gains 192/224/256-split cases that only "
               f"requests needing more than 160 splits reach; the host API was rewritten, "
-              f"including skipping the split workspace for unsplit requests. END-TO-END "
-              f"CHECK PENDING: FPM carries DeepSeek-V4.1-Flash on h200; the kernel prices "
-              f"this model once blis-latency-kernel#44 lands (it closes #30, #32, #36 and "
-              f"#39); tracked in blis-registry#42, see methodology section 10.5. Reproduce "
-              f"with scripts/fit_deepseek_v41_h200.py."),
+              f"including skipping the split workspace for unsplit requests. {part['e2e']} "
+              f"Reproduce with scripts/fit_deepseek_v41_h200.py."),
         lines("attention_decode_floor_block_index_scores", ix["floor"], "us_per_transfer",
               "measured", True, MODEL_SCOPE,
-              [("model", f"{aisim}{INDEXER_TABLE} (NVIDIA H200), {INDEXER_LANE}, "
+              [("model", f"{aisim}{INDEXER_TABLE} (NVIDIA {name}), {INDEXER_LANE}, "
                 f"DeepSeek-V4-Flash-FP8 and V4-Pro-FP8 (64 index heads, head_dim 128, "
                 f"FP8 keys), {ix['n']} decode points", "primary"),
                ("model", "vLLM v0.31.0 model_executor/layers/sparse_attn_indexer.py, "
@@ -447,10 +500,10 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"scripts/fit_deepseek_v41_h200.py."),
         lines("attention_decode_rate_block_index_scores", f"{hbm_rate}.0", "bytes_per_us",
               "assumed", False, MODEL_SCOPE,
-              [("model", f"{aisim}{INDEXER_TABLE} (NVIDIA H200): fitted throughput "
+              [("model", f"{aisim}{INDEXER_TABLE} (NVIDIA {name}): fitted throughput "
                 f"{ix['implied'] / 1e6:.2f} TB/s-equivalent at {g['key']} B/key, above the "
                 f"{tb:g} TB/s HBM peak", "upper_bound"),
-               ("model", "NVIDIA AISimulate systems/h200_sxm.yaml "
+               ("model", f"NVIDIA AISimulate systems/{sku}.yaml "
                 "mem_bw_empirical_scaling_factor (hbm_derate)", "primary")],
               f"ASSUMED: NVIDIA's empirical HBM rate, BwPeak x hbm_derate = {tb:g} TB/s x "
               f"{derate:g} -- the descriptor's observed correction, not a bound; the bound is "
@@ -485,7 +538,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
     prim = [
         lines("gemm_eps_max_w8a16_mxfp8", bf16_eps, "dimensionless", "assumed", False,
               PART_SCOPE,
-              [("model", "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/"
+              [("model", f"NVIDIA AISimulate systems/data/{sku}/gemm/vllm/0.25.0/"
                 "gemm_perf.parquet via gemm_eps_max_bf16 (cuBLAS BF16 envelope)",
                 "upper_bound"),
                ("model", "vLLM v0.31.0 model_executor/kernels/linear/mxfp8/marlin.py "
@@ -495,7 +548,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"MarlinMxfp8LinearKernel (W8A16; the FlashInfer MXFP8 kernels ahead of it "
               f"require SM100): FP8 weights dequantized in registers, BF16 activations, "
               f"mma.sync. Its compute rate is therefore a fraction of the BF16 peak, and "
-              f"the measured cuBLAS BF16 envelope ({bf16_eps:g} of peak) bounds it above. "
+              f"the measured cuBLAS BF16 envelope ({bf16_eps} of peak) bounds it above. "
               f"No sweep measures dense Marlin on any part, so the fraction it reaches is "
               f"unknown; the same Marlin MMA core in its grouped (MoE) form reaches "
               f"{grouped_eps:g} (gemm_eps_max_w4a16_mxfp4_grouped); if dense Marlin reaches "
@@ -503,12 +556,12 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"{bf16_eps / grouped_eps:.1f}x at prefill-sized M. At decode-sized M "
               f"the kernel's HBM term -- the FP8 "
               f"weight read -- dominates, and this term barely enters. DIRECTION: optimistic "
-              f"for compute-bound GEMMs. TO REPLACE IT: an h200 GEMM sweep with "
+              f"for compute-bound GEMMs. TO REPLACE IT: an {chip} GEMM sweep with "
               f"MarlinMxfp8LinearKernel forced (AISimulate's vLLM GEMM collector has no "
               f"Marlin path). Read by no consumer until blis-latency-kernel selects a ramp "
               f"by weight format and chip (blis-latency-kernel#34)."),
         lines("gemm_m_half_w8a16_mxfp8", bf16_mh, "tokens", "assumed", False, PART_SCOPE,
-              [("model", "NVIDIA AISimulate systems/data/h200_sxm/gemm/vllm/0.25.0/"
+              [("model", f"NVIDIA AISimulate systems/data/{sku}/gemm/vllm/0.25.0/"
                 "gemm_perf.parquet via gemm_m_half_bf16", "primary")],
               f"ASSUMED: this part's measured cuBLAS BF16 knee (gemm_m_half_bf16), paired "
               f"with gemm_eps_max_w8a16_mxfp8 so the two describe one ramp rather than an "
@@ -524,7 +577,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"come from one fit."),
         lines("host_gather_rate_uva", f"{gather}.0", "bytes_per_us", "assumed", False,
               PART_SCOPE,
-              [("model", "NVIDIA AISimulate systems/h200_sxm.yaml pcie_bw "
+              [("model", f"NVIDIA AISimulate systems/{sku}.yaml pcie_bw "
                 "(host_link_bandwidth)", "primary"),
                ("model", "vLLM v0.31.0 models/deepseek_v41/common/engram.py "
                 "_engram_lookup_kernel, ParallelEngramEmbedding", "supporting")],
@@ -548,7 +601,7 @@ def entries(g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float, derate:
               f"every GPU of a node gathers from one host's memory. The lookup runs on a "
               f"side stream at half the SMs, so how much of it a step exposes is a "
               f"composition question, not this rate's. TO REPLACE IT: time "
-              f"ParallelEngramEmbedding.lookup(background=True) with cpu_offload on an H200 "
+              f"ParallelEngramEmbedding.lookup(background=True) with cpu_offload on an {name} "
               f"host over 1-8,192 tokens at TP 1 and 8, and fit floor + bytes / rate. Read "
               f"by no consumer until the schema can state a host-resident gather "
               f"(blis-schemas#48, blis-latency-kernel#38)."),
@@ -564,38 +617,42 @@ def render(attn_text: str, prim_text: str, attn: list, prim: list) -> tuple[str,
     p = cb.split(prim_text)
     for e in prim:
         stem = "gemm_" if cb.name_of(e).startswith("gemm_") else "host_link_bandwidth"
-        cb.upsert(p, e, after=lambda b, s=stem: (cb.name_of(b) or "").startswith(s)
-                  and cb.scope_of(b) == PART_SCOPE)
+        scope = cb.scope_of(e)
+        cb.upsert(p, e, after=lambda b, s=stem, sc=scope: (cb.name_of(b) or "").startswith(s)
+                  and cb.scope_of(b) == sc)
     return cb.join(a), cb.join(p)
 
 
-def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", default=DEFAULT_DATA)
-    ap.add_argument("--catalog", default=DEFAULT_CATALOG)
-    ap.add_argument("--check", action="store_true",
-                    help="exit 1 if either set would change; write nothing")
-    args = ap.parse_args(argv[1:])
-    data, catalog = Path(args.data), Path(args.catalog)
-
-    g = check_geometry(data)
-    peak, fp8_tflops = catalog_facts(catalog)
-    floor = committed(ATTN_PATH, "attention_decode_floor", CHIP)
-    fm = fit_flashmla(data, g, peak, floor)
-    ix = fit_indexer(data, g)
+def fit_part(data: Path, catalog: Path, chip: str, g: dict, fitted: dict) -> tuple[list, list]:
+    """Fit one part from its own rows, descriptor and committed siblings, print the fits,
+    and return its (attention, primitives) entries. `fitted` holds the parts already fitted
+    this run, so a part with a sibling can compare rows against it."""
+    sku = PARTS[chip]["sku"]
+    peak, fp8_tflops = catalog_facts(catalog, chip)
+    floor = committed(ATTN_PATH, "attention_decode_floor", chip)
+    fm = fit_flashmla(data, sku, g, peak, floor)
+    ix = fit_indexer(data, sku, g)
     if ix["implied"] <= peak:
         raise SystemExit(
-            f"the indexer sweep's throughput no longer exceeds the HBM peak (footprint "
-            f"{ix['max_unique'] / 1e6:.1f} MB, throughput {ix['implied'] / 1e6:.2f} TB/s "
-            f"against {peak / 1e6:g} TB/s): fit its rate instead of assuming NVIDIA's HBM rate")
-    derate = committed(PRIM_PATH, "hbm_derate", CHIP)
-    bf16_eps = committed(PRIM_PATH, "gemm_eps_max_bf16", CHIP)
-    bf16_mh = int(committed(PRIM_PATH, "gemm_m_half_bf16", CHIP))
-    host_bw = committed(PRIM_PATH, "host_link_bandwidth", CHIP)
-    grouped_eps = committed(PRIM_PATH, "gemm_eps_max_w4a16_mxfp4_grouped", CHIP)
-    grouped_mh = int(committed(PRIM_PATH, "gemm_m_half_w4a16_mxfp4_grouped", CHIP))
+            f"{chip}: the indexer sweep's throughput no longer exceeds the HBM peak "
+            f"(footprint {ix['max_unique'] / 1e6:.1f} MB, throughput "
+            f"{ix['implied'] / 1e6:.2f} TB/s against {peak / 1e6:g} TB/s): fit its rate "
+            f"instead of assuming NVIDIA's HBM rate")
+    derate = committed(PRIM_PATH, "hbm_derate", chip)
+    bf16_eps = committed(PRIM_PATH, "gemm_eps_max_bf16", chip)
+    bf16_mh = int(committed(PRIM_PATH, "gemm_m_half_bf16", chip))
+    host_bw = committed(PRIM_PATH, "host_link_bandwidth", chip)
+    grouped_eps = committed(PRIM_PATH, "gemm_eps_max_w4a16_mxfp4_grouped", chip)
+    grouped_mh = int(committed(PRIM_PATH, "gemm_m_half_w4a16_mxfp4_grouped", chip))
+    fitted[chip] = {"chip": chip, "fm": fm, "peak": peak}
+    sib_chip = PARTS[chip]["sibling"]
+    sib = None
+    if sib_chip is not None:
+        if sib_chip not in fitted:
+            raise SystemExit(f"{chip} is compared against {sib_chip}; fit both together")
+        sib = fitted[sib_chip]
 
+    print(f"[{chip}]")
     print(f"flashmla sparse decode  rate={fm['rate']:,} B/us ({fm['frac']:.3f} of peak) "
           f"floor pinned {floor:g} us  {fm['err']:.3f}x signed {fm['signed']:.3f} "
           f"(n={fm['n']}); free floor {fm['free_floor']:.1f} us {fm['free_err']:.3f}x; "
@@ -615,9 +672,35 @@ def main(argv: list[str]) -> int:
     print(f"w8a16 mxfp8 ramp        assumed = bf16 ({bf16_eps:g}, {bf16_mh})")
     print(f"host gather (UVA)       assumed = {host_bw:,.0f} x "
           f"128/130 x {ENGRAM_ROW_BYTES}/{ENGRAM_FETCHED_BYTES}")
+    return entries(chip, g, fm, ix, peak, fp8_tflops, derate, bf16_eps, bf16_mh,
+                   grouped_eps, grouped_mh, host_bw, sib)
 
-    attn, prim = entries(g, fm, ix, peak, fp8_tflops, derate, bf16_eps, bf16_mh,
-                         grouped_eps, grouped_mh, host_bw)
+
+def main(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--data", default=DEFAULT_DATA)
+    ap.add_argument("--catalog", default=DEFAULT_CATALOG)
+    ap.add_argument("--check", action="store_true",
+                    help="exit 1 if either set would change; write nothing")
+    ap.add_argument("--part", choices=sorted(PARTS),
+                    help="fit one part only (default: every part)")
+    args = ap.parse_args(argv[1:])
+    data, catalog = Path(args.data), Path(args.catalog)
+
+    g = check_geometry(data)
+    # A part with a sibling is compared against it, so the sibling is fitted too.
+    chips = list(PARTS) if args.part is None else [args.part]
+    need = set(chips) | {PARTS[c]["sibling"] for c in chips if PARTS[c]["sibling"]}
+    fitted: dict = {}
+    attn, prim = [], []
+    for chip in PARTS:  # dict order puts every sibling before the part compared to it
+        if chip not in need:
+            continue
+        a, p = fit_part(data, catalog, chip, g, fitted)
+        if chip in chips:
+            attn += a
+            prim += p
     a0, p0 = ATTN_PATH.read_text(encoding="utf-8"), PRIM_PATH.read_text(encoding="utf-8")
     a1, p1 = render(a0, p0, attn, prim)
     if args.check:

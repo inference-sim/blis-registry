@@ -158,6 +158,8 @@ ENGRAM_FETCHED_BYTES = 256 + 32
 PCIE_LINE_CODE = 128 / 130
 
 RATE_FRACTIONS = [x / 1000 for x in range(5, 1001)]
+# Bytes per call above which the marginal bandwidth is reported.
+VOLUME_THRESHOLDS = (1e6, 1e7)
 INDEXER_MODELS = {"sgl-project/DeepSeek-V4-Flash-FP8", "sgl-project/DeepSeek-V4-Pro-FP8"}
 
 
@@ -298,6 +300,15 @@ def fit_flashmla(data: Path, sku: str, g: dict, peak: float, floor: float) -> di
     # The overall error hides a batch-dependent bias: report it per batch, signed.
     by_batch = {b: geo([p for p, x in zip(pts, batch_of) if x == b], floor, rate)[1]
                 for b in sorted(set(batch_of))}
+    # Marginal bandwidth at volume: the least-squares slope of latency on bytes over rows
+    # reading at least 1 MB and at least 10 MB, and the largest call net of the floor.
+    marginal = {}
+    for thr in VOLUME_THRESHOLDS:
+        sel = wb >= thr
+        slope = np.polyfit(wb[sel], us[sel], 1)[0]
+        marginal[thr] = (int(sel.sum()), 1.0 / slope)
+    at_max = wb == wb.max()
+    max_fracs = wb[at_max] / (us[at_max] - floor) / peak
     # Short-context rows the pinned floor over-prices: batch 1, at most one block.
     short = [y for (w, y), b, n in zip(pts, blocks_of, batch_of) if n == 1 and b <= 1]
     return {"n": len(pts), "rate": rate, "frac": frac, "err": err, "signed": signed,
@@ -309,7 +320,12 @@ def fit_flashmla(data: Path, sku: str, g: dict, peak: float, floor: float) -> di
             "free_err": free[0], "free_floor": free[1], "rows": rows,
             "hold_n": len(te), "hold": geo(te, floor, peak * trf),
             "v41_n": len(v41), "v41": geo(v41, floor, rate), "floor": floor,
-            "max_blocks": max(blocks_of)}
+            "max_blocks": max(blocks_of), "marginal": marginal,
+            "under_1mb": int((wb < VOLUME_THRESHOLDS[0]).sum()),
+            "max_call": float(wb.max()), "max_call_n": int(at_max.sum()),
+            "max_call_batch": sorted({int(b) for b in nb[at_max]}),
+            "max_call_frac": (float(max_fracs.min()), float(max_fracs.max())),
+            "max_batch": max(batch_of)}
 
 
 def fit_indexer(data: Path, sku: str, g: dict) -> dict:
@@ -369,6 +385,19 @@ def lines(name, value, units, method, fitted, scope, sources, rationale):
     return out + ["      rationale: >", f"        {rationale}"]
 
 
+def volume_note(fm: dict, peak: float) -> str:
+    """How far from HBM-bound the largest measured reads are."""
+    m = fm["marginal"]
+    lo, hi = fm["max_call_frac"]
+    per = "; ".join(f"{m[t][1] / 1e6:.2f} TB/s, {m[t][1] / peak:.0%} of peak, over the "
+                    f"{m[t][0]} rows of at least {t / 1e6:g} MB" for t in VOLUME_THRESHOLDS)
+    return (f"AT VOLUME THE READ IS STILL FAR FROM HBM-BOUND: the marginal bandwidth (the "
+            f"least-squares slope of latency on bytes) is {per}; the {fm['max_call_n']} "
+            f"largest calls, {fm['max_call'] / 1e6:.0f} MB at batch "
+            f"{'/'.join(map(str, fm['max_call_batch']))}, read at "
+            f"{lo:.1%}-{hi:.1%} of peak net of the floor. ")
+
+
 def sibling_note(chip: str, fm: dict, peak: float, sib: dict | None) -> str:
     """For a part fitted beside a same-die sibling: the two parts' latency on the rows both
     measure, against the ratio an HBM-bound read would show."""
@@ -380,6 +409,17 @@ def sibling_note(chip: str, fm: dict, peak: float, sib: dict | None) -> str:
     r = sorted(fm["rows"][k] / sib["fm"]["rows"][k] for k in common)
     top = sorted(common, key=lambda k: sib["fm"]["rows"][k])[-(len(common) // 10):]
     r_top = sorted(fm["rows"][k] / sib["fm"]["rows"][k] for k in top)
+    mine, theirs = fm["marginal"], sib["fm"]["marginal"]
+    lo = VOLUME_THRESHOLDS[0]
+    sizes = " (".join(f"{t / 1e6:g} MB" for t in VOLUME_THRESHOLDS) + ")"
+    ratios = " (".join(f"{mine[t][1] / theirs[t][1]:.2f}x" for t in VOLUME_THRESHOLDS) + ")"
+    theirs_tb = " and ".join(f"{theirs[t][1] / 1e6:.2f}" for t in VOLUME_THRESHOLDS)
+    weighting = (
+        f"This part's fitted rate is {fm['rate'] / sib['fm']['rate']:.3f}x {sib['chip']}'s, a "
+        f"ratio that depends on row weighting: the fit is geometric over all {fm['n']} rows, {fm['under_1mb']} of "
+        f"them under 1 MB; on rows of at least {sizes} this part's marginal bandwidth is "
+        f"{ratios} {sib['chip']}'s ({theirs_tb} TB/s there, "
+        f"{theirs[lo][1] / sib['peak']:.0%} of its peak at 1 MB). ")
     return (f"THE SAME KERNEL AS ON {sib['chip'].upper()}, NOT A SCALED HBM RATE: on the "
             f"{len(common)} rows both parts measure, this part's latency is a median "
             f"{r[len(r) // 2]:.2f}x {sib['chip']}'s ({r_top[len(r_top) // 2]:.2f}x over the "
@@ -388,7 +428,7 @@ def sibling_note(chip: str, fm: dict, peak: float, sib: dict | None) -> str:
             f"so this rate is close to {sib['chip']}'s ({sib['fm']['rate'] / 1e6:.2f} TB/s) "
             f"and a larger fraction of this part's peak -- the cost per byte of reads this "
             f"short, not a bandwidth -- and must not be rescaled between parts by "
-            f"BwPeak. ")
+            f"BwPeak. {weighting}")
 
 
 def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: float,
@@ -409,6 +449,7 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
     aisim = f"NVIDIA AISimulate systems/data/{sku}/sparse_attention/vllm/0.25.0/"
     hbm_rate = int(round(peak * derate))
     gather = int(round(host_bw * PCIE_LINE_CODE * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
+    v41_call = fm["max_batch"] * g["v41_blocks"] * BLOCK * g["record"]
     attn = [
         lines("attention_decode_rate_sparse_mla", f"{fm['rate']}.0", "bytes_per_us",
               "measured", True, MODEL_SCOPE,
@@ -447,11 +488,14 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
               f"{fm['hold'][0]:.3f}x (signed {fm['hold'][1]:.3f}, n={fm['hold_n']}, all at "
               f"batch <= {fm['hold_batch_max']}); at exactly V4.1's {g['v41_blocks']} blocks "
               f"{fm['v41'][0]:.3f}x (signed {fm['v41'][1]:.3f}, n={fm['v41_n']}, batch <= "
-              f"{fm['v41_batch_max']}). {sibling_note(chip, fm, peak, sib)}SO V4.1'S OPERATING POINT IS INSIDE THE MEASURED RANGE "
+              f"{fm['v41_batch_max']}). {volume_note(fm, peak)}{sibling_note(chip, fm, peak, sib)}SO V4.1'S OPERATING POINT IS INSIDE THE MEASURED RANGE "
               f"ON THE BLOCK AXIS ONLY: it reads {g['v41_blocks']} blocks per query at any "
               f"context past about 1k tokens, at batches the sweep's batch x context <= 1M "
               f"grid never pairs with {g['v41_blocks']} blocks; across the measured batches "
-              f"the signed error spans the range above. WHY THIS SHIPS WHEN "
+              f"the signed error spans the range above. Nor on call volume: at the "
+              f"sweep's largest batch, {fm['max_batch']}, V4.1's {g['v41_blocks']} blocks "
+              f"per request read {v41_call / 1e6:.0f} MB per call, "
+              f"{v41_call / fm['max_call']:.1f}x the largest measured call. WHY THIS SHIPS WHEN "
               f"DEEPSEEK-V4-PRO'S WAS WITHDRAWN (methodology section 10.3): that rate was "
               f"fitted on Pro's 128-head rows (the h128 instance, which Pro runs only below "
               f"TP 2) and was to be charged against the kernel's selection rule for Pro's "

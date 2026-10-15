@@ -62,10 +62,10 @@ jobs:
           # TEMPORARY, NOT MERGEABLE AS IS: pinned to a commit, not a tag, so acceptance/
           # (blis-schemas#65) is schema-validated now. v0.3.0 reads only coefficients/;
           # cmd/validate-registry reads acceptance/ from blis-schemas#74's head,
-          # 1a9978ea32ad (pseudo-version v0.3.1-0.20261015030426-1a9978ea32ad, a draft PR).
+          # 9685411a32ad (pseudo-version v0.3.1-0.20261015034608-968541158c8f, a draft PR).
           # Replace this SHA with the release tag that ships #74 before this merges.
           repository: inference-sim/blis-schemas
-          ref: 1a9978ea32ad94fa6fbaf8ee73e0d817eb096cc0
+          ref: 968541158c8f2221613ed1ed72d7bb45e43f25d4
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

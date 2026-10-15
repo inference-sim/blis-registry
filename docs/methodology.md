@@ -1352,5 +1352,6 @@ collector it has not read fails the run.
 (`validator/test_acceptance_profiles.py`), because its inputs are vendored. The `rederive`
 job also checks the vendored curves and catalog models against InferenceX and blis-catalog
 at their pinned commits, and re-runs the emitter against the upstream checkout. Schema
-validation is blis-schemas' `cmd/validate-registry`, which reads `acceptance/` from the
-release carrying blis-schemas#65 on.
+validation is blis-schemas' `cmd/validate-registry`, which reads `acceptance/` from
+blis-schemas#74 on. CI's `schema-validate` pins that pull request's head commit for now; a
+release tag carrying it must replace the commit before this merges.

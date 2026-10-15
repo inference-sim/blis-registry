@@ -1280,3 +1280,66 @@ On `deepseek-v3-h200-fp8-sglang-tp8` (tp 8, `hidden_size` 7168, 8,192 batched to
 
 The set is committed **ahead of its reader**: the kernel reads none of it yet, and
 inference-sim/blis-latency-kernel#22 is sequenced to land after it.
+
+## 12. Speculative acceptance profiles
+
+`acceptance/inferencex-golden-al.yaml` holds the acceptance lengths a simulator advances
+speculating requests by (inference-sim/blis-registry#44), in blis-schemas#65's format. It
+is not a coefficient set: acceptance does not price a step, it sets how many tokens a step
+yields. The generated tables and the set's caveats are on the
+[acceptance reference page](reference/acceptance.md).
+
+### 12.1 One source, transcribed
+
+Every value comes from SemiAnalysis InferenceX's
+`inferencex-e2e/infx/golden_al_distribution/*.yaml`, vendored under
+`validator/testdata/inferencex/` at the commit `scripts/emit_acceptance_profiles.py` cites.
+The emitter reads each acceptance length, and every provenance field a file's header
+states (the source Actions run, benchmark, category, sampling, image, TP and engine
+settings), and types none of them. A header key it does not know how to transcribe fails
+the run, so a setting cannot be silently dropped. An acceptance length is `measured`; the
+one file InferenceX marks provisional is `copied`, with `copied_from` naming the measured
+profile it repeats, and the emitter checks that the two values agree.
+
+### 12.2 Model names: resolved, or refused
+
+InferenceX keys a curve by the lower-cased basename of the Hugging Face repository it
+served (`MODEL_KEY` in its SPEED-Bench collectors). The emitter resolves that key to the
+catalog model whose `source.repo` has that basename, against the vendored copy of every
+catalog `model.yaml`. A key that resolves to none is not carried, and the set's caveats
+name it. A quantised checkpoint is a different catalog model, so InferenceX's
+`qwen3.5-397b-a17b-nvfp4` does not become the catalog's bf16 `qwen3.5-397b-a17b`.
+
+One alias is allowed, with its evidence in the emitter: `glm-5.3-fp8`, the provisional
+curve's key, is InferenceX's name for `zai-org/GLM-5.3`, the catalog's `glm-5.3`. The
+emitter fails if the catalog stops recording that repository for it.
+
+### 12.3 Curves a key cannot tell apart
+
+A profile is keyed by model, method, K, thinking mode and category; it cannot state the
+drafter or the draft sampler. Where InferenceX publishes two curves that differ only in
+those, at most one can be carried. The emitter follows InferenceX's own resolver
+(`curves.py`, `curve_name`): MiniMax-M3's base EAGLE3 curve is carried and the GQA-drafter
+variant is not, and neither Kimi-K3 DSpark curve is carried, because the resolver itself
+refuses to choose between greedy and probabilistic draft sampling. Every file is
+classified in the emitter's `CURVES` table, and an unclassified file fails the run.
+
+### 12.4 Hardware: stated, or read from the run
+
+A measured profile must name the part it was measured on. Most headers state it ("B300,
+vLLM MTP"). The DeepSeek-V4.1-Flash file states none, and its collecting job ran on
+InferenceX's `b200-nscale` cluster, launched through the B200 benchmark base, so its
+profiles say `b200`. blis-registry#44 describes the curve as measured on B300; the run
+contradicts that, and the run is what is recorded. The emitter's `RUN_HARDWARE` table
+holds each run's runner, read through the GitHub API, and is checked against every header
+that also states a part. Files that name no engine image say so in `engine_image`: their
+runs' logs have expired, so the image cannot be recovered.
+
+### 12.5 Gates
+
+`emit_acceptance_profiles.py --check` runs in every CI job
+(`validator/test_acceptance_profiles.py`), because its inputs are vendored. The `rederive`
+job also checks the vendored curves and catalog models against InferenceX and blis-catalog
+at their pinned commits, and re-runs the emitter against the upstream checkout. Schema
+validation is blis-schemas' `cmd/validate-registry`, which reads `acceptance/` from the
+release carrying blis-schemas#65 on.

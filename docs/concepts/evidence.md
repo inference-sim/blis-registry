@@ -48,8 +48,11 @@ not been identified waits.
 
 Where no dataset measures a quantity, the entry says so: it is `assumed`, its rationale
 states the reasoning, and it names the measurement that would replace it. The host
-overheads are the clearest case. No public dataset times an engine's Python path, so all
-seven are assumed, and each entry describes the experiment that would measure it.
+overheads are the clearest case. No public dataset times an engine's Python path on the
+parts these entries price, so all seven are assumed, and each entry describes the
+experiment that would measure it. (FPM's GLM-5.3-Flash vLLM leaves on GB300 time the
+scheduler's per-request cost indirectly; they are held-out evidence, not a fit, see the
+methodology §10.7.)
 
 ## Every measured number can be re-derived
 

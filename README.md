@@ -27,6 +27,7 @@ the kernel once per simulated step.
 | Path | Contents |
 |---|---|
 | `coefficients/` | The coefficient sets, one YAML file each. |
+| `acceptance/` | Speculative acceptance-profile sets, transcribed from InferenceX's golden curves. |
 | `scripts/` | The fitters and writers that produce them from public data. |
 | `validator/` | Property and re-derivation tests over the committed sets. |
 | `docs/` | The documentation site, including the methodology. |
@@ -40,6 +41,10 @@ the [reference overview](https://inference-sim.github.io/blis-registry/latest/re
 names each one and the change that will read it. The
 [reference pages](https://inference-sim.github.io/blis-registry/latest/reference/) list
 every entry, generated from these files.
+
+Beside them, `acceptance/inferencex-golden-al.yaml` holds the speculative acceptance
+lengths a simulator advances requests by, keyed by model, method, K and thinking mode
+([acceptance profiles](https://inference-sim.github.io/blis-registry/latest/reference/acceptance/)).
 
 ## A coefficient
 
@@ -74,7 +79,8 @@ python -m pytest validator/ -q -rs
 CI runs these jobs on a pull request:
 
 - **schema-validate** runs blis-schemas' validator (`cmd/validate-registry`, pinned by
-  tag) over every set, the same rules a consumer applies when it loads one.
+  tag; temporarily by commit, blis-schemas#74's head, until the release that ships it) over
+  every set, `acceptance/` included, the same rules a consumer applies when it loads one.
 - **derivation-tests** runs `validator/` without the AISimulate sweeps, so the property
   tests run and the re-derivation tests skip.
 - **rederive** runs the same suite with AISimulate checked out at the pinned commit

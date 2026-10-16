@@ -2,10 +2,12 @@
 
 A coefficient set is a YAML file under `coefficients/`. The rules on this page are
 enforced by [blis-schemas](https://github.com/inference-sim/blis-schemas), at the
-release the registry's CI pins (`v0.3.0`), in
+release `v0.3.0`, in
 [`spec/coefficient`](https://github.com/inference-sim/blis-schemas/tree/v0.3.0/spec/coefficient)
 and [`vocab`](https://github.com/inference-sim/blis-schemas/blob/v0.3.0/vocab/vocab.go).
-Where this page and the schema disagree, the schema is right.
+Where this page and the schema disagree, the schema is right. CI currently pins
+blis-schemas#74's head instead, so it also validates `acceptance/`; its `spec/coefficient`
+and `vocab` are identical to `v0.3.0`'s.
 
 ## Shape
 

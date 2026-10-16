@@ -20,6 +20,10 @@ A page asks for generated content with an HTML comment on a line of its own:
     <!-- registry:entry SET NAME PART -->    one entry, quoted verbatim from its file
     <!-- registry:stat KEY -->               one number, inline (total, sets, names,
                                              parts, measured, vendor_spec, assumed, ...)
+    <!-- registry:acceptance NAME [part] -->  an acceptance-profile set under acceptance/:
+                                             part is "values" (default; AL by K per
+                                             model and method), "provenance" (one row
+                                             per source file) or "caveats"
     <!-- registry:ref -->                    the revision the pages were generated from
     <!-- registry:release -->                the newest release tag reachable from it
 
@@ -110,6 +114,33 @@ def _load_set(root: Path, path: Path) -> CoefficientSet:
     return CoefficientSet(data["name"], str(path.relative_to(root)), entries)
 
 
+@dataclass(frozen=True)
+class AcceptanceSet:
+    name: str
+    path: str  # repo-relative
+    caveats: list[str]
+    profiles: list[tuple[int, dict]]  # (1-based line of the profile, the profile)
+
+
+ACCEPTANCE_PAGE = "reference/acceptance.md"
+
+
+def _load_acceptance(root: Path) -> dict[str, AcceptanceSet]:
+    d = root / "acceptance"
+    out = {}
+    for path in sorted(d.glob("*")) if d.is_dir() else []:
+        if path.suffix.lower() not in (".yaml", ".yml"):
+            continue
+        text = path.read_text()
+        data = yaml.safe_load(text)
+        node = dict((k.value, v) for k, v in yaml.compose(text).value)
+        lines = [item.start_mark.line + 1 for item in node["profiles"].value]
+        out[data["name"]] = AcceptanceSet(
+            data["name"], str(path.relative_to(root)), list(data.get("caveats", [])),
+            list(zip(lines, data["profiles"], strict=True)))
+    return out
+
+
 def _source_ref(root: Path) -> str:
     ref = os.environ.get("DOCS_SOURCE_REF")
     if ref:
@@ -150,7 +181,7 @@ def on_config(config):
     sets = [_load_set(root, p) for p in paths]
     _state.clear()
     _state.update(root=root, sets={s.name: s for s in sets}, ref=_source_ref(root),
-                  release=_release(root))
+                  release=_release(root), acceptance=_load_acceptance(root))
     return config
 
 
@@ -177,6 +208,17 @@ def on_files(files, config):
                 "exist. Every set gets a reference page; copy an existing one.")
         if page not in nav_pages:
             raise PluginError(f"registry hook: docs/{page} is not listed in mkdocs.yml nav")
+    if _state["acceptance"]:
+        page = files.get_file_from_path(ACCEPTANCE_PAGE)
+        if page is None or ACCEPTANCE_PAGE not in nav_pages:
+            raise PluginError(f"registry hook: acceptance/ holds profile sets, so docs/"
+                              f"{ACCEPTANCE_PAGE} must exist and be listed in the nav")
+        text = Path(page.abs_src_path).read_text()
+        for name in _state["acceptance"]:
+            if not re.search(rf"^<!-- registry:acceptance {re.escape(name)}(?: values)? -->$",
+                             text, re.MULTILINE):
+                raise PluginError(f"registry hook: docs/{ACCEPTANCE_PAGE} does not render "
+                                  f"the values of acceptance set {name!r}")
     return files
 
 
@@ -546,6 +588,90 @@ def render_entry(args: str) -> str:
             f"at build time.</p>")
 
 
+def _fmt_al(al: float) -> str:
+    """An acceptance length to two places, as the sources publish them, unless it has more."""
+    return f"{al:.2f}" if round(al, 2) == al else repr(al)
+
+
+def acceptance_grid(a: AcceptanceSet) -> dict[tuple[str, str, str], dict]:
+    """(model, method, category) -> thinking -> K -> (line, profile), in file order."""
+    grid: dict = {}
+    for line, p in a.profiles:
+        cell = grid.setdefault((p["model"], p["speculative_method"], p["category"]), {})
+        slot = cell.setdefault(p["thinking"], {})
+        if p["num_spec_tokens"] in slot:
+            raise PluginError(f"registry hook: {a.path}:{line} repeats a profile key")
+        slot[p["num_spec_tokens"]] = (line, p)
+    return grid
+
+
+def _acceptance_values(a: AcceptanceSet) -> str:
+    out = [_legend({p["method"] for _, p in a.profiles})]
+    for (model, method, category), modes in acceptance_grid(a).items():
+        kmax = max(k for m in modes.values() for k in m)
+        rows = []
+        for thinking in sorted(modes):
+            row = [f"<code>{thinking}</code>"]
+            for k in range(1, kmax + 1):
+                if k not in modes[thinking]:
+                    row.append('<span class="reg-empty" title="no profile">·</span>')
+                    continue
+                line, p = modes[thinking][k]
+                link = f"{REPO_URL}/blob/{_state['ref']}/{a.path}#L{line}"
+                title = html.escape(f"{p['method']} · measured on {p['provenance']['hardware']}"
+                                    " — open the profile and its provenance")
+                row.append(f'<span class="reg-cell">{_glyph(p["method"])}<span><a '
+                           f'class="reg-v" href="{link}" title="{title}">'
+                           f'{_fmt_al(p["acceptance_length"])}</a></span></span>')
+            rows.append(row)
+        out.append(f"### `{model}` · `{method}` · `{category}`\n\n"
+                   + _table(["thinking"] + [f"K={k}" for k in range(1, kmax + 1)], rows,
+                            numeric_from=1))
+    return "\n\n".join(out)
+
+
+def _acceptance_provenance(a: AcceptanceSet) -> str:
+    by_source: dict[str, list[dict]] = {}
+    for _, p in a.profiles:
+        by_source.setdefault(p["provenance"]["source"], []).append(p)
+    rows = []
+    for source, ps in by_source.items():
+        v = ps[0]["provenance"]
+        sampling = ", ".join(f"{k} {x}" for k, x in v["sampling"].items())
+        settings = sorted({f"{k}: {x}" for p in ps
+                           for k, x in p["provenance"].get("settings", {}).items()})
+        run = v.get("run", "")
+        rows.append([
+            f'<a href="{source}"><code>{source.rsplit("/", 1)[-1]}</code></a>',
+            f'<a href="{run}">{run.rsplit("/", 1)[-1]}</a>' if run else "—",
+            ", ".join(sorted({f"<code>{p['model']}</code>" for p in ps})),
+            ", ".join(sorted({p["method"] for p in ps})),
+            f"<code>{v['hardware']}</code>",
+            html.escape(v["engine_image"]),
+            str(v.get("tp", "—")),
+            html.escape(sampling),
+            "<br>".join(html.escape(s) for s in settings) or "—",
+        ])
+    return _table(["file", "run", "model", "method", "measured on", "engine image", "TP",
+                   "sampling", "settings"], rows, numeric_from=99)
+
+
+def render_acceptance(args: str) -> str:
+    name, _, part = args.partition(" ")
+    a = _state["acceptance"].get(name)
+    if a is None:
+        raise PluginError(f"registry hook: no acceptance set {name!r} under acceptance/")
+    part = part.strip() or "values"
+    if part == "values":
+        return _acceptance_values(a)
+    if part == "provenance":
+        return _acceptance_provenance(a)
+    if part == "caveats":
+        return "\n".join(f"- {c}" for c in a.caveats)
+    raise PluginError(f"registry hook: registry:acceptance part {part!r} is not one of "
+                      "values, provenance, caveats")
+
+
 def _all_entries() -> list[Entry]:
     return [e for s in _state["sets"].values() for e in s.entries]
 
@@ -576,6 +702,7 @@ BLOCKS = {
     "sources": render_sources,
     "usage": render_usage,
     "entry": render_entry,
+    "acceptance": render_acceptance,
 }
 
 

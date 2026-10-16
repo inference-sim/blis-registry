@@ -13,6 +13,9 @@ after folding the part out of names that carry it, such as
 `collective_floor_all_reduce_fp16_8rank_h200`. *Parts* is the number of GPU parts with
 at least one entry.
 
+The speculative acceptance-profile sets under `acceptance/` are not coefficient sets and
+are not counted here; they have [their own page](acceptance.md).
+
 ## What each set rests on
 
 The share of each set by method, with the number of entries at the right:

@@ -20,6 +20,11 @@ Copied verbatim, with three model graphs beside them:
 models/deepseek-v3/graph.yaml   models/kimi-k3/graph.yaml   models/deepseek-v4-pro/graph.yaml
 ```
 
+and every model's `models/<name>/model.yaml` (34 of them), which name the model and the
+Hugging Face repository it was derived from. `scripts/emit_acceptance_profiles.py` reads
+them to resolve an InferenceX curve's model to a catalog name, and refuses a curve whose
+model is none of them, so the copy must be the catalog's whole model list, not a subset.
+
 The hardware descriptors are what `validator/test_coefficient_properties.py` opens -- it
 reads `BwPeakTBs` and the memory figures to check that a fitted rate is physically
 possible -- and what every fitter reads its peaks from. The graphs are the ones the fitters
@@ -75,5 +80,6 @@ branch.
 ## Kept in step with CI
 
 `.github/workflows/rederive.yml` checks out blis-catalog at this same commit and fails if
-its `hardware/` or any of the three vendored model graphs differs from this copy, so the
-property tests and the re-derivation gates always read one revision.
+its `hardware/`, any of the three vendored model graphs, or the set of `model.yaml` files
+differs from this copy, so the property tests and the re-derivation gates always read one
+revision.

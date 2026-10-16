@@ -111,6 +111,7 @@ nav:
           - cost-model-recurrent: reference/sets/cost-model-recurrent.md
           - cost-model-host-overheads: reference/sets/cost-model-host-overheads.md
           - cost-model-memory: reference/sets/cost-model-memory.md
+      - Acceptance profiles: reference/acceptance.md
       - File format: reference/format.md
       - Validation: reference/validation.md
   - Methodology:

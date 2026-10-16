@@ -130,3 +130,39 @@ def test_every_entry_has_a_source_class():
     for s in all_sets():
         for e in s.entries:
             assert registry.classify_source(e)
+
+
+def acceptance_sets():
+    return list(registry._state["acceptance"].values())
+
+
+def test_every_committed_acceptance_set_is_loaded():
+    on_disk = {yaml.safe_load(p.read_text())["name"]
+               for p in (ROOT / "acceptance").glob("*.yaml")}
+    assert on_disk and on_disk == set(registry._state["acceptance"])
+
+
+@pytest.mark.parametrize("a", acceptance_sets(), ids=lambda a: a.name)
+def test_every_profile_is_rendered_with_its_committed_value_and_line(a):
+    html = registry.render_acceptance(f"{a.name} values")
+    lines = (ROOT / a.path).read_text().splitlines()
+    for line, p in a.profiles:
+        assert lines[line - 1].lstrip("- ").startswith(f"model: {p['model']}")
+        cell = re.search(rf'href="[^"]*{re.escape(a.path)}#L{line}"[^>]*>([^<]+)</a>', html)
+        assert cell, f"{a.path}:{line} is not rendered"
+        assert float(cell.group(1)) == p["acceptance_length"]
+
+
+@pytest.mark.parametrize("a", acceptance_sets(), ids=lambda a: a.name)
+def test_every_caveat_and_source_is_rendered(a):
+    caveats = registry.render_acceptance(f"{a.name} caveats")
+    assert caveats.count("\n- ") + 1 == len(a.caveats)
+    provenance = registry.render_acceptance(f"{a.name} provenance")
+    for _, p in a.profiles:
+        assert p["provenance"]["source"] in provenance
+
+
+def test_an_unknown_acceptance_part_fails_the_build():
+    name = acceptance_sets()[0].name
+    with pytest.raises(registry.PluginError):
+        registry.render_acceptance(f"{name} rates")

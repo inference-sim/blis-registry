@@ -159,3 +159,92 @@ def test_a_fit_at_its_grid_edge_refuses():
     for edge in (1, 3, float("nan")):
         with pytest.raises(SystemExit):
             w.interior(edge, grid, "x")
+
+
+# --------------------------------------------------------------------------------------
+# fit_deepseek_v41_host.kernel_basis
+# --------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("tamper", ["anchor", "device", "count", "scenario", "step",
+                                    "prefill_count", "dirty", "no_prefill_row"])
+def test_the_v41_eager_basis_refuses_a_record_that_does_not_match(tmp_path, monkeypatch,
+                                                                   tamper):
+    """The eager constant divides the anchor by the KERNEL's device time and launch count;
+    a basis recorded for another anchor, or edited by hand, must refuse rather than price."""
+    import fit_deepseek_v41_host as w
+
+    anchor = json.loads(w.ANCHOR_JSON.read_text())
+    kb = json.loads(w.KERNEL_BASIS_JSON.read_text())
+    if tamper == "anchor":
+        kb["anchor_sha256"] = "0" * 64
+    elif tamper == "device":
+        kb["device_ms"] += 0.5
+    elif tamper == "count":
+        kb["kernel_count"] += 46
+    elif tamper == "step":
+        kb["step"] = "prefill"
+    elif tamper == "prefill_count":
+        # Review H2: a count that includes the 46 phase: prefill launches, with a host time
+        # made consistent with it, is the known error and must still refuse.
+        kb["kernel_count"] += 46
+        kb["per_resource_ms"]["host"] += 46 * 3.2 / 1e3
+        kb["prefill_row_host_ms"] += 46 * 3.2 / 1e3
+    elif tamper == "dirty":
+        kb["kernel_commit"] += "-dirty"
+    elif tamper == "no_prefill_row":
+        del kb["prefill_row_host_ms"]
+    else:
+        kb["scenario"] = "TP8-baseline"
+    path = tmp_path / "basis.json"
+    path.write_text(json.dumps(kb))
+    monkeypatch.setattr(w, "KERNEL_BASIS_JSON", path)
+    with pytest.raises(SystemExit):
+        w.kernel_basis(anchor, 3.2)
+
+
+@pytest.mark.parametrize("tamper", ["median", "levels", "sha"])
+def test_the_v41_eager_anchor_inputs_refuse_an_inconsistent_record(tamper):
+    """Only derived inputs of the enforce-eager anchor are vendored; without the source
+    report (V41_EAGER_ANCHOR_REPORT) --check still refuses inputs that contradict themselves."""
+    import fit_deepseek_v41_host as w
+
+    anchor = json.loads(w.ANCHOR_JSON.read_text())
+    if tamper == "median":
+        anchor["plateau"]["median_itl_ms"] = anchor["plateau"]["max_itl_ms"] + 1
+    elif tamper == "levels":
+        anchor["plateau"]["levels"] = anchor["plateau"]["levels"][:-1]
+    else:
+        anchor["sha256"] = "not-a-sha"
+    with pytest.raises(SystemExit):
+        w.verify_anchor(anchor, {})
+
+
+@pytest.mark.parametrize("composition", [None, "launch_bound: step = launches x (eager + "
+                                                "dispatch) >= device, device hidden"])
+def test_the_v41_eager_constant_refuses_a_non_additive_basis(tmp_path, monkeypatch,
+                                                              composition):
+    """The constant is backed out under the kernel's ADDITIVE eager composition; a basis
+    recorded under another (the rejected launch-overlap form) or none must refuse."""
+    import fit_deepseek_v41_host as w
+
+    anchor = json.loads(w.ANCHOR_JSON.read_text())
+    kb = json.loads(w.KERNEL_BASIS_JSON.read_text())
+    if composition is None:
+        del kb["composition"]
+    else:
+        kb["composition"] = composition
+    path = tmp_path / "basis.json"
+    path.write_text(json.dumps(kb))
+    monkeypatch.setattr(w, "KERNEL_BASIS_JSON", path)
+    with pytest.raises(SystemExit):
+        w.eager(anchor)
+
+
+def test_the_v41_eager_constant_reproduces_the_anchor_additively():
+    """launches x (eager + dispatch) + device is the anchor's ITL, as the kernel composes it."""
+    import fit_deepseek_v41_host as w
+
+    ea = w.eager(json.loads(w.ANCHOR_JSON.read_text()))
+    step = ea["n"] * (ea["e"] + ea["launch"]) / 1e3 + ea["dev"]
+    assert abs(step / ea["median"] - 1) < 1e-4
+    assert 92.75 <= ea["e"] <= 93.7  # the kernel's TestTheEagerDecodeAnchorIsAdditive band

@@ -83,6 +83,9 @@ WRITERS = [
     # gate. The capture half needs no AISimulate tree and is also gated in CI by
     # test_coefficient_properties.py::test_capture_bytes_re_derive_from_the_committed_samples.
     ("emit_memory.py", "the activation multiples and CUDA-graph capture bytes"),
+    # The DeepEP dispatch + combine floor and rate per backend on h100, from
+    # h100_sxm/comm/vllm/0.24.0/moe_a2a_perf.parquet.
+    ("fit_deepep_a2a.py", "the DeepEP all-to-all floor and rate per backend"),
 ]
 
 # relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so

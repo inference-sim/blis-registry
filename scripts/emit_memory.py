@@ -390,9 +390,32 @@ def capture_entries() -> list[str]:
     return out
 
 
+# Entries another writer owns in this file, kept byte for byte where it put them:
+# fit_deepseek_v41_capture.py's model-scoped capture form (blis-latency-kernel captureMemory).
+FOREIGN = ("cudagraph_capture_floor_bytes_", "cudagraph_capture_bytes_per_mixed_token_",
+           "cudagraph_capture_bytes_per_decode_token_")
+
+
+def keep_foreign(text: str) -> str:
+    """Carry over the committed file's FOREIGN entries, each after the block it follows."""
+    if not TARGET.exists():
+        return text
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import coefficient_blocks as cb
+
+    old = cb.split(TARGET.read_text())
+    blocks = cb.split(text)
+    for i, b in enumerate(old):
+        name = cb.name_of(b)
+        if name and name.startswith(FOREIGN):
+            prev = next(cb.name_of(x) for x in reversed(old[:i]) if cb.name_of(x))
+            cb.upsert(blocks, b, after=lambda x, p=prev: cb.name_of(x) == p)
+    return cb.join(blocks)
+
+
 def generate() -> str:
     entries = activation_entries() + capture_entries()
-    return HEADER + "".join(entries) + f"\n# {len(entries)} entries generated.\n"
+    return keep_foreign(HEADER + "".join(entries) + f"\n# {len(entries)} entries generated.\n")
 
 
 def main(argv: list[str]) -> int:

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import collections
 import glob
+import json
 import os
 import re
 from pathlib import Path
@@ -516,6 +517,13 @@ def test_hardware_independent_sets_cover_every_catalog_part():
             continue
         split.setdefault((setname, name, models), []).append(body)
     for (setname, name, models), bodies in split.items():
+        # The model-scoped capture form is read all or none, and where it is absent the
+        # kernel charges the part-wide cudagraph_capture_bytes_<mode> (blis-latency-kernel
+        # captureMemory), so a part it does not scope is priced, not zeroed.
+        if name.startswith(("cudagraph_capture_floor_bytes_",
+                            "cudagraph_capture_bytes_per_mixed_token_",
+                            "cudagraph_capture_bytes_per_decode_token_")):
+            continue
         covered = set().union(*(set(b["scope"].get("hardware", [])) for b in bodies))
         missing = sorted(cat - covered)
         assert not missing, (
@@ -735,3 +743,62 @@ def test_capture_bytes_re_derive_from_the_committed_samples():
         assert e in text, (
             "cost-model-memory.yaml no longer carries what emit_memory.py renders from "
             "docs/vllm-cudagraph-capture-samples.csv:\n" + e[:400])
+
+
+def _capture_writer():
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, str(REPO / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "fit_deepseek_v41_capture", REPO / "scripts" / "fit_deepseek_v41_capture.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_v41_capture_entries_re_derive_from_their_vendored_start_ups():
+    """`fit_deepseek_v41_capture.py --check`: the floor and per-token capture entries are what
+    the vendored InferenceX H200 TP8 start-ups give."""
+    import subprocess
+    import sys
+
+    r = subprocess.run([sys.executable, str(REPO / "scripts" / "fit_deepseek_v41_capture.py"),
+                        "--check"], capture_output=True, text=True, cwd=str(REPO), timeout=120)
+    assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
+
+
+def test_the_v41_capture_form_reproduces_each_fitted_start_up():
+    """With the committed values, the kernel's form (floor + mixed x ceiling + decode x the
+    uniform-decode ceiling) gives each start-up's logged estimate within 0.15 GiB, and vLLM's
+    own extrapolation, E - M, within the decode term's share: the split is the source's."""
+    w = _capture_writer()
+    floor, mixed, decode = (_memory(n) for n in w.NAMES)
+    for s in json.loads(w.ANCHOR.read_text())["startups"]:
+        c = s["max_cudagraph_capture_size"]
+        d = w.decode_graphs(c, s["max_num_batched_tokens"], s["max_num_seqs"],
+                            1 + s["num_spec_tokens"])[-1]
+        assert abs((floor + mixed * c + decode * d) / 2**30 - s["estimated_gib"]) < 0.15, s
+        assert abs(decode * d / 2**30 - (s["estimated_gib"] - s["profiling_took_gib"])) < 0.15, s
+
+
+def test_emit_memory_keeps_the_capture_writers_entries():
+    """emit_memory.py renders the whole set; re-running it must not drop the entries
+    fit_deepseek_v41_capture.py owns, or the kernel silently falls back to the flat figure."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("emit_memory", REPO / "scripts" / "emit_memory.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+    import sys
+
+    sys.path.insert(0, str(REPO / "scripts"))
+    import coefficient_blocks as cb
+
+    text = (REPO / "coefficients" / "cost-model-memory.yaml").read_text()
+    stripped = cb.join([b for b in cb.split(text)
+                        if not (cb.name_of(b) or "").startswith(mod.FOREIGN)])
+    assert stripped != text
+    assert mod.keep_foreign(stripped) == text

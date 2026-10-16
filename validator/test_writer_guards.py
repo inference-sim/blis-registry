@@ -219,22 +219,20 @@ def test_the_v41_eager_anchor_inputs_refuse_an_inconsistent_record(tamper):
         w.verify_anchor(anchor, {})
 
 
-@pytest.mark.parametrize("tamper", ["device_bound", "no_composition", "other_anchor_host"])
-def test_the_v41_eager_constant_needs_a_launch_bound_step(tmp_path, monkeypatch, tamper):
-    """The kernel composes an eager step as max(launches, device); the constant is
-    ITL / launches - dispatch only while the anchor's step is launch-bound, so a basis whose
-    device time exceeds the anchor, or that does not record the comparison, must refuse."""
+@pytest.mark.parametrize("composition", [None, "launch_bound: step = launches x (eager + "
+                                                "dispatch) >= device, device hidden"])
+def test_the_v41_eager_constant_refuses_a_non_additive_basis(tmp_path, monkeypatch,
+                                                              composition):
+    """The constant is backed out under the kernel's ADDITIVE eager composition; a basis
+    recorded under another (the rejected launch-overlap form) or none must refuse."""
     import fit_deepseek_v41_host as w
 
     anchor = json.loads(w.ANCHOR_JSON.read_text())
     kb = json.loads(w.KERNEL_BASIS_JSON.read_text())
-    if tamper == "device_bound":
-        kb["per_resource_ms"]["hbm"] += 200.0
-        kb["device_ms"] += 200.0
-    elif tamper == "no_composition":
+    if composition is None:
         del kb["composition"]
     else:
-        kb["eager_host_ms"] += 1.0
+        kb["composition"] = composition
     path = tmp_path / "basis.json"
     path.write_text(json.dumps(kb))
     monkeypatch.setattr(w, "KERNEL_BASIS_JSON", path)
@@ -242,9 +240,11 @@ def test_the_v41_eager_constant_needs_a_launch_bound_step(tmp_path, monkeypatch,
         w.eager(anchor)
 
 
-def test_the_v41_eager_constant_reproduces_the_anchor_as_the_kernel_composes_it():
-    """launches x (eager + dispatch) is the anchor's ITL: the kernel's launch-bound decode."""
+def test_the_v41_eager_constant_reproduces_the_anchor_additively():
+    """launches x (eager + dispatch) + device is the anchor's ITL, as the kernel composes it."""
     import fit_deepseek_v41_host as w
 
     ea = w.eager(json.loads(w.ANCHOR_JSON.read_text()))
-    assert abs(ea["n"] * (ea["e"] + ea["launch"]) / 1e3 / ea["median"] - 1) < 1e-4
+    step = ea["n"] * (ea["e"] + ea["launch"]) / 1e3 + ea["dev"]
+    assert abs(step / ea["median"] - 1) < 1e-4
+    assert 92.75 <= ea["e"] <= 93.7  # the kernel's TestTheEagerDecodeAnchorIsAdditive band

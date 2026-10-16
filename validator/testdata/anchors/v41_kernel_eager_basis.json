@@ -1,11 +1,10 @@
 {
  "anchor_sha256": "f250d35ee0fbb67184638ef154dd8c88158bab9911c6945863bcf458ee38c078",
- "catalog_commit": "a2ef6d3443a9832dabccd04fe75918a9e3bcc701",
- "composition": "launch_bound: step = launches x (eager + dispatch) >= device, device hidden",
+ "catalog_commit": "46ae6dfe1188b249541d3b04486ea7e14bbaef11",
+ "composition": "additive: step = launches x (eager + dispatch) + device",
  "device_ms": 3.176242,
- "eager_host_ms": 96.56,
  "graph_mode": "FULL",
- "kernel_commit": "0ac3cf27f6250abf3cb74a3176c6531109016b9f",
+ "kernel_commit": "ce085ccd78305e1fd8d4370939fb89708f6ba8c2",
  "kernel_count": 972,
  "per_resource_ms": {
   "hbm": 1.225627,
@@ -15,7 +14,7 @@
  },
  "prefill_row_host_ms": 3.425399,
  "recorded_by": "diagnosis/kdevice (go run . -kernel <checkout> -registry <checkout>) | scripts/fit_deepseek_v41_host.py --record-device",
- "registry_commit": "017943ffdab620e54e89bf9fe336173b2b7edd6b",
+ "registry_commit": "0161fa4fed00f04f293d89d3282ed508d034ff16",
  "scenario": "the TP8-no-DSpark H200 transfer scenario, decode n=1, 1 token, ctx 90000, no speculation",
  "step": "decode"
 }

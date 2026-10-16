@@ -1268,7 +1268,7 @@ its evidence class. *The compressor:* no table isolates it; the csa/hca context-
 time the whole attention module, projections included, and a residual from them would be a
 module-derived term of the kind §10.1 rejects. It stays at the catalog's bytes.
 
-**Host terms.** `host_launch_eager_per_kernel` (96.14 µs, `assumed`) is V4.1's per-launch
+**Host terms.** `host_launch_eager_per_kernel` (92.87 µs, `assumed`) is V4.1's per-launch
 Python dispatch in an eager (cudagraph NONE) step -- vLLM v0.31.0 cannot torch.compile this
 model, so NONE is plain eager PyTorch. It is backed out of an internal enforce-eager H200
 serving run of the same model (ITL flat at 93.8-101.6 ms from c1 to c64). The run's report
@@ -1282,16 +1282,16 @@ kernel API) with clean kernel, registry and catalog commits. `--check` refuses a
 recorded for another anchor, scenario, host composition or step type: the anchor is a decode
 step, so the count must be the decode-only 972 (a step with a prefill row also launches the
 graph's 46 `phase: prefill` gathers, 1,018; kernel dd1fd67 used 1,018 on every step, which
-gave 89.4 µs). **The formula follows the kernel's eager composition.** From kernel 0ac3cf2 an
-eager step costs about max(launches, device) -- vLLM enqueues the kernels asynchronously, so
-launches overlap device work -- and a one-request decode step is launch-bound: 96.56 ms of
-launches against 3.18 ms of device time, which is hidden. So e = ITL / launches -
-`host_launch_per_kernel` = 96.56 ms / 972 - 3.2 µs = 96.14 µs, with no device-time
-subtraction (an earlier version subtracted it, matching a kernel that added host and device:
-92.9 µs). The basis records the kernel's device time for the step and the launch-bound
-comparison, and `--check` refuses a step that is not launch-bound. The committed basis is
-kernel 0ac3cf2 (972 launches, 3.18 ms device). The constant is valid only with the basis and
-the composition it was divided by. It is derived on H200 nodes only:
+gave 89.4 µs). **The composition is additive**, as the kernel's is: step = launches x (eager +
+dispatch) + device, so e = (ITL - device) / launches - `host_launch_per_kernel` =
+(96.56 - 3.18 ms) / 972 - 3.2 µs = 92.87 µs. A launch-overlap form, step ~ max(launches,
+device) (vLLM enqueues eager kernels asynchronously), was tried in the kernel and gave 96.14
+µs here, and was REJECTED: it does not reproduce the H200 DSpark arm's capture-ceiling
+collapse at c32, whose measured throughput the additive form matches (blis-latency-kernel
+ce085cc, `TestTheEagerDecodeAnchorIsAdditive`, which pins the constant at 92.75-93.7 µs). The
+basis records the composition and `--check` refuses any other. The committed basis is kernel
+ce085cc (972 launches, 3.18 ms with the mHC entries). The constant is valid only with the
+basis and the composition it was divided by. It is derived on H200 nodes only:
 the h200 entry is `assumed` (backed out of the anchor), and the other eight parts, h100
 included, carry it as a separate `copied` entry (`copied_from: hardware=h200,...`). That copy
 is an ASSUMPTION about host CPU and driver launch cost, not a derivation; an H100

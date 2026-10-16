@@ -17,6 +17,11 @@ Owns, in cost-model-host-overheads.yaml, scoped to model deepseek-v4.1-flash:
   host_admission_per_token      {hardware: [all]}   assumed  vLLM v0.31.0's V4.1 encoder +
                                                              tokenizer + block hash, timed on an
                                                              M1 Max: a transfer to every part
+  host_admission_per_token_rust_frontend
+                                {hardware: [all]}   assumed  the per_token value / fastokens'
+                                                             stated speedup: what the vllm-rs
+                                                             frontend (engine.frontend: rust)
+                                                             charges, a vendor README claim
   host_admission_per_request    {hardware: [all]}   not_charged  0.0: an inference from what
                                                              was timed (the schema requires this
                                                              method for 0), not a structural zero
@@ -58,6 +63,15 @@ import sys
 from pathlib import Path
 
 import yaml
+
+# fastokens, the tokenizer the vllm-rs frontend loads ("loading tokenizer with fastokens"):
+# its README states "on average achieves a 10x+ faster tokenization compared to the
+# `tokenizers` library" (crusoecloud/fastokens 7923de6c, README blob e0bb3b78, Apache-2.0).
+FASTOKENS = "crusoecloud/fastokens 7923de6c76753347d4090c444e22f6c95a15f01b README.md (blob e0bb3b7811029d8c7d7f97823ad179c87cc9a715)"
+FASTOKENS_SPEEDUP = 10
+# The public cold-encode range of the Python path: vllm PR #47583's DeepSeek-V3 tokenizer
+# benchmark, 35.66 ms at 32K and 160.40 ms at 128K tokens (1.11-1.25 us/token).
+PY_PATH_LOW_US = 1.11
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -451,6 +465,30 @@ def entries(ea: dict, ad: dict) -> list:
         f"here shows it general. Not modelled: vLLM's renderer is one FIFO thread shared by "
         f"every request, so under load requests also wait for each other's admission, which "
         f"a per-request cost cannot carry. Reproduce with scripts/fit_deepseek_v41_host.py."))
+    rust = round(ad["value"] / FASTOKENS_SPEEDUP, 3)
+    out.append(lines(
+        "host_admission_per_token_rust_frontend", rust, "us_per_token", "assumed", False,
+        scope_all, [("discussion", f"{FASTOKENS}: 'on average achieves a 10x+ faster "
+                     f"tokenization compared to the tokenizers library'", "primary"),
+                    ("discussion", "vllm-project/vllm PR #47583 benchmark: DeepSeek-V3 "
+                     "tokenizer cold encode 35.66 ms at 32K, 160.40 ms at 128K tokens",
+                     "supporting")],
+        f"ASSUMED: A VENDOR CLAIM APPLIED TO THE PYTHON-PATH VALUE. The per-prompt-token "
+        f"admission cost when the pool serves through vLLM's Rust frontend (blis-schemas "
+        f"engine.frontend: rust; vLLM launches vllm-rs only with VLLM_USE_RUST_FRONTEND=1, "
+        f"vllm/envs.py:169 and vllm/entrypoints/cli/serve.py:64 at v0.31.0), which renders "
+        f"and tokenizes in Rust and loads its tokenizer through fastokens. Value = "
+        f"host_admission_per_token ({ad['value']} us, the Python path) / {FASTOKENS_SPEEDUP}, "
+        f"fastokens' stated average speedup over HF tokenizers = {rust} us/token. RANGE "
+        f"{PY_PATH_LOW_US / FASTOKENS_SPEEDUP:.2f}-{rust} us/token: the low end divides the "
+        f"public Python-path rate (vllm PR #47583, DeepSeek-V3 tokenizer, {PY_PATH_LOW_US} us/"
+        f"token) instead, and the README says '10x+' and that the gap widens with prompt "
+        f"length, so this value is the slow end. NOT MEASURED on any serving node, not fitted, "
+        f"and NOT derived from any InferenceX TTFT (those request pairs ran this frontend and "
+        f"are held out to test it). It is the same rate for the Rust frontend's rendering, "
+        f"which the Python path spends in encode_messages (0.2% there). Use: pricing "
+        f"deployments that state engine.frontend: rust; every other deployment takes "
+        f"host_admission_per_token. Reproduce with scripts/fit_deepseek_v41_host.py."))
     out.append(lines(
         "host_admission_per_request", "0.0", "us_per_request", "not_charged", False,
         scope_all, bench_src,
@@ -480,6 +518,7 @@ def render(text: str, new: list) -> str:
     for e in new:
         name = cb.name_of(e)
         anchors = {name, "host_launch_eager_per_layer"} if name.startswith("host_launch") \
+            else {name, "host_admission_per_token"} if name.endswith("_rust_frontend") \
             else {name}
         cb.upsert(blocks, e, after=lambda b, a=anchors: cb.name_of(b) in a)
     return cb.join(blocks)

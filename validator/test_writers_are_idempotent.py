@@ -86,6 +86,10 @@ WRITERS = [
     # The DeepEP dispatch + combine floor and rate per backend on h100, from
     # h100_sxm/comm/vllm/0.24.0/moe_a2a_perf.parquet.
     ("fit_deepep_a2a.py", "the DeepEP all-to-all floor and rate per backend"),
+    # DeepSeek-V4.1's FULL_AND_PIECEWISE capture form, from the vendored start-up anchor
+    # (validator/testdata/anchors/v41_h200_tp8_capture_startups.json); emit_memory.py keeps
+    # these entries and does not write them.
+    ("fit_deepseek_v41_capture.py", "the DeepSeek-V4.1 CUDA-graph capture form"),
 ]
 
 # relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so
@@ -250,6 +254,11 @@ def test_every_fitted_family_has_a_writer():
         **{f"attention_decode_{t}_sparse_mla": "fit_deepseek_v41_decode.py"
            for t in ("launch_floor", "split_floor", "serial_rate", "per_token",
                      "throughput_rate")},
+        **{f"moe_a2a_{t}_deepep_{b}_8rank_h100": "fit_deepep_a2a.py"
+           for t in ("floor", "rate")
+           for b in ("high_throughput", "low_latency", "v2_eager", "v2_graph")},
+        **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
+           for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {

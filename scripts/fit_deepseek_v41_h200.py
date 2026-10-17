@@ -156,9 +156,14 @@ INDEXER_RATIO = 4     # the measured indexer rows are DeepSeek-V4's compress_rat
 # a global load moves (CUDA C++ Best Practices Guide, "Coalesced Access to Global Memory").
 ENGRAM_ROW_BYTES = 256 + 8
 ENGRAM_FETCHED_BYTES = 256 + 32
-# AISimulate's pcie_bw (64 GB/s, annotated "pcie 5.0") is the raw signalling rate per
-# direction; PCIe 5.0's 128b/130b line code leaves 128/130 of it for transactions.
-PCIE_LINE_CODE = 128 / 130
+# The SM-driven (UVA-type) host-to-device read ceiling, measured: vLLM PR #42212 (H100,
+# Triton swap kernel onload, ~51 GB/s at >= 20 SMs), corroborated by InferenceX CollectiveX
+# swap_blocks H2D at 1 GiB blocks (51.6 GB/s). A payload rate, so the PCIe line code is
+# already paid. Both parts sit on a PCIe Gen5 x16 host link; h200 has no SM-driven
+# measurement and carries the h100 figure.
+SM_DRIVEN_H2D = 51000.0
+SM_DRIVEN_H2D_CITE = ("vLLM PR #42212 (merged 1fa9ea0), Triton onload ceiling on H100; "
+                      "InferenceX CollectiveX swap_blocks h100-dgxc H2D at 1 GiB blocks")
 
 RATE_FRACTIONS = [x / 1000 for x in range(5, 1001)]
 # Bytes per call above which the marginal bandwidth is reported.
@@ -451,7 +456,7 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
     floors = ", ".join(f"{v:.2f} us" for v in ix["per_model"].values())
     aisim = f"NVIDIA AISimulate systems/data/{sku}/sparse_attention/vllm/0.25.0/"
     hbm_rate = int(round(peak * derate))
-    gather = int(round(host_bw * PCIE_LINE_CODE * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
+    gather = int(round(SM_DRIVEN_H2D * ENGRAM_ROW_BYTES / ENGRAM_FETCHED_BYTES))
     v41_call = fm["max_batch"] * g["v41_blocks"] * BLOCK * g["record"]
     attn = [
         lines("attention_decode_rate_sparse_mla", f"{fm['rate']}.0", "bytes_per_us",
@@ -624,34 +629,35 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
               f"come from one fit."),
         lines("host_gather_rate_uva", f"{gather}.0", "bytes_per_us", "assumed", False,
               PART_SCOPE,
-              [("model", f"NVIDIA AISimulate systems/{sku}.yaml pcie_bw "
-                "(host_link_bandwidth)", "primary"),
+              [("model", SM_DRIVEN_H2D_CITE, "primary"),
                ("model", "vLLM v0.31.0 models/deepseek_v41/common/engram.py "
                 "_engram_lookup_kernel, ParallelEngramEmbedding", "supporting")],
               f"ASSUMED: an UPPER BOUND on the useful-byte rate of DeepSeek-V4.1's engram "
               f"lookup when the tables are in pinned host memory (EngramConfig.cpu_offload, "
-              f"the v0.31.0 default) and read through UVA. Derived as host_link_bandwidth "
-              f"({host_bw / 1e3:g} GB/s, AISimulate's 'pcie 5.0' figure: the raw rate per "
-              f"direction) x 128/130 (PCIe 5.0's 128b/130b line code, leaving "
-              f"{host_bw * PCIE_LINE_CODE / 1e3:.1f} GB/s) x {ENGRAM_ROW_BYTES}/"
+              f"the v0.31.0 default) and read through UVA. Derived as the MEASURED SM-driven "
+              f"host-to-device read ceiling, {SM_DRIVEN_H2D / 1e3:g} GB/s (vLLM PR #42212's "
+              f"Triton onload kernel on H100, flat at about 51 GB/s from 20 SMs; CollectiveX "
+              f"swap_blocks H2D at 1 GiB blocks reads 51.6), x {ENGRAM_ROW_BYTES}/"
               f"{ENGRAM_FETCHED_BYTES}: a row is {ENGRAM_ROW_BYTES} useful bytes -- 256 FP8 "
               f"values in one table at a 256 B stride (two whole 128 B lines) and 8 UE8M0 "
               f"scales in a separate table, which cost at least one 32 B sector -- so at "
-              f"least {ENGRAM_FETCHED_BYTES} B cross the link per row. Per token and engram "
-              f"layer a rank reads cdiv(24, shards) rows. WHAT THE BOUND IGNORES, each "
-              f"making the real rate LOWER: PCIe transaction-layer overhead; GPU address "
-              f"translation for random rows over a table of 384 million rows, ~101 GB per layer "
-              f"before TP sharding (vLLM's own comment: 'The "
-              f"table dwarfs TLB reach'); the latency-bound regime at decode batch sizes, "
-              f"where 24 rows are a few kilobytes and a per-launch round trip dominates -- "
-              f"no floor is stated because none is measured; and host-side contention when "
-              f"every GPU of a node gathers from one host's memory. The lookup runs on a "
-              f"side stream at half the SMs, so how much of it a step exposes is a "
-              f"composition question, not this rate's. TO REPLACE IT: time "
+              f"least {ENGRAM_FETCHED_BYTES} B cross the link per row. A measured payload rate "
+              f"already pays PCIe's 128b/130b line code, so that factor is not applied again "
+              f"(an earlier revision started from the 64 GB/s nominal link and applied it; the "
+              f"measured ceiling is 20% lower). {'' if chip == 'h100' else 'Carried from H100: '
+              'the same PCIe Gen5 x16 host link, and no SM-driven H200 measurement exists. '}"
+              f"Per token and engram layer a rank reads cdiv(24, shards) rows. WHAT THE BOUND "
+              f"IGNORES, each making the real rate LOWER: GPU address translation for random "
+              f"rows over a table of 384 million rows, ~101 GB per layer before TP sharding "
+              f"(vLLM's own comment: 'The table dwarfs TLB reach'); random 288 B reads against "
+              f"the measured contiguous pages; the latency-bound regime at decode batch sizes, "
+              f"where 24 rows are a few kilobytes and a per-launch round trip dominates -- no "
+              f"floor is stated because none is measured; and host-side contention when every "
+              f"GPU of a node gathers from one host's memory. The lookup runs on a side stream "
+              f"at half the SMs, so how much of it a step exposes is a composition question, "
+              f"not this rate's. TO REPLACE IT: time "
               f"ParallelEngramEmbedding.lookup(background=True) with cpu_offload on an {name} "
-              f"host over 1-8,192 tokens at TP 1 and 8, and fit floor + bytes / rate. Read "
-              f"by no consumer until the schema can state a host-resident gather "
-              f"(blis-schemas#48, blis-latency-kernel#38)."),
+              f"host over 1-8,192 tokens at TP 1 and 8, and fit floor + bytes / rate."),
     ]
     return attn, prim
 
@@ -717,8 +723,8 @@ def fit_part(data: Path, catalog: Path, chip: str, g: dict, fitted: dict) -> tup
           f"{ix['max_unique'] / 1e6:.1f} MB, above the HBM peak: rate assumed at NVIDIA's HBM rate "
           f"{peak * derate:,.0f} B/us")
     print(f"w8a16 mxfp8 ramp        assumed = bf16 ({bf16_eps:g}, {bf16_mh})")
-    print(f"host gather (UVA)       assumed = {host_bw:,.0f} x "
-          f"128/130 x {ENGRAM_ROW_BYTES}/{ENGRAM_FETCHED_BYTES}")
+    print(f"host gather (UVA)       assumed = {SM_DRIVEN_H2D:,.0f} x "
+          f"{ENGRAM_ROW_BYTES}/{ENGRAM_FETCHED_BYTES}")
     return entries(chip, g, fm, ix, peak, fp8_tflops, derate, bf16_eps, bf16_mh,
                    grouped_eps, grouped_mh, host_bw, sib)
 

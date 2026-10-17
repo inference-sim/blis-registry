@@ -333,7 +333,9 @@ def descriptor_entries(root: Path, sku: str, chip: str) -> list[str]:
             "BwPeakTBs. vendor_spec rather than measured: NVIDIA observed it, this "
             "project did not, and the sweep behind it is not published.",
         ))
-    if (pcie := node.get("pcie_bw")) is not None:
+    # Parts with a CollectiveX swap_blocks measurement carry a fitted host link
+    # (fit_host_link.py); the descriptor's nominal rate stays only where none is measured.
+    if (pcie := node.get("pcie_bw")) is not None and chip not in MEASURED_HOST_LINK:
         out.append(entry(
             "host_link_bandwidth", round(pcie / 1e6, 1), "bytes_per_us",
             "vendor_spec", chip, cite,
@@ -390,6 +392,7 @@ def descriptor_entries(root: Path, sku: str, chip: str) -> list[str]:
 # The families this script OWNS in the committed set: the descriptor entries for every
 # part (gb300's descriptor is read like the others; its sweeps are owned elsewhere), and
 # A100's MoE median, the one imbalance entry relane_moe_imbalance.py cannot derive.
+MEASURED_HOST_LINK = {"h100", "h200", "b200", "b300", "gb200-nvl72", "gb300"}
 DESCRIPTOR_NAMES = {"hbm_derate", "host_link_bandwidth", "nccl_communicator_bytes_2rank",
                     "nccl_communicator_bytes_4rank", "nccl_communicator_bytes_8rank",
                     "engine_workspace_bytes"}
@@ -420,6 +423,8 @@ def check(root: Path, committed_path: Path) -> int:
     for e in yaml.safe_load(committed_path.read_text())["coefficients"]:
         ((name, body),) = e.items()
         key = (name, tuple(body["scope"]["hardware"]))
+        if name == "host_link_bandwidth" and set(key[1]) <= MEASURED_HOST_LINK:
+            continue
         if name in DESCRIPTOR_NAMES or key in expected:
             committed[key] = body
     problems = [f"missing: {k}" for k in expected if k not in committed]

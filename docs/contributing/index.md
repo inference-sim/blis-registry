@@ -112,3 +112,9 @@ page. Use a `registry:` directive instead, which the build computes from the com
 files; [`docs_hooks/registry.py`](https://github.com/inference-sim/blis-registry/blob/main/docs_hooks/registry.py)
 lists them. A retyped count is correct on the day it is written and wrong after the next
 refit.
+
+## Changes across the repositories
+
+A change that also touches blis-schemas, the catalog, the kernel or inference-sim follows
+[Changes across the repositories](cross-repo-changes.md), which links the canonical process and
+lists the registry's own steps.

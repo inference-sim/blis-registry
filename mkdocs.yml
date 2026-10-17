@@ -98,6 +98,7 @@ nav:
   - Contributing:
       - contributing/index.md
       - Releases and these docs: contributing/releasing.md
+      - Changes across the repositories: contributing/cross-repo-changes.md
   - Concepts:
       - concepts/index.md
       - Coefficients: concepts/coefficients.md

@@ -257,6 +257,12 @@ def test_every_fitted_family_has_a_writer():
         **{f"moe_a2a_{t}_deepep_{b}_8rank_h100": "fit_deepep_a2a.py"
            for t in ("floor", "rate")
            for b in ("high_throughput", "low_latency", "v2_eager", "v2_graph")},
+        **{f"moe_a2a_{t}_deepep_{b}": "fit_deepep_a2a.py"
+           for t in ("floor", "rate")
+           for b in ("high_throughput_8rank_h200", "low_latency_8rank_h200",
+                     "high_throughput_8rank_b200", "low_latency_8rank_b200",
+                     "high_throughput_8rank_b300", "low_latency_8rank_b300",
+                     "low_latency_4rank_gb200_nvl72", "high_throughput_4rank_gb300")},
         **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
            for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }

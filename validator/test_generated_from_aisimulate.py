@@ -260,6 +260,14 @@ def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
     )
 
 
+# The one family measured outside AISimulate: AISimulate has no host-link measurement (its
+# descriptor states the nominal PCIe rate), and InferenceX CollectiveX swap_blocks times
+# vLLM's own copy kernel. A microbenchmark, not an end-to-end row, so it is fit data in
+# full (docs/fitting-principles.md section 3). Named here so no other family follows it in
+# silently; fit_host_link.py is its writer, gated in test_deepep_ll_graph.py.
+MICROBENCHMARK_SOURCED = {"host_link_bandwidth": "InferenceX CollectiveX swap_blocks"}
+
+
 def test_no_coefficient_cites_a_non_nvidia_measurement_source():
     """Every MEASURED cost-model entry is sourced from NVIDIA AISimulate.
 
@@ -284,6 +292,9 @@ def test_no_coefficient_cites_a_non_nvidia_measurement_source():
         for item in doc["coefficients"]:
             (key, body), = item.items()
             if body.get("method") != "measured":
+                continue
+            if key in MICROBENCHMARK_SOURCED:
+                assert all(MICROBENCHMARK_SOURCED[key] in x["cite"] for x in body["sources"]), key
                 continue
             for source in body.get("sources", []):
                 cite = source["cite"]

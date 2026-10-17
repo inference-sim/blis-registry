@@ -78,9 +78,50 @@ REPO = Path(__file__).resolve().parent.parent
 SET_PATH = REPO / "coefficients" / "cost-model-collectives.yaml"
 DEFAULT_DATA = os.environ.get(
     "AISIMULATE_DATA", "/tmp/aisim/python/aisimulate/src/aisimulate_core/systems/data")
-COLLECTION = "h100_sxm/comm/vllm/0.24.0/moe_a2a_perf.parquet"
-SHA256 = "c077f3e4a57d37ccd0695e5146aef090648830844318f681e917be2920a799a6"
-CHIP, RANKS = "h100", 8
+# Per part: the AISimulate system directory, the table's sha256, the EP width it was
+# collected at (one node), and any caveat its collection_meta.yaml records. Every table is
+# vLLM v0.24.0 + DeepEP 73b6ea4a (collection_meta.yaml); only h100 measured DeepEP v2.
+PARTS = {
+    "h100": ("h100_sxm", "c077f3e4a57d37ccd0695e5146aef090648830844318f681e917be2920a799a6",
+             8, ""),
+    "h200": ("h200_sxm", "5fff1cb89e509a2334ea6cf8e7f30fe7785aa5aaf435a9945075495d94942978",
+             8, ""),
+    "b200": ("b200_sxm", "ea870eeb27c4389e9f5c96e5e03308d2e8fd3b9668629236c05cb0e0c2b8f009",
+             8, ""),
+    "b300": ("b300_sxm", "46aa8486f1fffa787ed2c5d7e0178824ef54e168a95aa756619da454c1ca90b5",
+             8, ""),
+    "gb200-nvl72": (
+        "gb200", "ea88888e49c9d2237fc7568b03feb4f792152b1b7aa09e1bf5865f2009487546", 4,
+        " CAVEAT: this part's collection ran DeepEP with a local patch whose content is "
+        "not published (collection_meta.yaml deep_ep_patch_sha256 660b0281a932), so the "
+        "build is not shown to be the one vLLM v0.31.0 pins."),
+    "gb300": (
+        "gb300", "4e429c769c10e19a296d47d8d4c0dab3ba899cf48c800bec1aff949d9bd30acb", 4,
+        " CAVEAT: this part's collection ran DeepEP with a local patch whose content is "
+        "not published (collection_meta.yaml deep_ep_patch_sha256 660b0281a932), so the "
+        "build is not shown to be the one vLLM v0.31.0 pins."),
+}
+
+
+# h100 landed under the round-2 decision recorded in its rationales (median band, max band
+# missed). Every other part was gated before its fit was read: a variant is written only
+# where both held-out medians are inside BAND_MEDIAN.
+MEDIAN_GATED = set(PARTS) - {"h100"}
+
+
+def median_gate(f) -> bool:
+    g = f["rows"]
+    return all(float(np.median(np.abs(errors(f, g[sel])))) <= BAND_MEDIAN
+               for sel in (g.held_tokens & ~g.held_shape, g.held_shape))
+
+
+def collection(chip: str) -> str:
+    return f"{PARTS[chip][0]}/comm/vllm/0.24.0/moe_a2a_perf.parquet"
+
+
+def stem_chip(chip: str) -> str:
+    """The part as the kernel spells it in a coefficient name (deepep.go liftDeepEP)."""
+    return chip.replace("-", "_")
 
 _spec = importlib.util.spec_from_file_location(
     "coefficient_blocks", Path(__file__).parent / "coefficient_blocks.py")
@@ -110,12 +151,13 @@ README_COMBINE_GBPS = 158.0
 H100_NVLINK_UNIDIR_GBPS = 450.0
 
 
-def load(data: Path):
-    path = data / COLLECTION
+def load(data: Path, chip: str):
+    path = data / collection(chip)
+    ranks = PARTS[chip][2]
     cols = ["comm_backend", "phase", "ep_size", "node_num", "hidden_size", "topk",
             "num_experts", "num_tokens", "latency"]
     t = pq.read_table(path, columns=cols).to_pandas()
-    t = t[(t.ep_size == RANKS) & (t.node_num == 1)]
+    t = t[(t.ep_size == ranks) & (t.node_num == 1)]
     keys = ["comm_backend", "hidden_size", "topk", "num_experts", "num_tokens"]
     wide = t.pivot_table(index=keys, columns="phase", values="latency").reset_index()
     wide["bytes"] = wide.num_tokens * wide.hidden_size * 2.0 * wide.topk
@@ -150,6 +192,8 @@ def fit_all(wide):
     out = {}
     for variant, backend in VARIANTS.items():
         g = wide[wide.comm_backend == backend]
+        if g.empty:
+            continue
         f = g[g.fit]
         ph = {p: fit_phase(f.bytes.values, f[p].values) for p in ("dispatch", "combine")}
         floor = round(ph["dispatch"][0] + ph["combine"][0], 1)
@@ -165,15 +209,16 @@ def errors(fit, rows):
     return pred / y - 1.0
 
 
-def generic_before(text):
+def generic_before(text, chip):
     """The price the kernel gave every routed backend before this fit: NCCL's 8-rank fp16
     all-to-all on this part, max(floor + bytes / transition, bytes / peak)."""
-    want = {f"collective_{k}_alltoall_fp16_{RANKS}rank_{CHIP}": k
+    ranks = PARTS[chip][2]
+    want = {f"collective_{k}_alltoall_fp16_{ranks}rank_{stem_chip(chip)}": k
             for k in ("floor", "peak_rate", "transition_rate")}
     got = {}
     for e in yaml.safe_load(text)["coefficients"]:
         (name, body), = e.items()
-        if name in want and body["scope"]["hardware"] == [CHIP]:
+        if name in want and body["scope"]["hardware"] == [chip]:
             got[want[name]] = float(body["value"])
     return lambda b: np.maximum(got["floor"] + b / got["transition_rate"],
                                 b / got["peak_rate"])
@@ -221,7 +266,7 @@ def readme_check(fits):
     """Held-out C: the DeepEP README's H800 intranode HT combine bandwidth. Different
     hardware, so it bounds rather than scores: H100's logical bandwidth must sit between
     H800's NVLink-capped figure and H100's own NVLink rate."""
-    t, h, k, e, r = 4096, 7168, 8, 256, RANKS
+    t, h, k, e, r = 4096, 7168, 8, 256, PARTS["h100"][2]
     per = e // r
     distinct = r * (1 - comb(e - per, k) / comb(e, k))
     fl, rt, _ = fits["deepep_high_throughput"]["phases"]["combine"]
@@ -267,14 +312,15 @@ RATIONALE = {
 }
 
 
-def entry_lines(name, value, units, variant, f, table_ref):
+def entry_lines(name, value, units, variant, f, table_ref, chip):
+    _, sha, ranks, caveat = PARTS[chip]
     ph = f["phases"]
-    cite = (f"NVIDIA AISimulate systems/data/{COLLECTION} (aisimulate 95b7f839, sha256 "
-            f"{SHA256[:12]}), backend {f['backend']}, EP8 one node, BF16")
+    cite = (f"NVIDIA AISimulate systems/data/{collection(chip)} (aisimulate 95b7f839, "
+            f"sha256 {sha[:12]}), backend {f['backend']}, EP{ranks} one node, BF16")
     what = (f"dispatch {ph['dispatch'][0]:.1f} us + {ph['dispatch'][1] / 1e3:.1f} GB/s and "
             f"combine {ph['combine'][0]:.1f} us + {ph['combine'][1] / 1e3:.1f} GB/s per "
             f"phase (mean |log| {ph['dispatch'][2]:.3f} / {ph['combine'][2]:.3f})")
-    rat = (f"{RATIONALE[variant]} One MoE layer's dispatch plus combine as "
+    rat = (f"{RATIONALE[variant]}{caveat} One MoE layer's dispatch plus combine as "
            f"floor + tokens x hidden x 2 x top_k / rate, per-rank tokens: {what}, "
            f"summed. Fitted on {f['n_fit']} (shape, token) rows; {table_ref} Reproduce "
            f"with scripts/fit_deepep_a2a.py.")
@@ -284,7 +330,7 @@ def entry_lines(name, value, units, variant, f, table_ref):
         f"      units: {units}",
         "      method: measured",
         "      fitted: true",
-        f"      scope: {{hardware: [{CHIP}]}}",
+        f"      scope: {{hardware: [{chip}]}}",
         "      sources:",
         f'        - {{kind: model, cite: "{cite}", role: primary}}',
         "      rationale: >",
@@ -301,17 +347,18 @@ def held_out_note(f):
             f"{np.median(np.abs(b)):.1%}, max {np.max(np.abs(b)):.1%}.")
 
 
-def render(text, fits):
+def render(text, fits, chip):
     blocks = cb.split(text)
-    scope = f"{{hardware: [{CHIP}]}}"
+    scope = f"{{hardware: [{chip}]}}"
+    ranks, sc = PARTS[chip][2], stem_chip(chip)
     for variant, f in fits.items():
         note = held_out_note(f)
         for name, value, units in (
-                (f"moe_a2a_floor_{variant}_{RANKS}rank_{CHIP}", f["floor"], "us_per_transfer"),
-                (f"moe_a2a_rate_{variant}_{RANKS}rank_{CHIP}", f["rate"], "bytes_per_us")):
-            cb.upsert(blocks, entry_lines(name, value, units, variant, f, note),
+                (f"moe_a2a_floor_{variant}_{ranks}rank_{sc}", f["floor"], "us_per_transfer"),
+                (f"moe_a2a_rate_{variant}_{ranks}rank_{sc}", f["rate"], "bytes_per_us")):
+            cb.upsert(blocks, entry_lines(name, value, units, variant, f, note, chip),
                       after=lambda b: (cb.name_of(b) or "").startswith(
-                          ("collective_transition_rate_alltoall_fp16_8rank_h100",
+                          (f"collective_transition_rate_alltoall_fp16_{ranks}rank_{sc}",
                            "moe_a2a_"))
                       and cb.scope_key(cb.scope_of(b) or "{}") == cb.scope_key(scope))
     return cb.join(blocks)
@@ -326,21 +373,30 @@ def main(argv):
                     help="exit 1 if the file would change; write nothing")
     args = ap.parse_args(argv[1:])
 
-    fits = fit_all(load(Path(args.data)))
-    before_text = SET_PATH.read_text(encoding="utf-8")
-    lines, verdict = summarise(fits, generic_before(before_text))
-    readme, readme_ok = readme_check(fits)
-    for v, f in fits.items():
-        print(f"{v:24} floor {f['floor']:7.1f} us  rate {f['rate'] / 1e3:7.1f} GB/s")
-    report = "\n".join(lines + ["", readme, "",
-                                "verdict: " + ", ".join(f"{v} {'pass' if ok else 'FAIL'}"
-                                                        for v, ok in verdict.items())])
+    before = SET_PATH.read_text(encoding="utf-8")
+    after, reports = before, []
+    for chip in PARTS:
+        fits = fit_all(load(Path(args.data), chip))
+        lines, verdict = summarise(fits, generic_before(before, chip))
+        extra = [readme_check(fits)[0], ""] if chip == "h100" else []
+        for v, f in fits.items():
+            print(f"{chip:12} {v:24} floor {f['floor']:7.1f} us  "
+                  f"rate {f['rate'] / 1e3:7.1f} GB/s")
+        kept = fits
+        if chip in MEDIAN_GATED:
+            kept = {v: f for v, f in fits.items() if median_gate(f)}
+        reports.append("\n".join([f"### {chip}", ""] + lines + [""] + extra + [
+            "verdict: " + ", ".join(f"{v} {'pass' if ok else 'FAIL'}"
+                                    for v, ok in verdict.items()),
+            "written: " + (", ".join(kept) or "none") + (
+                "; not written (a held-out median outside the band): "
+                + ", ".join(sorted(set(fits) - set(kept))) if set(fits) - set(kept) else "")]))
+        after = render(after, kept, chip)
+    report = "\n\n".join(reports)
     print(report)
     if args.table:
         Path(args.table).write_text(report + "\n", encoding="utf-8")
 
-    before = before_text
-    after = render(before, fits)
     if args.check:
         if after != before:
             print(f"{SET_PATH.name} would change", file=sys.stderr)

@@ -216,7 +216,10 @@ def test_every_fitted_family_has_a_writer():
                | {w.split()[0] for w, _, _ in VALUE_ONLY}
                # A split pair's fitted half is gated by its own flag; the writer still
                # owns that half, so it counts as covered here.
-               | {w.split()[0] for w, _ in RATE_ONLY})
+               | {w.split()[0] for w, _ in RATE_ONLY}
+               # Gated against its own (InferenceX CollectiveX) data in
+               # test_deepep_ll_graph.py, not against the AISimulate tree.
+               | {"fit_deepep_ll_graph.py"})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -257,6 +260,14 @@ def test_every_fitted_family_has_a_writer():
         **{f"moe_a2a_{t}_deepep_{b}_8rank_h100": "fit_deepep_a2a.py"
            for t in ("floor", "rate")
            for b in ("high_throughput", "low_latency", "v2_eager", "v2_graph")},
+        **{f"moe_a2a_{t}_deepep_{b}": "fit_deepep_a2a.py"
+           for t in ("floor", "rate")
+           for b in ("high_throughput_8rank_h200", "low_latency_8rank_h200",
+                     "high_throughput_8rank_b200", "low_latency_8rank_b200",
+                     "high_throughput_8rank_b300", "low_latency_8rank_b300",
+                     "low_latency_4rank_gb200_nvl72", "high_throughput_4rank_gb300")},
+        **{f"moe_a2a_{t}_deepep_low_latency_graph_8rank_{p}": "fit_deepep_ll_graph.py"
+           for t in ("floor", "rate") for p in ("h100", "h200")},
         **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
            for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }

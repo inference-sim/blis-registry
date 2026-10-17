@@ -54,6 +54,13 @@ Every comparison is between the same quantity on both sides. Before any number i
    that point.
 5. **Same model and hardware.** Use the checkpoint the run actually served (from its recipe or
    log), and the device memory the driver reports, not the marketing figure.
+6. **Check parity with KV first.** A gross KV deviation (the pool, or the usage distribution)
+   is checked first as a parity defect: in the setup (memory budget, max_model_len, block size,
+   KV dtype, layout, prefix caching, the checkpoint served, KV groups), the workload (ISL/OSL,
+   prefix sharing, offered load, window) or the definitions. Only after those are ruled out is
+   it treated as a model error. Points with an unresolved parity defect are excluded from fits
+   with a named reason. Because KV capacity drives admission, queueing and preemption, closing
+   KV parity usually improves the other metrics too, where capacity binds.
 
 ## 3. Data roles
 
@@ -200,12 +207,14 @@ failure is shown to be measurement noise or a definitional artefact, and the rec
 3. Draw or extend the FIT/HELD partition (§3.1). Hash it.
 4. Resolve every run's engine behaviour from its own build (§2.4).
 5. Replay FIT points apples to apples (§2); assert definitions, windows and load.
-6. Keep a per-coefficient data ledger: every source, used or not, and why. An unused relevant
+6. Triage gross KV deviations for parity (§2.6) before anything else; exclude points with an
+   unresolved parity defect, with a named reason.
+7. Keep a per-coefficient data ledger: every source, used or not, and why. An unused relevant
    source is a defect to close.
-7. Diagnose on FIT points across every level of §1 before fitting anything. A term fitted to
+8. Diagnose on FIT points across every level of §1 before fitting anything. A term fitted to
    absorb a different mechanism's error is wrong.
-8. Choose the metrics per term (§4.2); pre-register the gate (§7).
-9. Fit; check identifiability; freeze.
-10. Evaluate on HELD; report per factor, with stratified sampling fractions and run-clustered
+9. Choose the metrics per term (§4.2); pre-register the gate (§7).
+10. Fit; check identifiability; freeze.
+11. Evaluate on HELD; report per factor, with stratified sampling fractions and run-clustered
     bootstrap intervals; report the count of single-run strata, which make intervals optimistic.
-11. Land or park (§7). Record every landing and deviation where the next fitter will find it.
+12. Land or park (§7). Record every landing and deviation where the next fitter will find it.

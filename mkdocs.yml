@@ -117,5 +117,6 @@ nav:
   - Methodology:
       - research/index.md
       - Methodology: methodology.md
+      - Fitting principles: fitting-principles.md
       - Reproducing the coefficients: reproducing-coefficients.md
       - Choosing the overlap band: band-selection.md

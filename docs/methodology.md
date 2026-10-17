@@ -95,6 +95,9 @@ silently changes the row set — it once produced 66,148 rows where the committe
 
 ## 3. The three-level data separation
 
+> [Fitting principles](fitting-principles.md) §3.1 supersedes this section's "evaluation only"
+> rule for end-to-end rows: InferenceX end-to-end points are split 40/60 into fit and held-out sets.
+
 | source | role | why that role |
 |---|---|---|
 | AISimulate per-operator sweeps | **fitting** | per-kernel, lane-labelled, and the only data that isolates one primitive |

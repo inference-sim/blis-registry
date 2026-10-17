@@ -276,8 +276,9 @@ def test_the_derived_deepseek_v41_entries_equal_what_they_are_derived_from(hw):
         bw * _single("hbm_derate", hw))
     assert _single("gemm_eps_max_w8a16_mxfp8", hw) == _single("gemm_eps_max_bf16", hw)
     assert _single("gemm_m_half_w8a16_mxfp8", hw) == _single("gemm_m_half_bf16", hw)
-    assert _single("host_gather_rate_uva", hw) == round(
-        _single("host_link_bandwidth", hw) * 128 / 130 * (256 + 8) / (256 + 32))
+    # The descriptor's nominal 64 GB/s x 128/130 x useful/fetched bytes. Deliberately not
+    # host_link_bandwidth, which is the measured copy-engine payload rate (fit_host_link.py).
+    assert _single("host_gather_rate_uva", hw) == round(64000.0 * 128 / 130 * (256 + 8) / (256 + 32))
 
 
 def test_the_v41_host_entries_re_derive_from_their_vendored_measurements():
@@ -802,3 +803,13 @@ def test_emit_memory_keeps_the_capture_writers_entries():
                         if not (cb.name_of(b) or "").startswith(mod.FOREIGN)])
     assert stripped != text
     assert mod.keep_foreign(stripped) == text
+
+
+def test_the_h100_host_link_is_the_catalog_cpu_tier_fit_not_a_second_number():
+    """host_link_bandwidth caps a CPU tier's transfer rate (kernel TierTime), and blis-catalog's
+    cpu_dram is fitted to the same CollectiveX swap_blocks rows. The cap is that fit's larger
+    direction, so it never binds below a fitted tier rate and the two cannot drift apart."""
+    path = REPO / "validator" / "testdata" / "catalog" / "devices" / "storage.yaml"
+    tier = yaml.safe_load(path.read_text())["cpu_dram"]
+    assert _single("host_link_bandwidth", "h100") == max(
+        tier["read_bandwidth_mb_s"], tier["write_bandwidth_mb_s"])

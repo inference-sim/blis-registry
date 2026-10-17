@@ -59,6 +59,9 @@ generated from the committed files, and every value links to its entry.
 **To challenge a value**, read [Methodology](research/index.md): the rules, the evidence
 behind each decision, and the claims later withdrawn.
 
+**To learn how a coefficient earns its place**, read
+[Fitting principles](fitting-principles.md): the landing gate and the repeatable procedure.
+
 ## One coefficient
 
 Every entry looks like this one, quoted from the committed file when this page was built:

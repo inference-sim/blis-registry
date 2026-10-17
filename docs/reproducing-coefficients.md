@@ -332,6 +332,7 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `collective_*` (new part) | `insert_collectives_part.py` | same, per operator per lane |
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) and A100's `moe_routing_imbalance_median` | `emit_primitives.py --check` (entry-level) | NVIDIA `systems/<sku>.yaml`; AISimulate `moe/sglang/0.5.10` for A100 |
+| `host_link_bandwidth` (measured, six parts) | `fit_host_link.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX swap_blocks, contiguous, payload >= 64 MiB; h100 is the catalog `cpu_dram` fit's larger direction |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
 | `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
 | `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |

@@ -625,13 +625,13 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
         lines("host_gather_rate_uva", f"{gather}.0", "bytes_per_us", "assumed", False,
               PART_SCOPE,
               [("model", f"NVIDIA AISimulate systems/{sku}.yaml pcie_bw "
-                "(host_link_bandwidth)", "primary"),
+                "(the nominal link rate, not host_link_bandwidth)", "primary"),
                ("model", "vLLM v0.31.0 models/deepseek_v41/common/engram.py "
                 "_engram_lookup_kernel, ParallelEngramEmbedding", "supporting")],
               f"ASSUMED: an UPPER BOUND on the useful-byte rate of DeepSeek-V4.1's engram "
               f"lookup when the tables are in pinned host memory (EngramConfig.cpu_offload, "
-              f"the v0.31.0 default) and read through UVA. Derived as host_link_bandwidth "
-              f"({host_bw / 1e3:g} GB/s, AISimulate's 'pcie 5.0' figure: the raw rate per "
+              f"the v0.31.0 default) and read through UVA. Derived as the descriptor's nominal "
+              f"pcie_bw ({host_bw / 1e3:g} GB/s, AISimulate's 'pcie 5.0' figure: the raw rate per "
               f"direction) x 128/130 (PCIe 5.0's 128b/130b line code, leaving "
               f"{host_bw * PCIE_LINE_CODE / 1e3:.1f} GB/s) x {ENGRAM_ROW_BYTES}/"
               f"{ENGRAM_FETCHED_BYTES}: a row is {ENGRAM_ROW_BYTES} useful bytes -- 256 FP8 "
@@ -651,7 +651,10 @@ def entries(chip: str, g: dict, fm: dict, ix: dict, peak: float, fp8_tflops: flo
               f"ParallelEngramEmbedding.lookup(background=True) with cpu_offload on an {name} "
               f"host over 1-8,192 tokens at TP 1 and 8, and fit floor + bytes / rate. Read "
               f"by no consumer until the schema can state a host-resident gather "
-              f"(blis-schemas#48, blis-latency-kernel#38)."),
+              f"(blis-schemas#48, blis-latency-kernel#38). NOT host_link_bandwidth, which is now "
+              f"the measured copy-engine payload rate (fit_host_link.py); re-deriving this bound "
+              f"from a measured SM-driven ceiling (vLLM PR #42212, ~51 GB/s on H100) was tried and "
+              f"failed its held-out gate (h100 capped-replay ITL worse), so it is parked."),
     ]
     return attn, prim
 
@@ -688,7 +691,9 @@ def fit_part(data: Path, catalog: Path, chip: str, g: dict, fitted: dict) -> tup
     derate = committed(PRIM_PATH, "hbm_derate", chip)
     bf16_eps = committed(PRIM_PATH, "gemm_eps_max_bf16", chip)
     bf16_mh = int(committed(PRIM_PATH, "gemm_m_half_bf16", chip))
-    host_bw = committed(PRIM_PATH, "host_link_bandwidth", chip)
+    # The descriptor's nominal pcie_bw, read directly: host_link_bandwidth is now a measured
+    # copy-engine rate (fit_host_link.py), not the raw link rate this bound starts from.
+    host_bw = yaml.safe_load((data.parent / f"{sku}.yaml").read_text())["node"]["pcie_bw"] / 1e6
     grouped_eps = committed(PRIM_PATH, "gemm_eps_max_w4a16_mxfp4_grouped", chip)
     grouped_mh = int(committed(PRIM_PATH, "gemm_m_half_w4a16_mxfp4_grouped", chip))
     fitted[chip] = {"chip": chip, "fm": fm, "peak": peak}

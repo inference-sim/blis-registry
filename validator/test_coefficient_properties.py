@@ -276,10 +276,9 @@ def test_the_derived_deepseek_v41_entries_equal_what_they_are_derived_from(hw):
         bw * _single("hbm_derate", hw))
     assert _single("gemm_eps_max_w8a16_mxfp8", hw) == _single("gemm_eps_max_bf16", hw)
     assert _single("gemm_m_half_w8a16_mxfp8", hw) == _single("gemm_m_half_bf16", hw)
-    # The measured SM-driven H2D read ceiling (vLLM PR #42212, 51 GB/s) x useful/fetched
-    # bytes, with no line-code factor: a payload rate has already paid it. Not capped by
-    # host_link_bandwidth: that is a copy-engine DMA rate (on h100 its D2H direction).
-    assert _single("host_gather_rate_uva", hw) == round(51000.0 * (256 + 8) / (256 + 32))
+    # The descriptor's nominal 64 GB/s x 128/130 x useful/fetched bytes. Deliberately not
+    # host_link_bandwidth, which is the measured copy-engine payload rate (fit_host_link.py).
+    assert _single("host_gather_rate_uva", hw) == round(64000.0 * 128 / 130 * (256 + 8) / (256 + 32))
 
 
 def test_the_v41_host_entries_re_derive_from_their_vendored_measurements():

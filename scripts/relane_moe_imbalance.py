@@ -119,7 +119,10 @@ def entry_lines(kind: str, chip: str, f: dict) -> list[str]:
            "implementations. This multiplies the routed-expert FLOPs in the "
            f"kernel's step time. The 90th percentile of the same ratios is "
            f"{f['p90']:.3f}, stated here rather than as a coefficient because no "
-           "consumer prices a tail from it.")
+           "consumer prices a tail from it. It is ONE rank's kernel slowdown under "
+           "uneven load across its own experts, measured on one GPU; it does not "
+           "carry which expert-parallel rank is busiest, which is the run's resolved "
+           "routing profile (routing/), and the two compose.")
     return [
         f"  - {name}:",
         f"      value: {f[kind]}",

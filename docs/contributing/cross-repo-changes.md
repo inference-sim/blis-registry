@@ -32,3 +32,5 @@ data present.
 The kernel's tests pin the registry in `testdata/upstream.lock`, and inference-sim vendors it
 into `testdata/registry` with an `.upstream-commit` stamp. The vendored copy must equal this
 pull request's head, file for file, before any published number is computed from it.
+
+A private-names check (`.github/workflows/private-names.yml`) reads its pattern from a repository secret and fails a pull request whose files, paths, commit messages, title or body match it.

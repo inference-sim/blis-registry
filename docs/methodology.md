@@ -1284,16 +1284,16 @@ division is by the KERNEL's own launch count and device time for that step, a re
 kernel API) with clean kernel, registry and catalog commits. `--check` refuses a basis
 recorded for another anchor, scenario, host composition or step type: the anchor is a decode
 step, so the count must be the decode-only 972 (a step with a prefill row also launches the
-graph's 46 `phase: prefill` gathers, 1,018; kernel dd1fd67 used 1,018 on every step, which
+graph's 46 `phase: prefill` gathers, 1,018; kernel 993ddeb used 1,018 on every step, which
 gave 89.4 µs). **The composition is additive**, as the kernel's is: step = launches x (eager +
 dispatch) + device, so e = (ITL - device) / launches - `host_launch_per_kernel` =
 (96.56 - 3.18 ms) / 972 - 3.2 µs = 92.87 µs. A launch-overlap form, step ~ max(launches,
 device) (vLLM enqueues eager kernels asynchronously), was tried in the kernel and gave 96.14
 µs here, and was REJECTED: it does not reproduce the H200 DSpark arm's capture-ceiling
 collapse at c32, whose measured throughput the additive form matches (blis-latency-kernel
-ce085cc, `TestTheEagerDecodeAnchorIsAdditive`, which pins the constant at 92.75-93.7 µs). The
+07ed424, `TestTheEagerDecodeAnchorIsAdditive`, which pins the constant at 92.75-93.7 µs). The
 basis records the composition and `--check` refuses any other. The committed basis is kernel
-ce085cc (972 launches, 3.18 ms with the mHC entries). The constant is valid only with the
+07ed424 (972 launches, 3.18 ms with the mHC entries). The constant is valid only with the
 basis and the composition it was divided by. It is derived on H200 nodes only:
 the h200 entry is `assumed` (backed out of the anchor), and the other eight parts, h100
 included, carry it as a separate `copied` entry (`copied_from: hardware=h200,...`). That copy

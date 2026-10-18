@@ -84,6 +84,6 @@ its `hardware/`, any of the three vendored model graphs, or the set of `model.ya
 differs from this copy, so the property tests and the re-derivation gates always read one
 revision.
 
-`devices/storage.yaml` is copied verbatim from blis-catalog `d2d62bc` (the merge of
-`7823068`, the CollectiveX-fitted `cpu_dram` tier), so the validator can assert that
+`devices/storage.yaml` is copied verbatim from blis-catalog `deec066` (the merge of
+`5f6ecab`, the CollectiveX-fitted `cpu_dram` tier), so the validator can assert that
 `host_link_bandwidth` on h100 is the same fit as the tier it caps.

@@ -1,10 +1,10 @@
 {
  "anchor_sha256": "f250d35ee0fbb67184638ef154dd8c88158bab9911c6945863bcf458ee38c078",
- "catalog_commit": "a2ef6d3443a9832dabccd04fe75918a9e3bcc701",
+ "catalog_commit": "1b7dd3c075ba3dff9b997df9a9675bf7045f9663",
  "composition": "additive: step = launches x (eager + dispatch) + device",
  "device_ms": 3.176242,
  "graph_mode": "FULL",
- "kernel_commit": "ce085ccd78305e1fd8d4370939fb89708f6ba8c2",
+ "kernel_commit": "07ed4245beb80e1597393a629adf9adbbb4bf55a",
  "kernel_count": 972,
  "per_resource_ms": {
   "hbm": 1.225627,

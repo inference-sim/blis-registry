@@ -187,7 +187,7 @@ def test_a_model_scoped_entry_never_shadows_a_part_wide_one():
     """A name may be scoped to one model, or part-wide, on a given part -- not both, unless
     the two resolve the same under either rule a kernel applies.
 
-    blis-latency-kernel through dd1fd67 admits every entry whose scope covers the
+    blis-latency-kernel through 993ddeb admits every entry whose scope covers the
     deployment and keeps the LAST in file order, so a model-scoped entry and a part-wide
     one of the same name on the same part would make the price depend on where each sits
     in the file. From the DeepSeek-V4.1 reader on, a model-scoped entry wins over an

@@ -14,7 +14,7 @@ engines; csrc swap_blocks is unchanged v0.27.1 -> v0.31.0 and swap_blocks_batch 
 descriptor-chunking loop that is a no-op on CUDA with VLLM_KV_OFFLOAD_MAX_BATCH_DESCRIPTORS
 unset, so the LARGE-payload rate transfers (the small-copy floor does not).
 
-ONE FIT, NOT TWO. blis-catalog's cpu_dram (7823068) is fitted to the same h100 rows:
+ONE FIT, NOT TWO. blis-catalog's cpu_dram (5f6ecab) is fitted to the same h100 rows:
 contiguous, payload >= 64 MiB, median payload rate per direction (H2D 27,058, D2H 46,089
 MB/s). The cap over it is that fit's larger direction, so the cap never binds below either
 fitted tier rate and states the link's measured ceiling. Other parts: the only block size

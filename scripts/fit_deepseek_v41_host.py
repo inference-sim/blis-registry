@@ -95,7 +95,7 @@ ANCHOR_LEVELS = (1, 2, 4, 8, 16, 32, 64)
 # device time in sequence, step = launches x (eager + dispatch) + device, so the device time is
 # subtracted. A launch-overlap form, step ~ max(launches, device), was tried in the kernel
 # and REJECTED: it does not reproduce the H200 DSpark arm's capture-ceiling collapse at c32,
-# whose measured throughput the additive form matches (blis-latency-kernel ce085cc,
+# whose measured throughput the additive form matches (blis-latency-kernel 07ed424,
 # TestTheEagerDecodeAnchorIsAdditive). The basis records the composition, and --check refuses
 # any other.
 EAGER_COMPOSITION = "additive: step = launches x (eager + dispatch) + device"
@@ -114,7 +114,7 @@ KDEVICE_SCENARIO_SUFFIX = ", decode n=1, 1 token, ctx 90000, no speculation"
 # index_prefill_k_gather: 46 launches) only in a step with a prefill row
 # (vllm/models/deepseek_v41/nvidia/flashmla.py:143-165, sparse_attn_indexer.py:416-417 at
 # v0.31.0). The kernel's decode-only target count is 972 and a step with a prefill row
-# 1018; kernel dd1fd67 used 1018 on every step, which put 46 prefill-only launches into the
+# 1018; kernel 993ddeb used 1018 on every step, which put 46 prefill-only launches into the
 # divisor. So the basis must say it priced a decode step and carry this count; a kernel whose
 # decode count legitimately changes needs this pin moved with the reason.
 DECODE_STEP_LAUNCHES = 972

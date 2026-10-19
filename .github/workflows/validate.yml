@@ -57,15 +57,11 @@ jobs:
           # layout checks and DCP/PCP knobs; v0.3.0 adds the vLLM 0.31.0 rules pack and the
           # graph/kernel keys DeepSeek-V4.1 needs (blis-schemas#55). Neither touched
           # spec/coefficient or vocab, so each bump was non-breaking for this repository.
+          # v0.4.0 (blis-schemas#74) adds acceptance/ and routing/ validation, which
+          # cmd/validate-registry now reads alongside coefficients/.
           # Bump this tag deliberately on a schema release.
-          #
-          # TEMPORARY, NOT MERGEABLE AS IS: pinned to a commit, not a tag, so acceptance/
-          # (blis-schemas#65) is schema-validated now. v0.3.0 reads only coefficients/;
-          # cmd/validate-registry reads acceptance/ and routing/ from blis-schemas#74's head,
-          # d0b23cdbc1bc (pseudo-version v0.3.1-0.20261018023318-d0b23cdbc1bc, a draft PR).
-          # Replace this SHA with the release tag that ships #74 before this merges.
           repository: inference-sim/blis-schemas
-          ref: d0b23cdbc1bc27100936eb511a2410cc3889506e
+          ref: v0.4.0
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

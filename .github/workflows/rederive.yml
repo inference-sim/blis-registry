@@ -6,30 +6,15 @@ name: rederive
 # test_generated_from_aisimulate.py and test_writers_are_idempotent.py skip there: a pull
 # request that hand-edits a fitted value, or changes a writer, was caught only if its
 # author ran them locally (inference-sim/blis-registry#36). This job checks out AISimulate
-# at the commit every committed value re-derives at and runs the whole suite, so a value
-# that its own fitter no longer produces fails on the pull request.
+# at the commit every committed value re-derives at and runs the whole suite
+# (scripts/rederive.sh), so a value that its own fitter no longer produces fails.
 #
-# Path-filtered, because the checkout is ~135 MB and the gates take ~20 minutes: a change that
-# touches no coefficient, writer or test cannot move a re-derivation.
+# Manual only (Actions -> rederive -> Run workflow): the checkout is ~135 MB and the gates
+# take ~20 minutes, so it no longer runs on every pull request or push. Run the same gates
+# locally, where the data is present, with scripts/rederive.sh before a pull request that
+# changes a fitted value, a writer or a test.
 
 on:
-  pull_request:
-    paths:
-      - "coefficients/**"
-      - "acceptance/**"
-      - "scripts/**"
-      - "validator/**"
-      - "requirements*.txt"
-      - ".github/workflows/rederive.yml"
-  push:
-    branches: [main]
-    paths:
-      - "coefficients/**"
-      - "acceptance/**"
-      - "scripts/**"
-      - "validator/**"
-      - "requirements*.txt"
-      - ".github/workflows/rederive.yml"
   workflow_dispatch:
 
 jobs:
@@ -99,39 +84,5 @@ jobs:
         env:
           AISIMULATE_DATA: ${{ github.workspace }}/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
           BLIS_CATALOG: ${{ github.workspace }}/blis-catalog
-        run: |
-          set -o pipefail
-          n=$(find "$AISIMULATE_DATA" -name '*.parquet' | wc -l)
-          echo "AISimulate parquets present: $n"
-          test "$n" -gt 500
-          # The vendored descriptors must be the catalog this job checks out.
-          diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
-          for g in validator/testdata/catalog/models/*/graph.yaml; do
-            diff "$g" "$BLIS_CATALOG/models/${g#validator/testdata/catalog/models/}"
-          done
-          # Every catalog model's model.yaml, and no other: the acceptance emitter refuses a
-          # model absent from this list, so a partial copy would refuse a real one.
-          diff <(cd validator/testdata/catalog/models && ls -1 */model.yaml) \
-               <(cd "$BLIS_CATALOG/models" && ls -1 */model.yaml)
-          for m in validator/testdata/catalog/models/*/model.yaml; do
-            diff "$m" "$BLIS_CATALOG/models/${m#validator/testdata/catalog/models/}"
-          done
-          # The vendored golden curves must be InferenceX's at the pinned commit, all of
-          # them, and the emitter must cite that commit and reproduce the set from it.
-          golden=inferencex/inferencex-e2e/infx/golden_al_distribution
-          vendored=validator/testdata/inferencex/golden_al_distribution
-          diff <(cd "$vendored" && ls -1 *.yaml) <(cd "$golden" && ls -1 *.yaml)
-          for f in "$vendored"/*.yaml; do diff "$f" "$golden/${f##*/}"; done
-          grep -q "^INFERENCEX_SHA = \"$INFERENCEX_SHA\"$" scripts/emit_acceptance_profiles.py
-          INFERENCEX_GOLDEN="$golden" python scripts/emit_acceptance_profiles.py --check
-          python -m pytest validator/ -q -rs | tee pytest.log
-          # With the data present, the only skips are the eight by-design ramp-form ones
-          # (a part carries the one- or three-factor ramp, so the other gate does not
-          # apply). Any other skip -- missing data, a missing catalog, a gate whose
-          # premise quietly disappeared -- is a gate that did not run, and fails the job.
-          unexpected=$(grep '^SKIPPED' pytest.log | grep -Ev 'carries the (one|three)-factor ramp' || true)
-          if [ -n "$unexpected" ]; then
-            echo "unexpected skips with the data present:" >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
+          INFERENCEX_GOLDEN: ${{ github.workspace }}/inferencex/inferencex-e2e/infx/golden_al_distribution
+        run: scripts/rederive.sh

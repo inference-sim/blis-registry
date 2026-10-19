@@ -59,14 +59,16 @@ never inferred; the author states it.
 :   A deliberate zero, so that "this costs nothing" is distinguishable from "this cost is
     unknown". A value of zero under any other method is rejected.
 
-The schema also defines `literature` (a published result not reproduced here) and
-`copied` (carried over from another scope, which `copied_from` names). No committed
-entry uses either.
+The schema also defines `literature` (a published result not reproduced here),
+`copied` (carried over from another scope, which `copied_from` names) and, since
+blis-schemas `v0.4.0`, `calibrated` (back-solved through the cost model from end-to-end
+measured cases, which it cites as `measured_case` sources, with the held-out metrics in
+`validated`). No committed entry uses any of the three.
 
 `fitted` is separate from `method` because the two answer different questions. A
 `vendor_spec` value is never fitted. A `measured` value may be fitted (the GEMM ramp) or
 not (an order statistic of measured ratios, like the MoE routing imbalance). The schema
-allows `fitted: true` only with `method: measured`.
+allows `fitted: true` only with `method: measured` or `calibrated`.
 
 ## Scope: where the value holds
 

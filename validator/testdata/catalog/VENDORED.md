@@ -1,7 +1,8 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at release `0.2.2`, `3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5` (2026-10-13).
+[blis-catalog] at release `0.2.3`, `3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5` (2026-10-13; `0.2.2`
+and `0.2.3` tag this same commit).
 blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
 so the two repositories check against one revision. The previous pin was `747a2213`
 (2026-10-07); `0.2.2` changes one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7,

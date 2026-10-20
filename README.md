@@ -79,8 +79,8 @@ python -m pytest validator/ -q -rs
 CI runs these jobs on a pull request:
 
 - **schema-validate** runs blis-schemas' validator (`cmd/validate-registry`, pinned by
-  tag; temporarily by commit, blis-schemas#74's head, until the release that ships it) over
-  every set, `acceptance/` included, the same rules a consumer applies when it loads one.
+  tag, currently `v0.4.0`) over every set, `acceptance/` and `routing/` included, the
+  same rules a consumer applies when it loads one.
 - **derivation-tests** runs `validator/` without the AISimulate sweeps, so the property
   tests run and the re-derivation tests skip.
 - **rederive** runs the same suite with AISimulate checked out at the pinned commit

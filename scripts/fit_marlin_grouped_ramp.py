@@ -12,7 +12,7 @@ routed experts through Marlin:
   * a compressed-tensors MXFP4 checkpoint (`CompressedTensorsW4A4Mxfp4MoEMethod`, Kimi-K3):
     `CutlassExpertsMxfp4` when `_supports_current_device()` -- SM100, SM110 or SM120 --
     and `MarlinExperts` otherwise (`compressed_tensors_moe_w4a4_mxfp4.py`).
-So on h200 both resolve to Marlin by default. On Blackwell stock v0.31.0 does not select
+So on h200 and h100 (the same SM90 GH100 die) both resolve to Marlin by default. On Blackwell stock v0.31.0 does not select
 Marlin, but Marlin is still what some measured Blackwell deployments ran: the Kimi-K3
 preview build (`vllm 0.1.dev19262`), whose CUTLASS activation whitelist rejected SiTU, served
 those experts on MarlinExperts W4A16 on every SM (AISimulate `collector/vllm/collect_moe.py`),
@@ -119,14 +119,21 @@ FORM_DTYPE = "bfloat16"
 # block size). int4 holdout: nibbles plus one BF16 scale per group of 128. BF16: 2.
 BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 128, FORM_DTYPE: 2.0}
 
-# The parts this family is committed for, and why each (see the module docstring): h200,
-# where stock v0.31.0 selects Marlin for MXFP4 experts; gb300, where the Kimi-K3 FPM run the
-# KDA validation (blis-registry#41) scores against ran Marlin W4A16.
-PARTS = [("h200_sxm", "h200"), ("gb300", "gb300")]
+# The parts this family is committed for, and why each (see the module docstring): h200
+# and h100, where stock v0.31.0 selects Marlin for MXFP4 experts; gb300, where the Kimi-K3
+# FPM run the KDA validation (blis-registry#41) scores against ran Marlin W4A16.
+PARTS = [("h200_sxm", "h200"), ("gb300", "gb300"), ("h100_sxm", "h100")]
+
+# A part measured beside a sibling on the same die, whose latencies are compared row for
+# row so the rationale can say what a difference in the fitted ramp is and is not.
+SIBLING = {"h100": "h200"}
 
 # Where Marlin is the default on the part, and where it is not.
 WHEN = {
     "h200": ("On SM90 v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM "
+             "and DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
+             "require SM100+)."),
+    "h100": ("On SM90 v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM "
              "and DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
              "require SM100+)."),
     "gb300": ("On this part stock v0.31.0 does NOT select Marlin -- CutlassExpertsMxfp4 "
@@ -266,9 +273,26 @@ def fit_part(data: Path, catalog: Path, sku: str, chip: str) -> dict:
     finally:
         BYTES_PER_WEIGHT[FIT_DTYPE] = saved
     return {"eps05": eps05, "mh05": mh05,"sku": sku, "chip": chip, "eps": eps, "mh": mh, "err": err, "signed": signed,
-            "n": len(train), "geom": geom, "peak_tf": peak / 1e12,
+            "n": len(train), "geom": geom, "peak_tf": peak / 1e12, "bw_tb": bw_peak / 1e12,
+            "latency": {r["num_tokens"]: r["s"] for r in train},
             "holdout": ho, "holdout_n": len(hold),
             "form": form_check(data, sku, peak, bw, chip)}
+
+
+def sibling_note(f: dict) -> str:
+    """For a part fitted beside a same-die sibling, what the two ramps' difference is."""
+    s = f.get("sibling")
+    if s is None:
+        return ""
+    ratios = [f["latency"][t] / s["latency"][t] for t in f["latency"]]
+    return (f"THE SAME KERNEL AS ON {s['chip'].upper()}, ON THE SAME DIE: at the same "
+            f"{len(ratios)} token counts this part's latency is {min(ratios):.2f}-"
+            f"{max(ratios):.2f}x {s['chip']}'s, against the {s['bw_tb'] / f['bw_tb']:.2f}x a "
+            f"kernel bound on its weight read would show at {f['bw_tb']:g} against "
+            f"{s['bw_tb']:g} TB/s. So the ramp differs from {s['chip']}'s "
+            f"({s['eps']:.3f} / {s['mh']}) because the memory half charged here is larger "
+            f"at this part's lower BwPeak, and the ramp carries what it leaves -- not because "
+            f"the compute is faster; the pair holds only with this part's own memory half. ")
 
 
 def entry_lines(name: str, f: dict) -> list[str]:
@@ -293,7 +317,7 @@ def entry_lines(name: str, f: dict) -> list[str]:
                f"Geometric error {f['err']:.3f}x (signed {f['signed']:.3f}); held out on "
                f"vLLM's int4 Marlin MoE (hidden {hh}, inter {hi}, top-{hk} of {he}, group "
                f"128; {f['holdout_n']} token counts) at {f['holdout'][0]:.3f}x, signed "
-               f"{f['holdout'][1]:.3f}. COUPLED TO THE CONSUMER'S ROUTED TERM, as checked "
+               f"{f['holdout'][1]:.3f}. {sibling_note(f)}COUPLED TO THE CONSUMER'S ROUTED TERM, as checked "
                f"against blis-latency-kernel#44 (483f6aa): compute and memory SUMMED; the "
                f"ramp evaluated at the step's token count; compute at the BF16 peak; memory "
                f"as ExpertsTouched experts' stored bytes at BwPeak x hbm_derate; imbalance and "
@@ -371,6 +395,9 @@ def main(argv: list[str]) -> int:
               f"{f['holdout'][0]:.3f}x signed {f['holdout'][1]:.3f} (n={f['holdout_n']})")
         print(f"{'':8} form check, committed BF16 ramp on BF16 Triton experts "
               f"{f['form']['geom']}: {form}")
+
+    for chip, sib in SIBLING.items():
+        fits[chip]["sibling"] = fits[sib]
 
     before = SET_PATH.read_text(encoding="utf-8")
     after = render(before, fits)

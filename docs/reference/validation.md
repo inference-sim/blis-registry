@@ -61,8 +61,12 @@ Run them before any pull request that changes a fitted value, and before a relea
 
 ```sh
 export AISIMULATE_DATA=/path/to/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
-python -m pytest validator/ -q -rs
+export BLIS_CATALOG=/path/to/blis-catalog
+export COLLECTIVEX_DATA=/path/to/collectivex-run-bodies
+scripts/rederive.sh
 ```
+
+`scripts/rederive.sh` is also what the manual-dispatch `rederive` workflow runs.
 
 They check that:
 

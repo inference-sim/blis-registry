@@ -32,7 +32,14 @@ linear model, and each such entry states its predictor and holdout error.
 [Methodology §8.5](../../methodology.md#85-rack-scale-rank-widths-and-the-one-place-this-registry-extrapolates)
 gives the argument, including the model that was tried first and refuted.
 
-<!-- registry:set cost-model-collectives section=^(collective_(?:floor|peak_rate|transition_rate)_(?:all_gather|all_reduce|alltoall|reduce_scatter))_ sort=natural -->
+The set also holds the MoE all-to-all that DeepEP dispatch plus combine costs, as
+`floor` + bytes / `rate` per backend, rank count and part
+(`moe_a2a_floor_deepep_low_latency_8rank_h100`).
+All of them come from AISimulate. The low-latency pair measured by CollectiveX under
+CUDA-graph replay is in
+[cost-model-collectives-inferencex](cost-model-collectives-inferencex.md).
+
+<!-- registry:set cost-model-collectives section=^(collective_(?:floor|peak_rate|transition_rate)_(?:all_gather|all_reduce|alltoall|reduce_scatter)|moe_a2a_(?:floor|rate))_ sort=natural -->
 
 **Regenerate:** `emit_collectives.py` and `fit_collectives_vllm.py` for measured widths;
 `insert_collectives_part.py` to add a part; `insert_collectives_wide.py` and

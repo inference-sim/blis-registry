@@ -98,6 +98,7 @@ nav:
   - Contributing:
       - contributing/index.md
       - Releases and these docs: contributing/releasing.md
+      - Changes across the repositories: contributing/cross-repo-changes.md
   - Concepts:
       - concepts/index.md
       - Coefficients: concepts/coefficients.md
@@ -107,14 +108,17 @@ nav:
       - Coefficient sets:
           - cost-model-primitives: reference/sets/cost-model-primitives.md
           - cost-model-collectives: reference/sets/cost-model-collectives.md
+          - cost-model-collectives-inferencex: reference/sets/cost-model-collectives-inferencex.md
           - cost-model-attention: reference/sets/cost-model-attention.md
           - cost-model-recurrent: reference/sets/cost-model-recurrent.md
           - cost-model-host-overheads: reference/sets/cost-model-host-overheads.md
           - cost-model-memory: reference/sets/cost-model-memory.md
+      - Acceptance profiles: reference/acceptance.md
       - File format: reference/format.md
       - Validation: reference/validation.md
   - Methodology:
       - research/index.md
       - Methodology: methodology.md
+      - Fitting principles: fitting-principles.md
       - Reproducing the coefficients: reproducing-coefficients.md
       - Choosing the overlap band: band-selection.md

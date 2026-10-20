@@ -260,6 +260,14 @@ def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
     )
 
 
+# The one family measured outside AISimulate: AISimulate has no host-link measurement (its
+# descriptor states the nominal PCIe rate), and InferenceX CollectiveX swap_blocks times
+# vLLM's own copy kernel. A microbenchmark, not an end-to-end row, so it is fit data in
+# full (docs/fitting-principles.md section 3). Named here so no other family follows it in
+# silently; fit_host_link.py is its writer, gated in test_deepep_ll_graph.py.
+MICROBENCHMARK_SOURCED = {"host_link_bandwidth": "InferenceX CollectiveX swap_blocks"}
+
+
 def test_no_coefficient_cites_a_non_nvidia_measurement_source():
     """Every MEASURED cost-model entry is sourced from NVIDIA AISimulate.
 
@@ -284,6 +292,9 @@ def test_no_coefficient_cites_a_non_nvidia_measurement_source():
         for item in doc["coefficients"]:
             (key, body), = item.items()
             if body.get("method") != "measured":
+                continue
+            if key in MICROBENCHMARK_SOURCED:
+                assert all(MICROBENCHMARK_SOURCED[key] in x["cite"] for x in body["sources"]), key
                 continue
             for source in body.get("sources", []):
                 cite = source["cite"]
@@ -383,3 +394,86 @@ def test_gemm_shape_ramp_survives_independent_refit(sku, chip):
         checked += 1
     # Four coefficients per dtype, and a part carries at least bf16, fp8 and fp8_block.
     assert checked >= 12, f"{chip}: only {checked} coefficients re-derived"
+
+
+# --------------------------------------------------------------------------------------
+# DeepSeek-V4.1: the committed entries through the CONTRACT's byte counts
+# --------------------------------------------------------------------------------------
+#
+# The kernel reader evaluates these entries with fixed byte counts (the coefficient contract
+# and each rationale). A writer that changed its own W -- dropping the BF16 factor of the
+# mHC residual, say -- would regenerate rates that fit its own W and pass its own --check,
+# while the kernel priced every site 2x off. So these tests rebuild W from the contract's
+# literals, independently of the writers' regressor code, and assert the stated error.
+
+V41 = "deepseek-v4.1-flash"
+V41_PARTS = [("h200_sxm", "h200"), ("h100_sxm", "h100")]
+MHC_BYTES_PER_HIDDEN = 8      # hc_mult 4 x BF16, per token per hidden element (40,960 B at 5120)
+FLASHMLA_BLOCK_BYTES = 64 * 584   # one 64-token FlashMLA block of the 584 B V4 record
+V41_WINDOW = 128
+
+
+def _v41(name: str, chip: str) -> float:
+    for setname in ("cost-model-attention", "cost-model-primitives"):
+        doc = yaml.safe_load((REPO / "coefficients" / f"{setname}.yaml").read_text())
+        for e in doc["coefficients"]:
+            ((n, body),) = e.items()
+            if n == name and body["scope"] == {"hardware": [chip], "model": [V41]}:
+                return float(body["value"])
+    raise AssertionError(f"no {name} for {chip}/{V41}")
+
+
+def _geo(pred, y):
+    import math
+    logs = [math.log(p / m) for p, m in zip(pred, y)]
+    return (math.exp(sum(abs(x) for x in logs) / len(logs)),
+            math.exp(sum(logs) / len(logs)))
+
+
+@pytest.mark.parametrize("sku,chip", V41_PARTS)
+@pytest.mark.parametrize("op", ["pre", "post"])
+def test_v41_mhc_entries_price_the_sweep_at_the_contracts_bytes(sku, chip, op):
+    """W = tokens x hidden x 8 B per mHC site (a row times two sites)."""
+    import pyarrow.parquet as pq
+    t = pq.read_table(DATA / sku / "mhc" / "vllm" / "0.25.0" / "mhc_module_perf.parquet"
+                      ).to_pydict()
+    floor, rate = _v41(f"mhc_floor_{op}", chip), _v41(f"mhc_rate_{op}", chip)
+    pred, y = [], []
+    for i in range(len(t["latency"])):
+        if t["op_name"][i] != op:
+            continue
+        w = t["num_tokens"][i] * t["hidden_size"][i] * MHC_BYTES_PER_HIDDEN
+        pred.append(floor + w / rate)
+        y.append(t["latency"][i] * 1000.0 / 2)
+    err, signed = _geo(pred, y)
+    assert len(y) >= 60 and err < 1.12 and 0.9 < signed < 1.1, (
+        f"{chip} mhc {op}: {err:.3f}x signed {signed:.3f} over {len(y)} rows at the "
+        f"contract's 8 B per hidden element; the committed rate was fitted on other bytes")
+
+
+def _flashmla_decode_rows(sku):
+    import math
+    import pyarrow.parquet as pq
+    t = pq.read_table(DATA / sku / "sparse_attention" / "vllm" / "0.25.0" /
+                      "dsv4_hca_attn_module_perf.parquet").to_pydict()
+    out = []
+    for i in range(len(t["latency"])):
+        if t["isl"][i] != 1 or t["model"][i] != "sgl-project/DeepSeek-V4-Flash-FP8":
+            continue
+        ctx = t["step"][i] + 1
+        blocks = math.ceil(min(ctx, V41_WINDOW) / 64) + math.ceil((ctx // 128) / 64)
+        out.append((t["batch_size"][i], blocks, t["latency"][i] * 1000.0))
+    return out
+
+
+@pytest.mark.parametrize("sku,chip", V41_PARTS)
+def test_v41_sparse_decode_rate_prices_the_sweep_at_the_contracts_bytes(sku, chip):
+    """The single-rate pair: part-wide floor + batch x blocks x 37,376 B / rate."""
+    doc = yaml.safe_load((REPO / "coefficients" / "cost-model-attention.yaml").read_text())
+    floor = next(float(b["value"]) for e in doc["coefficients"] for n, b in e.items()
+                 if n == "attention_decode_floor" and b["scope"] == {"hardware": [chip]})
+    rate = _v41("attention_decode_rate_sparse_mla", chip)
+    rows = _flashmla_decode_rows(sku)
+    err, signed = _geo([floor + r * b * FLASHMLA_BLOCK_BYTES / rate for r, b, _ in rows],
+                       [y for *_, y in rows])
+    assert err < 1.25 and 0.95 < signed < 1.15, (chip, err, signed)

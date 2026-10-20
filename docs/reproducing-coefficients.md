@@ -25,7 +25,7 @@ the data comes from, and which command regenerates which file.
 | Licence | Apache-2.0, with one MIT third-party file carved out in the `LICENSE` NOTICE and attributed in `THIRD_PARTY_NOTICES.md`. GitHub's license API reports `NOASSERTION` because of that preamble; the text itself says "Except for the third-party material identified in that notice file, this codebase is licensed under the Apache License 2.0", and source files carry `SPDX-License-Identifier: Apache-2.0`. |
 | Provenance | Successor to [`ai-dynamo/aiconfigurator`](https://github.com/ai-dynamo/aiconfigurator); method described in arXiv:2601.06288. |
 | Fetch | `git clone https://github.com/ai-dynamo/aisimulate` — the sweeps are checked into git as Parquet. Git LFS is needed only for retained legacy `.txt` assets, which no fit in this registry reads. `pip install aisimulate` also ships the tree inside the wheel. |
-| Pin | Every committed value re-derives at `2f0f4cd8606d580567b253d02f3d699fe36db865` (2026-10-10), with blis-catalog at release `0.2.2` (`3ed02ff`, the commit `validator/testdata/catalog` vendors). The `rederive` CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it. |
+| Pin | Every committed value re-derives at `2f0f4cd8606d580567b253d02f3d699fe36db865` (2026-10-10), with blis-catalog at release `0.3.0` (`676326e`; the commit `validator/testdata/catalog` vendors). The `rederive` CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it. |
 | Python | `pip install -r requirements-fit.txt` — the validator's dependencies plus `numpy`, `pandas` and `pyarrow`, which the fitters need to read Parquet. |
 
 The two trees the fits read are **not** at the repository root:
@@ -313,22 +313,26 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 |---|---|---|
 | `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
 | `moe_routing_imbalance_median` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
-| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200 and gb300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies |
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |
 | `attention_decode_rate_mla` | `relane_attention_mla.py --check-rate` | same; the FLOOR half is owned by `correct_mla_floor.py`, see methodology §3 |
 | `attention_decode_floor_mla` | `correct_mla_floor.py` | derived from each part's own `attention_decode_floor` (the module tables are rejected for it) |
-| `attention_decode_rate_sparse_mla` | `fit_deepseek_v41_h200.py` — scoped to deepseek-v4.1-flash on h200 only | AISimulate `sparse_attention`, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5) |
+| `attention_decode_rate_sparse_mla` | `fit_deepseek_v41_h200.py` — scoped to deepseek-v4.1-flash on h200 and h100 only, each fitted from its own part's rows | AISimulate `sparse_attention`, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5) |
+| `attention_decode_{launch_floor,split_floor,serial_rate,per_token,throughput_rate}_sparse_mla` | `fit_deepseek_v41_decode.py` — deepseek-v4.1-flash on h200 and h100 | the same FlashMLA kernel table's decode rows, at most 10 blocks (methodology §10.7) |
 | `attention_decode_*_block_index_scores` | `fit_deepseek_v41_h200.py` | the floor from AISimulate's indexer-kernel table; the rate `assumed` at NVIDIA's empirical HBM rate, BwPeak × `hbm_derate` (methodology §10.5) |
 | `gemm_*_w8a16_mxfp8`, `host_gather_rate_uva` | `fit_deepseek_v41_h200.py` (`assumed`) | upper bounds derived from committed siblings; no sweep measures them |
 | `attention_prefill_*` | `relane_attention_prefill.py` | AISimulate `attention` context rows |
+| `attention_prefill_*_sparse_mla`, `attention_prefill_*_block_index_scores`, `mhc_*` | `fit_deepseek_v41_prefill.py` — scoped to deepseek-v4.1-flash on h200 and h100 | AISimulate `sparse_attention` FlashMLA prefill rows and the paged-logits kernel at prefill shapes (a proxy, `assumed`); `mhc/vllm/0.25.0` (methodology §10.6) |
+| deepseek-v4.1-flash `host_launch_eager_per_kernel`, `host_admission_*` | `fit_deepseek_v41_host.py` | vendored `validator/testdata/anchors/` (the derived inputs of an internal enforce-eager report, via `--extract-anchor`, re-verified when `V41_EAGER_ANCHOR_REPORT` names a local copy; the kernel basis; the front-end timing) |
 | `recurrent_decode_*_kda` | `relane_recurrent_kda.py` | AISimulate `kda`, vLLM lane |
 | `recurrent_decode_*_{gdn,mamba2}` | `relane_recurrent_family.py --family X` | AISimulate `linear_attention` |
 | `collective_*` (measured widths) | `emit_collectives.py`, `fit_collectives_vllm.py` | AISimulate `comm` |
 | `collective_*` (new part) | `insert_collectives_part.py` | same, per operator per lane |
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) and A100's `moe_routing_imbalance_median` | `emit_primitives.py --check` (entry-level) | NVIDIA `systems/<sku>.yaml`; AISimulate `moe/sglang/0.5.10` for A100 |
+| `host_link_bandwidth` (measured, six parts) | `fit_host_link.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX swap_blocks, contiguous, payload >= 64 MiB; h100 is the catalog `cpu_dram` fit's larger direction |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
 | `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
 | `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |

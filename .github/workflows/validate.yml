@@ -55,11 +55,12 @@ jobs:
           # Pinned to a blis-schemas release tag. cmd/validate-registry and the full
           # coefficient-set ruleset arrived in v0.2.1 (#38); v0.2.2 added deployment-side
           # layout checks and DCP/PCP knobs; v0.3.0 adds the vLLM 0.31.0 rules pack and the
-          # graph/kernel keys DeepSeek-V4.1 needs (blis-schemas#55). Neither touched
-          # spec/coefficient or vocab, so each bump was non-breaking for this repository.
-          # Bump this tag deliberately on a schema release.
+          # graph/kernel keys DeepSeek-V4.1 needs (blis-schemas#55); v0.4.0 (#74) adds
+          # acceptance profiles (#65), so cmd/validate-registry now also reads acceptance/
+          # and routing/. Each bump was non-breaking for this repository: every committed
+          # set validates under the new tag. Bump this tag deliberately on a schema release.
           repository: inference-sim/blis-schemas
-          ref: v0.3.0
+          ref: v0.4.0
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's
@@ -72,6 +73,7 @@ jobs:
       - name: Validate every committed set through the Go schema
         working-directory: blis-schemas
         # The registry is checked out at $GITHUB_WORKSPACE; cmd/validate-registry discovers
-        # <root>/coefficients/ (recursive, .yaml/.yml, case-insensitive), then
-        # LoadCoefficientSet + Validate each, exiting non-zero on any failure.
+        # <root>/coefficients/ and <root>/acceptance/ (recursive, .yaml/.yml,
+        # case-insensitive), then LoadCoefficientSet / LoadAcceptanceProfileSet + Validate
+        # each, exiting non-zero on any failure.
         run: go run ./cmd/validate-registry "$GITHUB_WORKSPACE"

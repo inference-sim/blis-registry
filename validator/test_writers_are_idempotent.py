@@ -63,16 +63,33 @@ WRITERS = [
     ("fit_marlin_grouped_ramp.py", "the Marlin W4A16 grouped GEMM ramp"),
     # Entry-level: the descriptor entries and A100's MoE median, the families it owns.
     ("emit_primitives.py", "the descriptor entries and the A100 MoE median"),
-    # Owns six DeepSeek-V4.1-on-h200 entries across two sets: two fitted, four assumed
-    # and derived from committed siblings, so --check also catches a sibling refitted
-    # without re-deriving them.
-    ("fit_deepseek_v41_h200.py", "the DeepSeek-V4.1 h200 attention, indexer, W8A16 and "
-                                 "host-gather entries"),
+    # Owns six DeepSeek-V4.1 entries per part (h200, h100) across two sets: two fitted,
+    # four assumed and derived from committed siblings, so --check also catches a sibling
+    # refitted without re-deriving them. Run after the Marlin writer, whose ramp the W8A16
+    # rationale cites.
+    ("fit_deepseek_v41_h200.py", "the DeepSeek-V4.1 h200 and h100 attention, indexer, "
+                                 "W8A16 and host-gather entries"),
+    # The prefill companion: V4.1's sparse-MLA prefill, the indexer's prefill (a proxy,
+    # `assumed`) and mHC, per part. It reads the decode writer's geometry check, so a
+    # geometry change refuses in both.
+    ("fit_deepseek_v41_prefill.py", "the DeepSeek-V4.1 h200 and h100 sparse-MLA prefill, "
+                                    "indexer prefill and mHC entries"),
+    # The decode companion: V4.1's two-branch FlashMLA sparse decode form (five entries per
+    # part, new names the kernel does not read yet), fitted beside the committed single rate.
+    ("fit_deepseek_v41_decode.py", "the DeepSeek-V4.1 h200 and h100 sparse-MLA decode "
+                                   "two-branch form"),
     # Not a fitter -- it transcribes AISimulate's activation table and anchors the capture
     # bytes on a committed CSV -- but it renders a whole file, so byte-identity is the right
     # gate. The capture half needs no AISimulate tree and is also gated in CI by
     # test_coefficient_properties.py::test_capture_bytes_re_derive_from_the_committed_samples.
     ("emit_memory.py", "the activation multiples and CUDA-graph capture bytes"),
+    # The DeepEP dispatch + combine floor and rate per backend on h100, from
+    # h100_sxm/comm/vllm/0.24.0/moe_a2a_perf.parquet.
+    ("fit_deepep_a2a.py", "the DeepEP all-to-all floor and rate per backend"),
+    # DeepSeek-V4.1's FULL_AND_PIECEWISE capture form, from the vendored start-up anchor
+    # (validator/testdata/anchors/v41_h200_tp8_capture_startups.json); emit_memory.py keeps
+    # these entries and does not write them.
+    ("fit_deepseek_v41_capture.py", "the DeepSeek-V4.1 CUDA-graph capture form"),
 ]
 
 # relane_attention_mla.py is DELIBERATELY ABSENT from both lists, and this records why so
@@ -199,7 +216,10 @@ def test_every_fitted_family_has_a_writer():
                | {w.split()[0] for w, _, _ in VALUE_ONLY}
                # A split pair's fitted half is gated by its own flag; the writer still
                # owns that half, so it counts as covered here.
-               | {w.split()[0] for w, _ in RATE_ONLY})
+               | {w.split()[0] for w, _ in RATE_ONLY}
+               # Gated against its own (InferenceX CollectiveX) data in
+               # test_deepep_ll_graph.py, not against the AISimulate tree.
+               | {"fit_deepep_ll_graph.py", "fit_host_link.py"})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -222,10 +242,35 @@ def test_every_fitted_family_has_a_writer():
         "gemm_eps_max": "relane_gemm_envelope.py",
         "gemm_m_half": "relane_gemm_envelope.py",
         "moe_routing_imbalance_median": "relane_moe_imbalance.py",
+        "host_link_bandwidth": "fit_host_link.py",
         "gemm_eps_max_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
         "gemm_m_half_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
         "attention_decode_rate_sparse_mla": "fit_deepseek_v41_h200.py",
         "attention_decode_floor_block_index_scores": "fit_deepseek_v41_h200.py",
+        "attention_prefill_floor_sparse_mla": "fit_deepseek_v41_prefill.py",
+        "attention_prefill_per_request_sparse_mla": "fit_deepseek_v41_prefill.py",
+        "attention_prefill_per_token_sparse_mla": "fit_deepseek_v41_prefill.py",
+        "attention_prefill_rate_sparse_mla": "fit_deepseek_v41_prefill.py",
+        "mhc_floor_pre": "fit_deepseek_v41_prefill.py",
+        "mhc_rate_pre": "fit_deepseek_v41_prefill.py",
+        "mhc_floor_post": "fit_deepseek_v41_prefill.py",
+        "mhc_rate_post": "fit_deepseek_v41_prefill.py",
+        **{f"attention_decode_{t}_sparse_mla": "fit_deepseek_v41_decode.py"
+           for t in ("launch_floor", "split_floor", "serial_rate", "per_token",
+                     "throughput_rate")},
+        **{f"moe_a2a_{t}_deepep_{b}_8rank_h100": "fit_deepep_a2a.py"
+           for t in ("floor", "rate")
+           for b in ("high_throughput", "low_latency", "v2_eager", "v2_graph")},
+        **{f"moe_a2a_{t}_deepep_{b}": "fit_deepep_a2a.py"
+           for t in ("floor", "rate")
+           for b in ("high_throughput_8rank_h200", "low_latency_8rank_h200",
+                     "high_throughput_8rank_b200", "low_latency_8rank_b200",
+                     "high_throughput_8rank_b300", "low_latency_8rank_b300",
+                     "low_latency_4rank_gb200_nvl72", "high_throughput_4rank_gb300")},
+        **{f"moe_a2a_{t}_deepep_low_latency_graph_8rank_{p}": "fit_deepep_ll_graph.py"
+           for t in ("floor", "rate") for p in ("h100", "h200")},
+        **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
+           for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }
     # Families whose absence of a writer is recorded rather than accidental.
     exempt = {

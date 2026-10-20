@@ -79,14 +79,14 @@ python -m pytest validator/ -q -rs
 CI runs these jobs on a pull request:
 
 - **schema-validate** runs blis-schemas' validator (`cmd/validate-registry`, pinned by
-  tag; temporarily by commit, blis-schemas#74's head, until the release that ships it) over
-  every set, `acceptance/` included, the same rules a consumer applies when it loads one.
+  tag, currently `v0.4.0`) over every set, `acceptance/` and `routing/` included, the
+  same rules a consumer applies when it loads one.
 - **derivation-tests** runs `validator/` without the AISimulate sweeps, so the property
   tests run and the re-derivation tests skip.
 - **rederive** runs the same suite with AISimulate checked out at the pinned commit
   every committed value re-derives at, so a fitted value its writer no longer produces
-  fails here. It runs when a pull request touches `coefficients/`, `scripts/`,
-  `validator/` or a requirements file.
+  fails here. It takes ~20 minutes, so it runs only on manual dispatch (Actions ->
+  rederive -> Run workflow); run it locally with `scripts/rederive.sh` instead.
 - **docs** builds the documentation in strict mode.
 
 To run the re-derivation gates locally:
@@ -95,8 +95,15 @@ To run the re-derivation gates locally:
 pip install -r requirements-fit.txt
 git clone https://github.com/ai-dynamo/aisimulate
 export AISIMULATE_DATA=$PWD/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
-python -m pytest validator/ -q -rs
+export BLIS_CATALOG=/path/to/blis-catalog   # at CATALOG_SHA in .github/workflows/rederive.yml
+export COLLECTIVEX_DATA=/path/to/collectivex-run-bodies
+scripts/rederive.sh
 ```
+
+`scripts/rederive.sh` is what the `rederive` workflow runs: the catalog and InferenceX
+copy checks, then `pytest validator/`, failing on any skip other than the by-design
+ramp-form ones. Set `INFERENCEX_GOLDEN` to an InferenceX checkout's
+`inferencex-e2e/infx/golden_al_distribution` to include the golden-curve check.
 
 ## Documentation
 

@@ -2,12 +2,11 @@
 
 A coefficient set is a YAML file under `coefficients/`. The rules on this page are
 enforced by [blis-schemas](https://github.com/inference-sim/blis-schemas), at the
-release `v0.3.0`, in
-[`spec/coefficient`](https://github.com/inference-sim/blis-schemas/tree/v0.3.0/spec/coefficient)
-and [`vocab`](https://github.com/inference-sim/blis-schemas/blob/v0.3.0/vocab/vocab.go).
-Where this page and the schema disagree, the schema is right. CI currently pins
-blis-schemas#74's head instead, so it also validates `acceptance/`; its `spec/coefficient`
-and `vocab` are identical to `v0.3.0`'s.
+release `v0.4.0`, in
+[`spec/coefficient`](https://github.com/inference-sim/blis-schemas/tree/v0.4.0/spec/coefficient)
+and [`vocab`](https://github.com/inference-sim/blis-schemas/blob/v0.4.0/vocab/vocab.go),
+the release CI pins; it also validates `acceptance/` and `routing/`.
+Where this page and the schema disagree, the schema is right.
 
 ## Shape
 
@@ -33,14 +32,14 @@ field is rejected, not ignored.
 | `value` | number | yes | Finite. Zero only with `method: not_charged`. |
 | `units` | term | yes | One of the units below. |
 | `method` | term | yes | One of the methods below. |
-| `fitted` | bool | yes | Must be present, even when false. `true` requires `method: measured`. |
+| `fitted` | bool | yes | Must be present, even when false. `true` requires `method: measured` or `calibrated`. |
 | `scope` | map | yes | At least one dimension. |
-| `sources` | list | by method | If present, non-empty. Required for `literature` and `vendor_spec`. |
+| `sources` | list | by method | If present, non-empty. Required for `literature` and `vendor_spec`; `calibrated` requires at least one of kind `measured_case`. |
 | `rationale` | string | by method | Required for every method except `measured`. |
 | `ci95` | `[low, high]` | no | Finite, `low ≤ high`, and the value must lie inside. |
 | `copied_from` | string | for `copied` | The scope the value was copied from. |
 | `supersedes` | string | no | The entry this one replaces. |
-| `validated` | metric or list | no | Metrics the value has been checked against. |
+| `validated` | metric or list | for `calibrated` | Metrics the value has been checked against. |
 | `unsupported` | metric or list | no | Metrics it has explicitly not been checked against. |
 
 Within one set, no two entries may share both a name and a scope. Scope comparison
@@ -64,7 +63,7 @@ the committed sets use each one, counted when this page was built.
 
 ### Methods
 
-`measured`, `vendor_spec`, `literature`, `copied`, `assumed`, `not_charged`.
+`measured`, `vendor_spec`, `literature`, `copied`, `assumed`, `not_charged`, `calibrated`.
 [Coefficients](../concepts/coefficients.md#method-how-the-value-was-obtained) explains
 each. In use:
 
@@ -82,7 +81,7 @@ quantity that varies with them carries them in its name. In use:
 
 A source is `{kind, cite, role}`, all three required.
 
-- `kind`: `discussion`, `publication`, `datasheet`, `model`, `vendor_doc`
+- `kind`: `discussion`, `publication`, `datasheet`, `model`, `vendor_doc`, `measured_case`
 - `role`: `primary`, `supporting`, `upper_bound`
 - `cite`: free text, specific enough to find the exact file and rows
 

@@ -51,15 +51,17 @@ blis-latency-kernel looks the key up. Search the kernel for the name, not the re
    names the script that owns each family. Each takes `--check`, which exits non-zero if
    the committed file would change, and most take `--insert CHIP` to add a part.
 
-3. **Run the derivation tests with the data present.** CI's `rederive` job runs them at
-   the pinned AISimulate commit on any pull request that touches a coefficient, a writer
-   or a test; run them locally first:
+3. **Run the derivation tests with the data present.** CI does not run them on pull
+   requests (the `rederive` workflow takes ~20 minutes and is manual-dispatch only), so
+   run them locally before any pull request that touches a coefficient, a writer or a
+   test. With `COLLECTIVEX_DATA` also set to the CollectiveX run bodies:
 
     ```sh
-    python -m pytest validator/ -q -rs
+    scripts/rederive.sh
     ```
 
-    `-rs` prints the reason for every skip. A skip you did not expect is a test that did
+    It runs `python -m pytest validator/ -q -rs` and fails on any skip other than the
+    by-design ramp-form ones, because a skip with the data present is a test that did
     not run.
 
 4. **Run the schema validator.** CI runs it on every pull request; running it first

@@ -557,6 +557,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -801,6 +831,8 @@
       
         
       
+        
+      
     
     
     
@@ -866,6 +898,8 @@
   
     
     
+      
+        
       
         
       
@@ -970,6 +1004,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1098,6 +1160,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1276,6 +1366,8 @@
       
         
       
+        
+      
     
     
     
@@ -1345,6 +1437,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1588,8 +1708,11 @@ which are not vendored here, and they skip when the data is absent, saying so. C
 copy, so in CI they always skip.</p>
 <p>Run them before any pull request that changes a fitted value, and before a release:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span>/path/to/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w"> </span>-rs
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>/path/to/blis-catalog
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">COLLECTIVEX_DATA</span><span class="o">=</span>/path/to/collectivex-run-bodies
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>scripts/rederive.sh
 </code></pre></div>
+<p><code>scripts/rederive.sh</code> is also what the manual-dispatch <code>rederive</code> workflow runs.</p>
 <p>They check that:</p>
 <ul>
 <li>each writer reproduces its committed file byte for byte (<code>--check</code>), and every fitted

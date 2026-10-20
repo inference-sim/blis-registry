@@ -557,6 +557,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -906,6 +936,8 @@
       
         
       
+        
+      
     
     
     
@@ -968,6 +1000,8 @@
   
     
     
+      
+        
       
         
       
@@ -1069,6 +1103,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1209,6 +1271,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/format/" class="md-nav__link">
         
   
@@ -1276,6 +1366,8 @@
       
         
           
+        
+      
         
       
         
@@ -1353,6 +1445,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1647,13 +1767,15 @@ measurement that would replace the value. A careful estimate is still <code>assu
 <dd>A deliberate zero, so that "this costs nothing" is distinguishable from "this cost is
 unknown". A value of zero under any other method is rejected.</dd>
 </dl>
-<p>The schema also defines <code>literature</code> (a published result not reproduced here) and
-<code>copied</code> (carried over from another scope, which <code>copied_from</code> names). No committed
-entry uses either.</p>
+<p>The schema also defines <code>literature</code> (a published result not reproduced here),
+<code>copied</code> (carried over from another scope, which <code>copied_from</code> names) and, since
+blis-schemas <code>v0.4.0</code>, <code>calibrated</code> (back-solved through the cost model from end-to-end
+measured cases, which it cites as <code>measured_case</code> sources, with the held-out metrics in
+<code>validated</code>). No committed entry uses any of the three.</p>
 <p><code>fitted</code> is separate from <code>method</code> because the two answer different questions. A
 <code>vendor_spec</code> value is never fitted. A <code>measured</code> value may be fitted (the GEMM ramp) or
 not (an order statistic of measured ratios, like the MoE routing imbalance). The schema
-allows <code>fitted: true</code> only with <code>method: measured</code>.</p>
+allows <code>fitted: true</code> only with <code>method: measured</code> or <code>calibrated</code>.</p>
 <h2 id="scope-where-the-value-holds">Scope: where the value holds<a class="headerlink" href="#scope-where-the-value-holds" title="Permanent link">&para;</a></h2>
 <p>A scope lists the deployments an entry applies to, along five dimensions: <code>hardware</code>,
 <code>model</code>, <code>tp</code>, <code>ep</code> and <code>nodes_spanned</code>. Every committed entry is scoped by hardware

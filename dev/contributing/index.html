@@ -559,6 +559,8 @@
       
         
       
+        
+      
     
     
     
@@ -631,6 +633,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -804,6 +834,8 @@
       
         
       
+        
+      
     
     
     
@@ -866,6 +898,8 @@
   
     
     
+      
+        
       
         
       
@@ -967,6 +1001,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1107,6 +1169,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/format/" class="md-nav__link">
         
   
@@ -1174,6 +1264,8 @@
       
         
           
+        
+      
         
       
         
@@ -1251,6 +1343,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1408,6 +1528,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#changes-across-the-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changes across the repositories
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1480,12 +1611,14 @@ fitters need to read the Parquet sweeps: <code>pyarrow</code>, <code>pandas</cod
    the committed file would change, and most take <code>--insert CHIP</code> to add a part.</p>
 </li>
 <li>
-<p><strong>Run the derivation tests with the data present.</strong> CI's <code>rederive</code> job runs them at
-   the pinned AISimulate commit on any pull request that touches a coefficient, a writer
-   or a test; run them locally first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w"> </span>-rs
+<p><strong>Run the derivation tests with the data present.</strong> CI does not run them on pull
+   requests (the <code>rederive</code> workflow takes ~20 minutes and is manual-dispatch only), so
+   run them locally before any pull request that touches a coefficient, a writer or a
+   test. With <code>COLLECTIVEX_DATA</code> also set to the CollectiveX run bodies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>scripts/rederive.sh
 </code></pre></div>
-<p><code>-rs</code> prints the reason for every skip. A skip you did not expect is a test that did
+<p>It runs <code>python -m pytest validator/ -q -rs</code> and fails on any skip other than the
+by-design ramp-form ones, because a skip with the data present is a test that did
 not run.</p>
 </li>
 <li>
@@ -1533,6 +1666,10 @@ page. Use a <code>registry:</code> directive instead, which the build computes f
 files; <a href="https://github.com/inference-sim/blis-registry/blob/main/docs_hooks/registry.py"><code>docs_hooks/registry.py</code></a>
 lists them. A retyped count is correct on the day it is written and wrong after the next
 refit.</p>
+<h2 id="changes-across-the-repositories">Changes across the repositories<a class="headerlink" href="#changes-across-the-repositories" title="Permanent link">&para;</a></h2>
+<p>A change that also touches blis-schemas, the catalog, the kernel or inference-sim follows
+<a href="cross-repo-changes/">Changes across the repositories</a>, which links the canonical process and
+lists the registry's own steps.</p>
 
 
 

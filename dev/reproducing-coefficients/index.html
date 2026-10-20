@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://inference-sim.github.io/blis-registry/dev/reproducing-coefficients/">
       
       
-        <link rel="prev" href="../methodology/">
+        <link rel="prev" href="../fitting-principles/">
       
       
         <link rel="next" href="../band-selection/">
@@ -557,6 +557,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -799,6 +829,8 @@
       
         
       
+        
+      
     
     
     
@@ -861,6 +893,8 @@
   
     
     
+      
+        
       
         
       
@@ -962,6 +996,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1102,6 +1164,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../reference/acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../reference/format/" class="md-nav__link">
         
   
@@ -1171,6 +1261,8 @@
       
         
           
+        
+      
         
       
         
@@ -1251,6 +1343,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1993,7 +2113,7 @@ the data comes from, and which command regenerates which file.</p>
 </tr>
 <tr>
 <td>Pin</td>
-<td>Every committed value re-derives at <code>2f0f4cd8606d580567b253d02f3d699fe36db865</code> (2026-10-10), with blis-catalog at release <code>0.2.2</code> (<code>3ed02ff</code>, the commit <code>validator/testdata/catalog</code> vendors). The <code>rederive</code> CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it.</td>
+<td>Every committed value re-derives at <code>2f0f4cd8606d580567b253d02f3d699fe36db865</code> (2026-10-10), with blis-catalog at release <code>0.3.0</code> (<code>676326e</code>; the commit <code>validator/testdata/catalog</code> vendors). The <code>rederive</code> CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it.</td>
 </tr>
 <tr>
 <td>Python</td>
@@ -2310,7 +2430,7 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <tr>
 <td><code>gemm_*_w4a16_mxfp4_grouped</code></td>
 <td><code>fit_marlin_grouped_ramp.py</code></td>
-<td>AISimulate <code>moe</code>, vLLM <code>MarlinExperts</code> MXFP4 rows, h200 and gb300; see methodology §10.5 for where each applies</td>
+<td>AISimulate <code>moe</code>, vLLM <code>MarlinExperts</code> MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies</td>
 </tr>
 <tr>
 <td><code>attention_decode_{floor,rate}</code></td>
@@ -2339,8 +2459,13 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 </tr>
 <tr>
 <td><code>attention_decode_rate_sparse_mla</code></td>
-<td><code>fit_deepseek_v41_h200.py</code> — scoped to deepseek-v4.1-flash on h200 only</td>
+<td><code>fit_deepseek_v41_h200.py</code> — scoped to deepseek-v4.1-flash on h200 and h100 only, each fitted from its own part's rows</td>
 <td>AISimulate <code>sparse_attention</code>, the FlashMLA kernel table; no part-wide rate is fitted, because for deepseek-v4-pro it is identifiable for only one of two sparse geometries (methodology §10.3, §10.5)</td>
+</tr>
+<tr>
+<td><code>attention_decode_{launch_floor,split_floor,serial_rate,per_token,throughput_rate}_sparse_mla</code></td>
+<td><code>fit_deepseek_v41_decode.py</code> — deepseek-v4.1-flash on h200 and h100</td>
+<td>the same FlashMLA kernel table's decode rows, at most 10 blocks (methodology §10.7)</td>
 </tr>
 <tr>
 <td><code>attention_decode_*_block_index_scores</code></td>
@@ -2356,6 +2481,16 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td><code>attention_prefill_*</code></td>
 <td><code>relane_attention_prefill.py</code></td>
 <td>AISimulate <code>attention</code> context rows</td>
+</tr>
+<tr>
+<td><code>attention_prefill_*_sparse_mla</code>, <code>attention_prefill_*_block_index_scores</code>, <code>mhc_*</code></td>
+<td><code>fit_deepseek_v41_prefill.py</code> — scoped to deepseek-v4.1-flash on h200 and h100</td>
+<td>AISimulate <code>sparse_attention</code> FlashMLA prefill rows and the paged-logits kernel at prefill shapes (a proxy, <code>assumed</code>); <code>mhc/vllm/0.25.0</code> (methodology §10.6)</td>
+</tr>
+<tr>
+<td>deepseek-v4.1-flash <code>host_launch_eager_per_kernel</code>, <code>host_admission_*</code></td>
+<td><code>fit_deepseek_v41_host.py</code></td>
+<td>vendored <code>validator/testdata/anchors/</code> (the derived inputs of an internal enforce-eager report, via <code>--extract-anchor</code>, re-verified when <code>V41_EAGER_ANCHOR_REPORT</code> names a local copy; the kernel basis; the front-end timing)</td>
 </tr>
 <tr>
 <td><code>recurrent_decode_*_kda</code></td>
@@ -2386,6 +2521,11 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td>descriptors (<code>vendor_spec</code>) and A100's <code>moe_routing_imbalance_median</code></td>
 <td><code>emit_primitives.py --check</code> (entry-level)</td>
 <td>NVIDIA <code>systems/&lt;sku&gt;.yaml</code>; AISimulate <code>moe/sglang/0.5.10</code> for A100</td>
+</tr>
+<tr>
+<td><code>host_link_bandwidth</code> (measured, six parts)</td>
+<td><code>fit_host_link.py --check</code> (<code>$COLLECTIVEX_DATA</code>)</td>
+<td>InferenceX CollectiveX swap_blocks, contiguous, payload &gt;= 64 MiB; h100 is the catalog <code>cpu_dram</code> fit's larger direction</td>
 </tr>
 <tr>
 <td>host overheads (<code>assumed</code>)</td>
@@ -2663,7 +2803,7 @@ kernel revision and name the binary after it.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../methodology/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Methodology">
+          <a href="../fitting-principles/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Fitting principles">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2673,7 +2813,7 @@ kernel revision and name the binary after it.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Methodology
+                Fitting principles
               </div>
             </div>
           </a>

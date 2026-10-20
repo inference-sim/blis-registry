@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://inference-sim.github.io/blis-registry/dev/reference/format/">
       
       
-        <link rel="prev" href="../sets/cost-model-memory/">
+        <link rel="prev" href="../acceptance/">
       
       
         <link rel="next" href="../validation/">
@@ -557,6 +557,8 @@
       
         
       
+        
+      
     
     
     
@@ -626,6 +628,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -801,6 +831,8 @@
       
         
       
+        
+      
     
     
     
@@ -866,6 +898,8 @@
   
     
     
+      
+        
       
         
       
@@ -970,6 +1004,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1098,6 +1160,34 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1337,6 +1427,8 @@
       
         
       
+        
+      
     
     
     
@@ -1406,6 +1498,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1644,9 +1764,10 @@
 <h1 id="file-format">File format<a class="headerlink" href="#file-format" title="Permanent link">&para;</a></h1>
 <p>A coefficient set is a YAML file under <code>coefficients/</code>. The rules on this page are
 enforced by <a href="https://github.com/inference-sim/blis-schemas">blis-schemas</a>, at the
-release the registry's CI pins (<code>v0.3.0</code>), in
-<a href="https://github.com/inference-sim/blis-schemas/tree/v0.3.0/spec/coefficient"><code>spec/coefficient</code></a>
-and <a href="https://github.com/inference-sim/blis-schemas/blob/v0.3.0/vocab/vocab.go"><code>vocab</code></a>.
+release <code>v0.4.0</code>, in
+<a href="https://github.com/inference-sim/blis-schemas/tree/v0.4.0/spec/coefficient"><code>spec/coefficient</code></a>
+and <a href="https://github.com/inference-sim/blis-schemas/blob/v0.4.0/vocab/vocab.go"><code>vocab</code></a>,
+the release CI pins; it also validates <code>acceptance/</code> and <code>routing/</code>.
 Where this page and the schema disagree, the schema is right.</p>
 <h2 id="shape">Shape<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CoefficientSet</span><span class="w">          </span><span class="c1"># exactly this</span>
@@ -1667,7 +1788,7 @@ Where this page and the schema disagree, the schema is right.</p>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">rationale</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="no">The fraction of this part's bfloat16 peak a large, well-shaped matmul asymptotically reaches, on vLLM's own linear kernel rather than the generic `torch_flow` path the TRT-LLM sweep measures. Envelope rather than mean: a cost model predicts what a well-shaped GEMM achieves. Least-squares residual 0.0629 over 74 token counts.</span>
 </code></pre></div>
-<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/45ec59cc41d1ddf402233612462c4e04d0168521/coefficients/cost-model-primitives.yaml#L587">the committed file</a> at build time.</p>
+<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-primitives.yaml#L587">the committed file</a> at build time.</p>
 
 <p>Unknown keys are errors at every level: top level, entry, scope and source. A misspelled
 field is rejected, not ignored.</p>
@@ -1704,7 +1825,7 @@ field is rejected, not ignored.</p>
 <td><code>fitted</code></td>
 <td>bool</td>
 <td>yes</td>
-<td>Must be present, even when false. <code>true</code> requires <code>method: measured</code>.</td>
+<td>Must be present, even when false. <code>true</code> requires <code>method: measured</code> or <code>calibrated</code>.</td>
 </tr>
 <tr>
 <td><code>scope</code></td>
@@ -1716,7 +1837,7 @@ field is rejected, not ignored.</p>
 <td><code>sources</code></td>
 <td>list</td>
 <td>by method</td>
-<td>If present, non-empty. Required for <code>literature</code> and <code>vendor_spec</code>.</td>
+<td>If present, non-empty. Required for <code>literature</code> and <code>vendor_spec</code>; <code>calibrated</code> requires at least one of kind <code>measured_case</code>.</td>
 </tr>
 <tr>
 <td><code>rationale</code></td>
@@ -1745,7 +1866,7 @@ field is rejected, not ignored.</p>
 <tr>
 <td><code>validated</code></td>
 <td>metric or list</td>
-<td>no</td>
+<td>for <code>calibrated</code></td>
 <td>Metrics the value has been checked against.</td>
 </tr>
 <tr>
@@ -1768,26 +1889,27 @@ the committed sets use each one, counted when this page was built.</p>
 <code>us_per_transfer</code>, <code>us_per_load</code>, <code>us_per_token</code>, <code>bytes_per_us</code>, <code>bytes_per_rank</code>,
 <code>tokens</code>, <code>sm_count</code>. In use:</p>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">entries</th></tr></thead><tbody>
-<tr><td><code>bytes_per_us</code></td><td class="reg-num">609</td></tr>
-<tr><td><code>us_per_transfer</code></td><td class="reg-num">338</td></tr>
-<tr><td><code>dimensionless</code></td><td class="reg-num">61</td></tr>
-<tr><td><code>tokens</code></td><td class="reg-num">47</td></tr>
-<tr><td><code>bytes_per_rank</code></td><td class="reg-num">38</td></tr>
-<tr><td><code>us_per_request</code></td><td class="reg-num">2</td></tr>
-<tr><td><code>us_per_token</code></td><td class="reg-num">2</td></tr>
+<tr><td><code>bytes_per_us</code></td><td class="reg-num">638</td></tr>
+<tr><td><code>us_per_transfer</code></td><td class="reg-num">367</td></tr>
+<tr><td><code>dimensionless</code></td><td class="reg-num">63</td></tr>
+<tr><td><code>tokens</code></td><td class="reg-num">49</td></tr>
+<tr><td><code>bytes_per_rank</code></td><td class="reg-num">41</td></tr>
+<tr><td><code>us_per_token</code></td><td class="reg-num">10</td></tr>
+<tr><td><code>us_per_request</code></td><td class="reg-num">5</td></tr>
 <tr><td><code>us_per_layer</code></td><td class="reg-num">1</td></tr>
 <tr><td><code>us_per_step</code></td><td class="reg-num">1</td></tr>
 </tbody></table></div>
 
 <h3 id="methods">Methods<a class="headerlink" href="#methods" title="Permanent link">&para;</a></h3>
-<p><code>measured</code>, <code>vendor_spec</code>, <code>literature</code>, <code>copied</code>, <code>assumed</code>, <code>not_charged</code>.
+<p><code>measured</code>, <code>vendor_spec</code>, <code>literature</code>, <code>copied</code>, <code>assumed</code>, <code>not_charged</code>, <code>calibrated</code>.
 <a href="../../concepts/coefficients/#method-how-the-value-was-obtained">Coefficients</a> explains
 each. In use:</p>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">entries</th></tr></thead><tbody>
-<tr><td><code>measured</code></td><td class="reg-num">814</td></tr>
-<tr><td><code>assumed</code></td><td class="reg-num">227</td></tr>
-<tr><td><code>vendor_spec</code></td><td class="reg-num">57</td></tr>
-<tr><td><code>not_charged</code></td><td class="reg-num">1</td></tr>
+<tr><td><code>measured</code></td><td class="reg-num">881</td></tr>
+<tr><td><code>assumed</code></td><td class="reg-num">240</td></tr>
+<tr><td><code>vendor_spec</code></td><td class="reg-num">51</td></tr>
+<tr><td><code>not_charged</code></td><td class="reg-num">2</td></tr>
+<tr><td><code>copied</code></td><td class="reg-num">1</td></tr>
 </tbody></table></div>
 
 <h3 id="scope-keys">Scope keys<a class="headerlink" href="#scope-keys" title="Permanent link">&para;</a></h3>
@@ -1795,34 +1917,35 @@ each. In use:</p>
 <code>nodes_spanned</code> (integers). Data type and engine are deliberately not scope keys; a
 quantity that varies with them carries them in its name. In use:</p>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">entries</th></tr></thead><tbody>
-<tr><td><code>hardware</code></td><td class="reg-num">1,099</td></tr>
-<tr><td><code>model</code></td><td class="reg-num">3</td></tr>
+<tr><td><code>hardware</code></td><td class="reg-num">1,175</td></tr>
+<tr><td><code>model</code></td><td class="reg-num">46</td></tr>
 </tbody></table></div>
 
 <h3 id="sources">Sources<a class="headerlink" href="#sources" title="Permanent link">&para;</a></h3>
 <p>A source is <code>{kind, cite, role}</code>, all three required.</p>
 <ul>
-<li><code>kind</code>: <code>discussion</code>, <code>publication</code>, <code>datasheet</code>, <code>model</code>, <code>vendor_doc</code></li>
+<li><code>kind</code>: <code>discussion</code>, <code>publication</code>, <code>datasheet</code>, <code>model</code>, <code>vendor_doc</code>, <code>measured_case</code></li>
 <li><code>role</code>: <code>primary</code>, <code>supporting</code>, <code>upper_bound</code></li>
 <li><code>cite</code>: free text, specific enough to find the exact file and rows</li>
 </ul>
 <p>In use, by kind and by role:</p>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">sources</th></tr></thead><tbody>
-<tr><td><code>model</code></td><td class="reg-num">1,090</td></tr>
-<tr><td><code>discussion</code></td><td class="reg-num">14</td></tr>
+<tr><td><code>model</code></td><td class="reg-num">1,187</td></tr>
+<tr><td><code>discussion</code></td><td class="reg-num">28</td></tr>
 <tr><td><code>vendor_doc</code></td><td class="reg-num">3</td></tr>
 </tbody></table></div>
 
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">sources</th></tr></thead><tbody>
-<tr><td><code>primary</code></td><td class="reg-num">1,085</td></tr>
-<tr><td><code>supporting</code></td><td class="reg-num">20</td></tr>
-<tr><td><code>upper_bound</code></td><td class="reg-num">2</td></tr>
+<tr><td><code>primary</code></td><td class="reg-num">1,160</td></tr>
+<tr><td><code>supporting</code></td><td class="reg-num">54</td></tr>
+<tr><td><code>upper_bound</code></td><td class="reg-num">4</td></tr>
 </tbody></table></div>
 
 <h3 id="optional-fields-in-use">Optional fields in use<a class="headerlink" href="#optional-fields-in-use" title="Permanent link">&para;</a></h3>
 <div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>term</th><th class="reg-num">entries</th></tr></thead><tbody>
-<tr><td><code>rationale</code></td><td class="reg-num">1,099</td></tr>
-<tr><td><code>sources</code></td><td class="reg-num">1,097</td></tr>
+<tr><td><code>rationale</code></td><td class="reg-num">1,175</td></tr>
+<tr><td><code>sources</code></td><td class="reg-num">1,173</td></tr>
+<tr><td><code>copied_from</code></td><td class="reg-num">1</td></tr>
 <tr><td><code>ci95</code></td><td class="reg-num">1</td></tr>
 </tbody></table></div>
 
@@ -1873,7 +1996,7 @@ Renaming one is a change to the kernel too.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../sets/cost-model-memory/" class="md-footer__link md-footer__link--prev" aria-label="Previous: cost-model-memory">
+          <a href="../acceptance/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Acceptance profiles">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1883,7 +2006,7 @@ Renaming one is a change to the kernel too.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                cost-model-memory
+                Acceptance profiles
               </div>
             </div>
           </a>

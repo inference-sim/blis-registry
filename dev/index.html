@@ -637,6 +637,8 @@
       
         
       
+        
+      
     
     
     
@@ -706,6 +708,34 @@
     
   
     Releases and these docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="contributing/cross-repo-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changes across the repositories
   
 
     
@@ -879,6 +909,8 @@
       
         
       
+        
+      
     
     
     
@@ -941,6 +973,8 @@
   
     
     
+      
+        
       
         
       
@@ -1042,6 +1076,34 @@
     
   
     cost-model-collectives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/sets/cost-model-collectives-inferencex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-collectives-inferencex
   
 
     
@@ -1182,6 +1244,34 @@
   
   
     <li class="md-nav__item">
+      <a href="reference/acceptance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Acceptance profiles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="reference/format/" class="md-nav__link">
         
   
@@ -1249,6 +1339,8 @@
       
         
           
+        
+      
         
       
         
@@ -1326,6 +1418,34 @@
     
   
     Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="fitting-principles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting principles
   
 
     
@@ -1498,12 +1618,12 @@
 latency estimate: the coefficients a cost model fits from measurements or, where no
 measurement exists, assumes. Each coefficient records how it was obtained and which
 hardware it applies to, so an estimate can be traced back to the evidence it rests on.</p>
-<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/45ec59cc41d1ddf402233612462c4e04d0168521"><code>45ec59cc41d1</code></a>, the registry holds 1,099
-coefficient entries in 6 sets, covering
-9 GPU parts. By method: 814
-<code>measured</code>, 57 <code>vendor_spec</code> (transcribed from NVIDIA's
-AISimulate), 227 <code>assumed</code>, and
-1 <code>not_charged</code> (a declared zero).</p>
+<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b"><code>7f6662d7188d</code></a>, the registry holds 1,175
+coefficient entries in 7 sets, covering
+9 GPU parts. By method: 881
+<code>measured</code>, 51 <code>vendor_spec</code> (transcribed from NVIDIA's
+AISimulate), 240 <code>assumed</code>, and
+2 <code>not_charged</code> (a declared zero).</p>
 <h2 id="where-it-sits">Where it sits<a class="headerlink" href="#where-it-sits" title="Permanent link">&para;</a></h2>
 <p>BLIS keeps different kinds of number in different repositories. The registry holds
 one kind: numbers that a measurement could revise.</p>
@@ -1534,6 +1654,8 @@ read <a href="concepts/">Concepts</a>. Three short pages.</p>
 generated from the committed files, and every value links to its entry.</p>
 <p><strong>To challenge a value</strong>, read <a href="research/">Methodology</a>: the rules, the evidence
 behind each decision, and the claims later withdrawn.</p>
+<p><strong>To learn how a coefficient earns its place</strong>, read
+<a href="fitting-principles/">Fitting principles</a>: the landing gate and the repeatable procedure.</p>
 <h2 id="one-coefficient">One coefficient<a class="headerlink" href="#one-coefficient" title="Permanent link">&para;</a></h2>
 <p>Every entry looks like this one, quoted from the committed file when this page was built:</p>
 <div class="highlight"><span class="filename">coefficients/cost-model-primitives.yaml, line 49</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gemm_m_half_bf16</span><span class="p">:</span>
@@ -1547,7 +1669,7 @@ behind each decision, and the claims later withdrawn.</p>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">rationale</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="no">The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_bf16 on the same envelope; residual 0.0673.</span>
 </code></pre></div>
-<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/45ec59cc41d1ddf402233612462c4e04d0168521/coefficients/cost-model-primitives.yaml#L49">the committed file</a> at build time.</p>
+<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-primitives.yaml#L49">the committed file</a> at build time.</p>
 
 <p>It is a measured, fitted constant of the GEMM efficiency ramp, scoped to two names for
 the same A100 silicon, citing the exact sweep it was fitted on. The

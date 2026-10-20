@@ -1,13 +1,16 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at release `0.2.3`, `3ed02ff75e6bf505f64cf7a54aa5e3bd626f85a5` (2026-10-13; `0.2.2`
-and `0.2.3` tag this same commit).
+[blis-catalog] at release `0.3.0`, `676326ec6c708e91ec4981bd6b03922a7fe60512` (2026-10-20).
 blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
-so the two repositories check against one revision. The previous pin was `747a2213`
-(2026-10-07); `0.2.2` changes one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7,
-and the three b300 rates fitted as a fraction of it (`attention_decode_rate`, `_swa`, `_mla`)
-were re-fitted with the bump.
+so the two repositories check against one revision. The previous pin was `0.2.3`
+(`3ed02ff`, also tagged `0.2.2`); `0.3.0` changes only `MemoryGiB` on b200, b300,
+gb200-nvl72, gb300, h100 and h200 (now the device total the CUDA driver reports), which
+no fitter or test here reads, so no coefficient moved. It also adds five models, whose
+`model.yaml` files are copied below. Before that, `747a2213` (2026-10-07) to `0.2.2`
+changed one value the registry reads, b300 `BwPeakTBs` 7.75 → 7.7, and the three b300
+rates fitted as a fraction of it (`attention_decode_rate`, `_swa`, `_mla`) were re-fitted
+with the bump.
 
 [blis-catalog]: https://github.com/inference-sim/blis-catalog
 
@@ -21,7 +24,7 @@ Copied verbatim, with three model graphs beside them:
 models/deepseek-v3/graph.yaml   models/kimi-k3/graph.yaml   models/deepseek-v4-pro/graph.yaml
 ```
 
-and every model's `models/<name>/model.yaml` (34 of them), which name the model and the
+and every model's `models/<name>/model.yaml` (39 of them), which name the model and the
 Hugging Face repository it was derived from. `scripts/emit_acceptance_profiles.py` reads
 them to resolve an InferenceX curve's model to a catalog name, and refuses a curve whose
 model is none of them, so the copy must be the catalog's whole model list, not a subset.

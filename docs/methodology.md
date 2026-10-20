@@ -1189,7 +1189,7 @@ consumer-contract points go with the entries, each stated in them:
   gb300 is the FP4 class — right for stock v0.31.0. It is for scoring the Kimi-K3 preview
   build's FPM run, for blis-registry#41 (the Kimi-K3/GB300 FPM check of the KDA pair).
 
-Every V4.1 attention read in blis-catalog 0.2.3 is `sparse_mla`, the window-only layers (0,
+Every V4.1 attention read in blis-catalog 0.3.0 is `sparse_mla`, the window-only layers (0,
 1, and the DSpark drafts at a 133-token window) included, all inside the block axis above.
 
 ### 10.6 DeepSeek-V4.1-Flash prefill attention, prefill indexer, mHC and host terms

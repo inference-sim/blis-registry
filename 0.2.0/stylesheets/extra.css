@@ -1,0 +1,216 @@
+/* The base below (palette, type, tables) is shared with blis-catalog's documentation, so
+   the BLIS sites read as one family. Registry-specific rules follow it. */
+
+/* One ink, one accent. The palette is deliberately small so that colour in a figure
+   means something: the accent marks data, everything else is ink at some weight. */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1d2a3a;
+  --md-primary-fg-color--light: #3a4a5e;
+  --md-primary-fg-color--dark: #121b26;
+  --md-accent-fg-color: #2f5fd0;
+  --md-typeset-a-color: #2f5fd0;
+  --cf-ink: #1c1c1a;
+  --cf-ink-2: #5c5c56;
+  --cf-rule: #e4e4df;
+  --cf-grid: #ecece8;
+  --cf-data: #2f5fd0;
+  --cf-data-soft: #a9bdf0;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #141a22;
+  --md-primary-fg-color--light: #232c38;
+  --md-primary-fg-color--dark: #0d1117;
+  --md-accent-fg-color: #8ba9f0;
+  --md-typeset-a-color: #8ba9f0;
+  --md-default-bg-color: #16181d;
+  --cf-ink: #e8e8e4;
+  --cf-ink-2: #a3a39d;
+  --cf-rule: #30333a;
+  --cf-grid: #292c32;
+  --cf-data: #8ba9f0;
+  --cf-data-soft: #3d5385;
+}
+
+/* Text: a measure a reader can follow, and headings that rank by weight, not size. */
+.md-typeset {
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+.md-typeset p,
+.md-typeset ul,
+.md-typeset ol,
+.md-typeset dl {
+  max-width: 42rem;
+}
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--cf-ink);
+}
+.md-typeset h2 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-top: 2.2em;
+}
+.md-typeset h3 {
+  font-weight: 600;
+}
+.md-typeset .lede {
+  font-size: 1.05em;
+  color: var(--cf-ink-2);
+}
+
+/* Tables: figures align on the decimal side and share one width per digit. */
+.md-typeset table:not([class]) {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  border: none;
+  box-shadow: none;
+}
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+  border-bottom: 1px solid var(--cf-ink-2);
+  background: none;
+}
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--cf-rule);
+  vertical-align: top;
+}
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.55em 0.9em;
+}
+/* An identifier or a number is read whole: never break one across lines. */
+.md-typeset table:not([class]) td code,
+.md-typeset table:not([class]) td:first-child a,
+.md-typeset table:not([class]) td[style*="right"] {
+  white-space: nowrap;
+  word-break: normal;
+}
+.md-typeset table:not([class]) tr:hover {
+  background: none;
+  box-shadow: none;
+}
+
+.md-typeset figcaption {
+  max-width: 42rem;
+  margin: 0 0 1.4em;
+  font-size: 0.7rem;
+  color: var(--cf-ink-2);
+  text-align: left;
+}
+.md-typeset figure {
+  margin: 0;
+  display: block;
+  width: auto;
+  max-width: 100%;
+}
+
+/* A defined term reads as the thing being defined. */
+.md-typeset dt {
+  font-weight: 600;
+  color: var(--cf-ink);
+}
+
+/* Method colours. One fixed categorical order (measured, vendor_spec, assumed,
+   not_charged), validated for colour-vision deficiency and normal-vision separation on
+   both surfaces. Colour is the second channel: the glyph shape alone identifies the
+   method (docs_hooks/registry.py, GLYPH). */
+:root {
+  --reg-measured: #2a78d6;
+  --reg-vendor_spec: #eb6834;
+  --reg-assumed: #1baf7a;
+  --reg-not_charged: #eda100;
+  --reg-literature: #e87ba4;
+  --reg-copied: #4a3aa7;
+}
+[data-md-color-scheme="slate"] {
+  --reg-measured: #3987e5;
+  --reg-vendor_spec: #d95926;
+  --reg-assumed: #199e70;
+  --reg-not_charged: #c98500;
+  --reg-literature: #d55181;
+  --reg-copied: #9085e9;
+}
+
+/* Generated coefficient tables: compact, tabular figures, recessive rules. */
+.reg-table-wrap { overflow-x: auto; margin: 0.8em 0 0.4em; }
+.md-typeset table.reg-table {
+  display: table;
+  font-size: 0.64rem;
+  border: none;
+  box-shadow: none;
+  border-collapse: collapse;
+  min-width: 100%;
+}
+.md-typeset table.reg-table th,
+.md-typeset table.reg-table td {
+  padding: 0.3em 0.35em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--cf-rule);
+  vertical-align: baseline;
+}
+.md-typeset table.reg-table th {
+  text-align: left;
+  font-weight: 600;
+  background: none;
+  border-bottom: 1px solid var(--cf-ink-2);
+}
+.md-typeset table.reg-table .reg-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.md-typeset table.reg-table code {
+  background: none;
+  padding: 0;
+  font-size: 0.95em;
+}
+.md-typeset .reg-v { color: var(--md-typeset-color); }
+.md-typeset .reg-v:hover { color: var(--md-accent-fg-color); text-decoration: underline; }
+.reg-empty { color: var(--md-default-fg-color--lighter); }
+
+.reg-cell { display: flex; justify-content: space-between; align-items: baseline; gap: 0.3em; }
+.reg-m { display: inline-block; width: 0.9em; text-align: center; font-size: 0.85em; }
+.reg-m-measured { color: var(--reg-measured); }
+.reg-m-vendor_spec { color: var(--reg-vendor_spec); }
+.reg-m-assumed { color: var(--reg-assumed); }
+.reg-m-not_charged { color: var(--reg-not_charged); }
+.reg-m-literature { color: var(--reg-literature); }
+.reg-m-copied { color: var(--reg-copied); }
+
+.md-typeset .reg-legend { font-size: 0.7rem; color: var(--cf-ink-2); }
+.reg-legend-item { margin-right: 1.2em; white-space: nowrap; }
+.md-typeset .reg-caption {
+  font-size: 0.7rem;
+  color: var(--cf-ink-2);
+  margin-top: 0.2em;
+}
+
+/* Method-composition chart. */
+.reg-chart { width: 100%; max-width: 720px; height: auto; display: block; margin: 1em 0; }
+.reg-chart-text { font-size: 11px; fill: var(--cf-ink); font-family: var(--md-text-font-family); }
+.reg-chart-muted { fill: var(--cf-ink-2); font-variant-numeric: tabular-nums; }
+.reg-fill-measured { fill: var(--reg-measured); }
+.reg-fill-vendor_spec { fill: var(--reg-vendor_spec); }
+.reg-fill-assumed { fill: var(--reg-assumed); }
+.reg-fill-not_charged { fill: var(--reg-not_charged); }
+.reg-fill-literature { fill: var(--reg-literature); }
+.reg-fill-copied { fill: var(--reg-copied); }
+
+/* A cell other in-scope entries also cover; red when one of them disagrees. */
+.md-typeset .reg-shadow { font-size: 0.75em; margin-left: 0.15em; }
+.md-typeset .reg-shadow a { color: var(--md-default-fg-color--light); }
+.md-typeset .reg-shadow-differs a { color: var(--md-typeset-del-color, #e34948); font-weight: 700; }
+
+/* Units sit under the coefficient name, so a nine-part matrix fits the page. */
+.md-typeset .reg-units {
+  display: block;
+  font-size: 0.85em;
+  color: var(--cf-ink-2);
+  font-family: var(--md-code-font-family);
+}
+/* A little more width than Material's default, for the matrices; prose keeps its measure. */
+.md-grid { max-width: 68rem; }

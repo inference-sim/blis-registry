@@ -32,9 +32,9 @@ and the tensor-parallel slice are 1 here and are the consumer's to apply.
 
 THE DATA. NVIDIA AISimulate `systems/data/<sku>/moe/vllm/0.30.0/moe_perf.parquet` at
 ai-dynamo/aisimulate 8ae6b65801c4993febb3c827a0e68518b20b379e (2026-10-29; the registry's
-other families re-derive at 2f0f4cd, which carries no 0.30.0 MoE table, so this family is
-pinned separately: AISIMULATE_NVFP4_SHA in .github/workflows/rederive.yml). Read from
-$AISIMULATE_NVFP4_DATA, else $AISIMULATE_DATA. moe_dtype nvfp4, distribution balanced,
+other families re-derive at 2f0f4cd, which carries no 0.30.0 MoE table, so this family needs
+its own checkout). Read from $AISIMULATE_NVFP4_DATA, else $AISIMULATE_DATA. It writes no entry
+(see THE GATE), so neither the rederive workflow nor the writer tests run it. moe_dtype nvfp4, distribution balanced,
 moe_tp 1, moe_ep 1, 16 expert geometries x 27 token counts (1-16,384). `latency` is
 MILLISECONDS.
 
@@ -67,8 +67,8 @@ grouped fit is no better than the dense nvfp4 ramp on any part (median |rel err|
 dense): gb200-nvl72 16.9% vs 15.2%, b200 16.2% vs 15.4%, b300 14.4% vs 12.9%, gb300 13.8% vs
 12.6%. B and C agree (C: gb200 12.0% vs 8.2%, b300 8.5% vs 6.7%, gb300 9.8% vs 6.5%). Fitted
 values, for the record: gb200-nvl72 0.549 / 122, b200 0.522 / 112, b300 0.390 / 126, gb300
-0.389 / 140, against the dense 0.732 / 199, 0.689 / 174, 0.501 / 192 and gb300's committed
-pair. The routed-expert error is dominated by geometry (small hidden sizes under-predicted by
+0.389 / 140, against the committed dense nvfp4 pairs gb200-nvl72 0.732 / 199, b200 0.689 /
+174, b300 0.501 / 192, gb300 0.526 / 227. The routed-expert error is dominated by geometry (small hidden sizes under-predicted by
 about 27%, the largest over-predicted), which a ramp over tokens alone cannot carry, so a
 second token ramp buys nothing at the operator level. The kernel's fallback to the dense
 nvfp4 ramp therefore stands, and the +10% / +20% kimi-k2.5-nvfp4 TPOT residual #51 records is

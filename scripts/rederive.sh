@@ -9,6 +9,7 @@
 #   export AISIMULATE_DATA=<aisimulate>/python/aisimulate/src/aisimulate_core/systems/data
 #   export BLIS_CATALOG=<blis-catalog checkout>        # at CATALOG_SHA in rederive.yml
 #   export COLLECTIVEX_DATA=<dir of cx_run_*.body>     # test_deepep_ll_graph.py
+#   export OPERATORX_DATA=<dir of moe_<Model>.json>    # test_operatorx.py
 #   export INFERENCEX_GOLDEN=<inferencex>/inferencex-e2e/infx/golden_al_distribution  # optional
 #   scripts/rederive.sh
 #

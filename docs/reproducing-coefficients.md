@@ -334,7 +334,8 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 |---|---|---|
 | `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
 | `moe_routing_imbalance_median` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
-| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100, gb300, b200 and b300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_nvfp4_grouped` (h100, h200) | `fit_marlin_nvfp4_grouped_ramp.py --check` (`$OPERATORX_DATA`) | InferenceX OperatorX MoE, MiniMax-M3, `MarlinExperts` NVFP4 (E4M3 scale per 16, 0.5625 B/weight) |
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |

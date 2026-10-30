@@ -219,7 +219,9 @@ def test_every_fitted_family_has_a_writer():
                | {w.split()[0] for w, _ in RATE_ONLY}
                # Gated against its own (InferenceX CollectiveX) data in
                # test_deepep_ll_graph.py, not against the AISimulate tree.
-               | {"fit_deepep_ll_graph.py", "fit_host_link.py", "fit_deepep_collectivex.py"})
+               | {"fit_deepep_ll_graph.py", "fit_host_link.py", "fit_deepep_collectivex.py"}
+               # Gated against its own (InferenceX OperatorX) data in test_operatorx.py.
+               | {"fit_marlin_nvfp4_grouped_ramp.py"})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -245,6 +247,8 @@ def test_every_fitted_family_has_a_writer():
         "host_link_bandwidth": "fit_host_link.py",
         "gemm_eps_max_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
         "gemm_m_half_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
+        "gemm_eps_max_w4a16_nvfp4_grouped": "fit_marlin_nvfp4_grouped_ramp.py",
+        "gemm_m_half_w4a16_nvfp4_grouped": "fit_marlin_nvfp4_grouped_ramp.py",
         "attention_decode_rate_sparse_mla": "fit_deepseek_v41_h200.py",
         "attention_decode_floor_block_index_scores": "fit_deepseek_v41_h200.py",
         "attention_prefill_floor_sparse_mla": "fit_deepseek_v41_prefill.py",

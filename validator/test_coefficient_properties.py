@@ -252,7 +252,7 @@ def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
     for _, name, body in ENTRIES:
         # The W8A16 entry is assumed EQUAL to the BF16 envelope (see the derived-entry test
         # below), so only the fitted grouped ramp can actually violate this bound.
-        if name != "gemm_eps_max_w4a16_mxfp4_grouped":
+        if name not in ("gemm_eps_max_w4a16_mxfp4_grouped", "gemm_eps_max_w4a16_nvfp4_grouped"):
             continue
         for hw in body["scope"]["hardware"]:
             bf16 = _single("gemm_eps_max_bf16", hw)

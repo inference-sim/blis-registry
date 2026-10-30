@@ -908,6 +908,8 @@
       
         
       
+        
+      
     
     
     
@@ -1024,6 +1026,34 @@
     
   
     cost-model-collectives-inferencex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/sets/cost-model-fabric/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-fabric
   
 
     
@@ -1568,6 +1598,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#inferencex-collectivex-run-bodies-collectivex_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InferenceX CollectiveX run bodies ($COLLECTIVEX_DATA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-freshness-checked-2026-10-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data freshness, checked 2026-10-30
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1898,6 +1950,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#inferencex-collectivex-run-bodies-collectivex_data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InferenceX CollectiveX run bodies ($COLLECTIVEX_DATA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-freshness-checked-2026-10-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data freshness, checked 2026-10-30
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2113,7 +2187,7 @@ the data comes from, and which command regenerates which file.</p>
 </tr>
 <tr>
 <td>Pin</td>
-<td>Every committed value re-derives at <code>2f0f4cd8606d580567b253d02f3d699fe36db865</code> (2026-10-10), with blis-catalog at release <code>0.3.0</code> (<code>676326e</code>; the commit <code>validator/testdata/catalog</code> vendors). The <code>rederive</code> CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it.</td>
+<td>Every committed value re-derives at <code>2f0f4cd8606d580567b253d02f3d699fe36db865</code> (2026-10-10), with blis-catalog at <code>0.5.0</code> (<code>b5550f7</code>; the commit <code>validator/testdata/catalog</code> vendors). The <code>rederive</code> CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it.</td>
 </tr>
 <tr>
 <td>Python</td>
@@ -2376,6 +2450,71 @@ collection the entry cites; the A100 pair is <code>assumed</code> and is written
 <p>Using the context length for both kinds is what made an early windowed fit land at 2.00 of
 datasheet peak — a physically impossible rate, and the reason the two kinds are fitted
 apart rather than together.</p>
+<h3 id="inferencex-collectivex-run-bodies-collectivex_data">InferenceX CollectiveX run bodies (<code>$COLLECTIVEX_DATA</code>)<a class="headerlink" href="#inferencex-collectivex-run-bodies-collectivex_data" title="Permanent link">&para;</a></h3>
+<p>Three writers read CollectiveX run bodies: <code>fit_deepep_ll_graph.py</code>, <code>fit_host_link.py</code> and
+<code>fit_deepep_collectivex.py</code>. Fetch the run list and each body from</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>https://inferencex.semianalysis.com/api/v1/collectivex/runs?version=1
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>https://inferencex.semianalysis.com/api/v1/collectivex/runs/&lt;run_id&gt;?version=1
+</code></pre></div>
+<p>and save each body as <code>cx_run_&lt;run_id&gt;.body</code>. The query must be the bare integer
+<code>version=1</code>: without it, or with <code>v1</code>, the API answers <code>{"error":"Unknown version"}</code>. The
+API keeps only its latest 15 runs, so a cited run can stop being fetchable. Each writer
+checks that the bodies its committed entries cite are present and hash to the cited sha256.
+If they are not, it exits 3 rather than re-fit and re-cite the entries on other runs, and
+<code>validator/test_deepep_ll_graph.py</code> skips with "the cited CollectiveX bodies are not
+present". The entries <code>fit_deepep_ll_graph.py</code> and <code>fit_host_link.py</code> wrote cite runs the
+API no longer serves (33356406487, 36334392363, 36367074689, 36402856875, and the
+swap_blocks bodies sha256 <code>26cad6ccbdaa</code>). They stay as committed, and those two gates skip
+until the bodies are restored.</p>
+<h3 id="data-freshness-checked-2026-10-30">Data freshness, checked 2026-10-30<a class="headerlink" href="#data-freshness-checked-2026-10-30" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>source</th>
+<th>newest public</th>
+<th>what the committed sets cite</th>
+<th>outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AISimulate</td>
+<td><code>ai-dynamo/aisimulate</code> <code>7980e9500c00d9f85d7f296451d12768a743c70e</code> (2026-10-29)</td>
+<td><code>2f0f4cd</code> (main pin), <code>8ae6b658</code> (NVFP4 grouped, parked), <code>95b7f839</code> (DeepEP)</td>
+<td>every parquet the Muse-relevant entries cite is byte-identical at <code>7980e95</code>. New since the pin: vLLM 0.30.0/0.31.0 gemm, moe and comm tables. h100/h200 all-reduce relaned to 0.31.0 (held-out better at every width). The 0.31.0 dense gemm tables and the 0.30.0 Marlin rows were scored on held-out points and do NOT beat the committed ramps, so they stay (see the PR)</td>
+</tr>
+<tr>
+<td>FPM</td>
+<td><code>nvidia/aisimulate-fpm-dataset</code> <code>dbfcdd9eb62ea733efbc3f0cbd78277f2960061a</code> (2026-10-19)</td>
+<td><code>03e006de</code> (validation only, cited in attention rationales)</td>
+<td>FPM fits no committed per-primitive value (§1), so nothing to refit</td>
+</tr>
+<tr>
+<td>InferenceX CollectiveX</td>
+<td>20 runs served, newest <code>1793344844</code> (source_sha <code>54135009</code>)</td>
+<td><code>1793303708</code> (GB200/H200 DeepEP); 33356406487 and others (8-rank LL graph, host link), no longer served</td>
+<td>every GB200/H200 deepep-v2 series in the new runs equals the cited run point for point; the writer now keeps the cited run</td>
+</tr>
+<tr>
+<td>InferenceX OperatorX</td>
+<td><code>operatorx/compare?op=moe</code> responses, re-fetched: byte-identical to 2026-10-29</td>
+<td>runs 36292796863 / 36292840239 (InferenceX <code>8f03d27</code>)</td>
+<td>nothing newer</td>
+</tr>
+<tr>
+<td>InferenceX repo / db dump</td>
+<td><code>SemiAnalysisAI/InferenceX</code> <code>ea8b34394a603396d681e3c3d466d81cc885779b</code>; <code>InferenceX-app</code> <code>db-dump/2026-09-28</code></td>
+<td>evaluation only (§3)</td>
+<td>no coefficient fitted from it</td>
+</tr>
+<tr>
+<td>nccl-tests#309, route179.dev</td>
+<td>issue last updated 2025-06-19; page sha256 unchanged</td>
+<td><code>cost-model-fabric</code></td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
 <h3 id="cost-model-host-overheadsyaml-not-derived-from-either-dataset"><code>cost-model-host-overheads.yaml</code> — not derived from either dataset<a class="headerlink" href="#cost-model-host-overheadsyaml-not-derived-from-either-dataset" title="Permanent link">&para;</a></h3>
 <p>All seven entries are <code>method: assumed</code> and none is <code>fitted</code>. These are host-side costs
 that neither dataset isolates — the script header notes that several could move to
@@ -2394,10 +2533,10 @@ citations name the git SHA where that file can still be read.</p>
   tracker, which needs an authenticated <code>gh</code> and changes as issues are filed — so a
   re-mine is a deliberate data update, committed with its diff, not part of <code>--check</code>:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>fetch<span class="w">   </span>/tmp/vllm-cg-cache
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>extract<span class="w"> </span>/tmp/vllm-cg-cache<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span>&gt;<span class="w"> </span>docs/vllm-cudagraph-capture-samples.csv
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>python<span class="w"> </span>scripts/emit_memory.py<span class="w">            </span><span class="c1"># then review the value diff</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>fetch<span class="w">   </span>/tmp/vllm-cg-cache
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>python<span class="w"> </span>scripts/mine_vllm_cudagraph_memory.py<span class="w"> </span>extract<span class="w"> </span>/tmp/vllm-cg-cache<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span>&gt;<span class="w"> </span>docs/vllm-cudagraph-capture-samples.csv
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>python<span class="w"> </span>scripts/emit_memory.py<span class="w">            </span><span class="c1"># then review the value diff</span>
 </code></pre></div>
 <p>The capture half needs no AISimulate tree, so
 <code>test_capture_bytes_re_derive_from_the_committed_samples</code> runs it in CI. Methodology §11
@@ -2430,7 +2569,12 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <tr>
 <td><code>gemm_*_w4a16_mxfp4_grouped</code></td>
 <td><code>fit_marlin_grouped_ramp.py</code></td>
-<td>AISimulate <code>moe</code>, vLLM <code>MarlinExperts</code> MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies</td>
+<td>AISimulate <code>moe</code>, vLLM <code>MarlinExperts</code> MXFP4 rows, h200, h100, gb300, b200 and b300; see methodology §10.5 for where each applies</td>
+</tr>
+<tr>
+<td><code>gemm_*_w4a16_nvfp4_grouped</code> (h100, h200)</td>
+<td><code>fit_marlin_nvfp4_grouped_ramp.py --check</code> (<code>$OPERATORX_DATA</code>)</td>
+<td>InferenceX OperatorX MoE, MiniMax-M3, <code>MarlinExperts</code> NVFP4 (E4M3 scale per 16, 0.5625 B/weight)</td>
 </tr>
 <tr>
 <td><code>attention_decode_{floor,rate}</code></td>
@@ -2508,6 +2652,11 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td>AISimulate <code>comm</code></td>
 </tr>
 <tr>
+<td><code>collective_*_all_reduce_fp16_{2,4,8}rank_{h100,h200}</code> (their 16-rank extrapolations follow, <code>extrapolate_collective_width.py</code>)</td>
+<td><code>relane_allreduce_vllm.py --check</code> (<code>$AISIMULATE_ALLREDUCE_DATA</code>, aisimulate <code>7980e95</code>)</td>
+<td>AISimulate <code>comm/vllm/0.31.0</code> custom all-reduce, CUDA-graph lane</td>
+</tr>
+<tr>
 <td><code>collective_*</code> (new part)</td>
 <td><code>insert_collectives_part.py</code></td>
 <td>same, per operator per lane</td>
@@ -2526,6 +2675,26 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 <td><code>host_link_bandwidth</code> (measured, six parts)</td>
 <td><code>fit_host_link.py --check</code> (<code>$COLLECTIVEX_DATA</code>)</td>
 <td>InferenceX CollectiveX swap_blocks, contiguous, payload &gt;= 64 MiB; h100 is the catalog <code>cpu_dram</code> fit's larger direction</td>
+</tr>
+<tr>
+<td><code>moe_a2a_*_deepep_low_latency_graph_8rank_{h100,h200}</code></td>
+<td><code>fit_deepep_ll_graph.py --check</code> (<code>$COLLECTIVEX_DATA</code>)</td>
+<td>InferenceX CollectiveX deepep-v2 low-latency, EP8 one node</td>
+</tr>
+<tr>
+<td><code>moe_a2a_*_deepep_{low_latency_graph,v2_graph}_{8,16}rank_gb200_nvl72</code>, <code>..._16rank_h200</code></td>
+<td><code>fit_deepep_collectivex.py --check</code> (<code>$COLLECTIVEX_DATA</code>)</td>
+<td>InferenceX CollectiveX deepep-v2 low-latency and normal; GB200 EP8/EP16 inside one NVL72, H200 EP16 over two nodes (scoped <code>fabric: [ib-400g]</code>)</td>
+</tr>
+<tr>
+<td><code>gemm_*_nvfp4_grouped</code> (PARKED, none committed)</td>
+<td><code>fit_nvfp4_grouped_ramp.py</code> (<code>$AISIMULATE_NVFP4_DATA</code> at aisimulate <code>8ae6b658</code>)</td>
+<td>AISimulate <code>moe/vllm/0.30.0</code> TrtLlmNvFp4ExpertsMonolithic; its held-out error is no better than the dense <code>nvfp4</code> ramp's on any part, so the kernel's fallback stands (see the script's docstring)</td>
+</tr>
+<tr>
+<td><code>fabric_bandwidth_efficiency</code> (<code>cost-model-fabric</code>)</td>
+<td><code>emit_fabric.py --check</code> (<code>--verify DIR</code> re-hashes the cited pages)</td>
+<td>NVIDIA/nccl-tests#309 for ib-400g (<code>literature</code>); roce-200g and ethernet-100gbe <code>assumed</code> with stated ranges</td>
 </tr>
 <tr>
 <td>host overheads (<code>assumed</code>)</td>
@@ -2578,29 +2747,29 @@ non-zero if the committed file would change) and <code>--insert CHIP</code> (it 
 set does not carry yet, through the same renderer, so an inserted entry is byte-identical
 to what a later re-run produces). The order matters in one place: prefill attention reads
 the bf16 GEMM ramp <strong>from the registry</strong>, so the envelope must be committed first.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems/data
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>&lt;path-to-blis-catalog&gt;
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># 1. descriptors (vendor_spec, from NVIDIA's own systems/gb300.yaml)</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="c1">#    emit_primitives.py owns this family; its GEMM/MoE path is superseded — see below.</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="c1"># 2. GEMM ramp, then MoE imbalance</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>python<span class="w"> </span>scripts/relane_gemm_envelope.py<span class="w">  </span>--insert<span class="w"> </span>gb300
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>python<span class="w"> </span>scripts/relane_moe_imbalance.py<span class="w">  </span>--insert<span class="w"> </span>gb300
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="c1"># 3. attention: decode, then prefill (needs the ramp from step 2), then windowed</span>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>python<span class="w"> </span>scripts/relane_attention_decode.py<span class="w">  </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>python<span class="w"> </span>scripts/relane_attention_prefill.py<span class="w"> </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
-<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>python<span class="w"> </span>scripts/relane_attention_swa.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
-<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="c1"># 4. recurrent</span>
-<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>python<span class="w"> </span>scripts/relane_recurrent_kda.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
-<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="c1"># 5. collectives, per operator from the lane each belongs on</span>
-<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>python<span class="w"> </span>scripts/insert_collectives_part.py<span class="w"> </span>--chip<span class="w"> </span>gb300<span class="w"> </span>--sku<span class="w"> </span>gb300
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">AISIMULATE_DATA</span><span class="o">=</span>&lt;aisimulate&gt;/python/aisimulate/src/aisimulate_core/systems/data
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">BLIS_CATALOG</span><span class="o">=</span>&lt;path-to-blis-catalog&gt;
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># 1. descriptors (vendor_spec, from NVIDIA's own systems/gb300.yaml)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="c1">#    emit_primitives.py owns this family; its GEMM/MoE path is superseded — see below.</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># 2. GEMM ramp, then MoE imbalance</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>python<span class="w"> </span>scripts/relane_gemm_envelope.py<span class="w">  </span>--insert<span class="w"> </span>gb300
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>python<span class="w"> </span>scripts/relane_moe_imbalance.py<span class="w">  </span>--insert<span class="w"> </span>gb300
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="c1"># 3. attention: decode, then prefill (needs the ramp from step 2), then windowed</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>python<span class="w"> </span>scripts/relane_attention_decode.py<span class="w">  </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>python<span class="w"> </span>scripts/relane_attention_prefill.py<span class="w"> </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>python<span class="w"> </span>scripts/relane_attention_swa.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="c1"># 4. recurrent</span>
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>python<span class="w"> </span>scripts/relane_recurrent_kda.py<span class="w">     </span>--insert<span class="w"> </span>gb300<span class="w"> </span>gb300:gb300
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="c1"># 5. collectives, per operator from the lane each belongs on</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>python<span class="w"> </span>scripts/insert_collectives_part.py<span class="w"> </span>--chip<span class="w"> </span>gb300<span class="w"> </span>--sku<span class="w"> </span>gb300
 </code></pre></div>
 <p>Then assert idempotence, which is what makes the result auditable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">for</span><span class="w"> </span>s<span class="w"> </span><span class="k">in</span><span class="w"> </span>relane_gemm_envelope<span class="w"> </span>relane_moe_imbalance<span class="w"> </span>relane_attention_decode<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">         </span>relane_attention_prefill<span class="w"> </span>relane_attention_swa<span class="w"> </span>relane_recurrent_kda<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span>python<span class="w"> </span>scripts/<span class="nv">$s</span>.py<span class="w"> </span>--check<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$s</span><span class="s2"> DRIFTED"</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">done</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">for</span><span class="w"> </span>s<span class="w"> </span><span class="k">in</span><span class="w"> </span>relane_gemm_envelope<span class="w"> </span>relane_moe_imbalance<span class="w"> </span>relane_attention_decode<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">         </span>relane_attention_prefill<span class="w"> </span>relane_attention_swa<span class="w"> </span>relane_recurrent_kda<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span>python<span class="w"> </span>scripts/<span class="nv">$s</span>.py<span class="w"> </span>--check<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$s</span><span class="s2"> DRIFTED"</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">done</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q
 </code></pre></div>
 <p><strong>Do not run <code>emit_primitives.py</code> or <code>emit_collectives.py</code> to regenerate a whole set.</strong>
 Both predate lane decisions that moved families off them. <code>emit_primitives.py</code>'s
@@ -2695,8 +2864,8 @@ proves nothing. <code>n</code> is 292/360/288/356.</p>
 calibrate those terms rather than recover them from history: the removed values were
 placeholders and transcriptions, not measurements.</p>
 <h2 id="5-checking-a-re-derivation">5. Checking a re-derivation<a class="headerlink" href="#5-checking-a-re-derivation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w">        </span><span class="c1"># derivation / value-preservation gates (schema validation lives in blis-schemas)</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>python<span class="w"> </span>scripts/validate_against_aisimulate_tables.py<span class="w">   </span><span class="c1"># oracle check against AISimulate's own tables</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>validator/<span class="w"> </span>-q<span class="w">        </span><span class="c1"># derivation / value-preservation gates (schema validation lives in blis-schemas)</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>python<span class="w"> </span>scripts/validate_against_aisimulate_tables.py<span class="w">   </span><span class="c1"># oracle check against AISimulate's own tables</span>
 </code></pre></div>
 <p>A re-fit that lands on a different number is not automatically a correction. This registry
 has recorded six independently verified per-primitive improvements that each made
@@ -2708,22 +2877,38 @@ alone; see the standing rule in <a href="../methodology/"><code>methodology.md</
 decide whether a reader gets the same figures, and each has silently produced
 wrong numbers during this work.</p>
 <h3 id="61-the-scorer-is-not-on-main">6.1 The scorer is not on <code>main</code><a class="headerlink" href="#61-the-scorer-is-not-on-main" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>Status (2026-10-30).</strong> <a href="https://github.com/inference-sim/inference-sim/pull/1851">inference-sim#1851</a>
+merged on 2026-10-13 (<code>0d092d4</code>), and the <code>kernel-exclusive</code> branch below no longer exists.
+The scorer now lives at <code>tools/metricscore</code> on <code>inference-sim/inference-sim</code> main.
+<code>scripts/compare_registries.py</code> still runs <code>go run ./cmd/metricscore</code> from
+<code>/private/tmp/blis-kernel-wt</code>, so it needs that path updated before it can run. The scorer
+also needs three corpora (<code>-corpus aisimulate_e2e.json</code>, <code>-engine-settings
+inferencex_engine_settings.json</code>, <code>-absolutes inferencex_absolutes.json</code>, or
+<code>BLIS_MEASUREMENTS</code>). blis-latency-kernel does not distribute them: its <code>testdata/README.md</code>
+says they are extracted from third-party publications by <code>scripts/extract_*</code>. Only
+<code>aisimulate_e2e.json</code> was available for the Muse Spark change (#60), so that change ships
+without an end-to-end score; see the change's pull request. Separately, no committed
+scenario lists <code>cost-model-collectives-inferencex</code> or <code>cost-model-fabric</code> (the scenarios list
+six sets, <code>cost-model-primitives</code> to <code>cost-model-memory</code>). An end-to-end score of entries in
+those two sets is therefore unchanged by construction until a scenario names them.</p>
+</blockquote>
 <p><code>cmd/metricscore</code> exists only on the <code>kernel-exclusive</code> branch of the
 <code>sriumcp/inference-sim</code> fork, the head of the still-open
 <a href="https://github.com/inference-sim/inference-sim/pull/1851">inference-sim#1851</a>.
 <code>inference-sim/inference-sim</code> carries neither that branch nor the command, and a checkout
 of its <code>main</code> fails with <code>stat cmd/metricscore: directory not found</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>kernel-exclusive<span class="w"> </span>https://github.com/sriumcp/inference-sim<span class="w"> </span>/tmp/blis-scorer
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>/tmp/blis-scorer
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>kernel-exclusive<span class="w"> </span>https://github.com/sriumcp/inference-sim<span class="w"> </span>/tmp/blis-scorer
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nb">cd</span><span class="w"> </span>/tmp/blis-scorer
 </code></pre></div>
 <h3 id="62-registry-defaults-to-the-sibling-checkout-not-to-your-work">6.2 <code>-registry</code> defaults to the sibling checkout, not to your work<a class="headerlink" href="#62-registry-defaults-to-the-sibling-checkout-not-to-your-work" title="Permanent link">&para;</a></h3>
 <p>The flag's default is <code>/Users/sri/Documents/Projects/blis-registry</code> — the main
 checkout. Scoring a branch or worktree without passing <code>-registry</code> explicitly
 scores the <em>other</em> registry and reports figures that do not belong to the tree
 under test. Always pass it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>go<span class="w"> </span>run<span class="w"> </span>./cmd/metricscore<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>-config-tier<span class="w"> </span>measured<span class="w"> </span>-framework<span class="w"> </span>vllm<span class="w"> </span>-length-range-ratio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span>-registry<span class="w"> </span>/path/to/the/registry/under/test
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>go<span class="w"> </span>run<span class="w"> </span>./cmd/metricscore<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>-config-tier<span class="w"> </span>measured<span class="w"> </span>-framework<span class="w"> </span>vllm<span class="w"> </span>-length-range-ratio<span class="w"> </span><span class="m">1</span>.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span>-registry<span class="w"> </span>/path/to/the/registry/under/test
 </code></pre></div>
 <h3 id="63-the-three-flags-each-change-every-figure">6.3 The three flags each change every figure<a class="headerlink" href="#63-the-three-flags-each-change-every-figure" title="Permanent link">&para;</a></h3>
 <table>

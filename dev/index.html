@@ -988,6 +988,8 @@
       
         
       
+        
+      
     
     
     
@@ -1104,6 +1106,34 @@
     
   
     cost-model-collectives-inferencex
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reference/sets/cost-model-fabric/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-fabric
   
 
     
@@ -1618,11 +1648,11 @@
 latency estimate: the coefficients a cost model fits from measurements or, where no
 measurement exists, assumes. Each coefficient records how it was obtained and which
 hardware it applies to, so an estimate can be traced back to the evidence it rests on.</p>
-<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b"><code>7f6662d7188d</code></a>, the registry holds 1,175
-coefficient entries in 7 sets, covering
-9 GPU parts. By method: 881
+<p>At revision <a href="https://github.com/inference-sim/blis-registry/tree/96bead697172ab7f2cf8346e04e65b837014d867"><code>96bead697172</code></a>, the registry holds 1,198
+coefficient entries in 8 sets, covering
+12 GPU parts. By method: 901
 <code>measured</code>, 51 <code>vendor_spec</code> (transcribed from NVIDIA's
-AISimulate), 240 <code>assumed</code>, and
+AISimulate), 242 <code>assumed</code>, and
 2 <code>not_charged</code> (a declared zero).</p>
 <h2 id="where-it-sits">Where it sits<a class="headerlink" href="#where-it-sits" title="Permanent link">&para;</a></h2>
 <p>BLIS keeps different kinds of number in different repositories. The registry holds
@@ -1669,7 +1699,7 @@ behind each decision, and the claims later withdrawn.</p>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">rationale</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">&gt;</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="no">The token count at which the ramp reaches half its asymptote, so it sets how fast a widening batch approaches peak. Fitted jointly with gemm_eps_max_bf16 on the same envelope; residual 0.0673.</span>
 </code></pre></div>
-<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-primitives.yaml#L49">the committed file</a> at build time.</p>
+<p class="reg-caption">Quoted from <a href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-primitives.yaml#L49">the committed file</a> at build time.</p>
 
 <p>It is a measured, fitted constant of the GEMM efficiency ramp, scoped to two names for
 the same A100 silicon, citing the exact sweep it was fitted on. The

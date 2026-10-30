@@ -16,7 +16,7 @@
         <link rel="prev" href="../cost-model-collectives/">
       
       
-        <link rel="next" href="../cost-model-attention/">
+        <link rel="next" href="../cost-model-fabric/">
       
       
         
@@ -917,6 +917,8 @@
       
         
       
+        
+      
     
     
     
@@ -1054,6 +1056,34 @@
 
       </a>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cost-model-fabric/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cost-model-fabric
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1515,32 +1545,55 @@
 
 
 <h1 id="cost-model-collectives-inferencex">cost-model-collectives-inferencex<a class="headerlink" href="#cost-model-collectives-inferencex" title="Permanent link">&para;</a></h1>
-<p>DeepEP low-latency dispatch plus combine, priced as one MoE layer's all-to-all under
-CUDA-graph replay. vLLM v0.31.0 captures the low-latency kernels in a decode step's graph,
-so a captured step takes this pair:</p>
+<p>DeepEP dispatch plus combine, priced as one MoE layer's all-to-all:</p>
 <blockquote>
 <p>latency = <code>floor</code> + tokens · hidden · 2 · top_k / <code>rate</code></p>
 </blockquote>
-<p>with per-rank tokens. The eager pair (<code>moe_a2a_*_deepep_low_latency_8rank_&lt;part&gt;</code> in
-<a href="../cost-model-collectives/">cost-model-collectives</a>) prices a step with no graph.</p>
-<p><strong>Where the values come from.</strong> InferenceX CollectiveX, backend deepep-v2 in low-latency
-mode (DeepEP's legacy Buffer kernels), bf16, EP8 on one node, the roundtrip p50 per
-tokens-per-rank point. The fit uses 1/4/16/64/256 tokens and holds out 2/8/32/128. Each
-entry states its runs and held-out error.</p>
+<p>with per-rank tokens. Two variants are here, both as InferenceX CollectiveX times them:</p>
+<ul>
+<li><code>deepep_low_latency_graph</code>: DeepEP's legacy low-latency kernels under CUDA-graph replay,
+  which vLLM v0.31.0 uses for a captured decode step. The eager pair
+  (<code>moe_a2a_*_deepep_low_latency_&lt;N&gt;rank_&lt;part&gt;</code> in
+  <a href="../cost-model-collectives/">cost-model-collectives</a>) prices a step with no graph.</li>
+<li><code>deepep_v2_graph</code>: DeepEP v2's ElasticBuffer with vLLM <code>deepep_v2</code>'s CUDA-graphs-on flags
+  (no CPU sync, no expand). CollectiveX replays decode as a graph and runs prefill eager on the
+  same path.</li>
+</ul>
+<p><strong>Where the values come from.</strong> InferenceX CollectiveX, backend deepep-v2, bf16, shape hidden
+7168, top-6 of 384, uniform routing, the roundtrip p50 per tokens-per-rank point. The h100
+and h200 8-rank pair (one node, NVLink) fits tokens 1/4/16/64/256 and holds out 2/8/32/128.
+GB200-NVL72 at 8 and 16 ranks (2 and 4 trays of one MNNVL rack) and H200 at 16 ranks (two
+nodes over 400G InfiniBand, scoped <code>fabric: [ib-400g]</code>) use the same split for the
+low-latency mode. The v2 mode adds the prefill ladder: it fits 1/4/16/64/256/1024/4096 and
+holds out 2/8/32/128/512/2048/8192. Each entry states its run, its body's sha256 and its
+held-out error. The H200 16-rank entries measure a virtualised pool's path, not the
+InfiniBand fabric, and say so.</p>
 <p><strong>Why a separate set.</strong> cost-model-collectives comes from a single source, NVIDIA
 AISimulate. A set that mixed the two methodologies would confound comparisons across
 parts. A scenario lists this set next to cost-model-collectives to take these prices.
 Without it, the kernel prices as before.</p>
 <p class="reg-legend"><span class="reg-legend-item"><span class="reg-m reg-m-measured" aria-hidden="true">■</span> <code>measured</code></span></p>
 
-<div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>coefficient</th><th class="reg-num"><code>h100</code></th><th class="reg-num"><code>h200</code></th></tr></thead><tbody>
-<tr><td><code title="moe_a2a_floor_deepep_low_latency_graph_8rank_‹part›">moe_a2a_floor_deepep_low_latency_graph_8rank_‹part›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-collectives-inferencex.yaml#L11" title="moe_a2a_floor_deepep_low_latency_graph_8rank_h100 · measured · us_per_transfer — open the entry and its provenance">37.5</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-collectives-inferencex.yaml#L31" title="moe_a2a_floor_deepep_low_latency_graph_8rank_h200 · measured · us_per_transfer — open the entry and its provenance">35.3</a></span></span></td></tr>
-<tr><td><code title="moe_a2a_rate_deepep_low_latency_graph_8rank_‹part›">moe_a2a_rate_deepep_low_latency_graph_8rank_‹part›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-collectives-inferencex.yaml#L21" title="moe_a2a_rate_deepep_low_latency_graph_8rank_h100 · measured · bytes_per_us — open the entry and its provenance">146,200.0</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-collectives-inferencex.yaml#L41" title="moe_a2a_rate_deepep_low_latency_graph_8rank_h200 · measured · bytes_per_us — open the entry and its provenance">149,600.0</a></span></span></td></tr>
+<div class="reg-table-wrap"><table class="reg-table"><thead><tr><th>coefficient</th><th class="reg-num"><code>h100</code></th><th class="reg-num"><code>h200</code></th><th class="reg-num"><code>gb200-nvl72</code></th></tr></thead><tbody>
+<tr><td><code title="moe_a2a_floor_deepep_low_latency_graph_8rank_‹part›">moe_a2a_floor_deepep_low_latency_graph_8rank_‹part›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L11" title="moe_a2a_floor_deepep_low_latency_graph_8rank_h100 · measured · us_per_transfer — open the entry and its provenance">37.5</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L31" title="moe_a2a_floor_deepep_low_latency_graph_8rank_h200 · measured · us_per_transfer — open the entry and its provenance">35.3</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L51" title="moe_a2a_floor_deepep_low_latency_graph_8rank_gb200_nvl72 · measured · us_per_transfer — open the entry and its provenance">48.6</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_low_latency_graph_8rank_‹part›">moe_a2a_rate_deepep_low_latency_graph_8rank_‹part›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L21" title="moe_a2a_rate_deepep_low_latency_graph_8rank_h100 · measured · bytes_per_us — open the entry and its provenance">146,200.0</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L41" title="moe_a2a_rate_deepep_low_latency_graph_8rank_h200 · measured · bytes_per_us — open the entry and its provenance">149,600.0</a></span></span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L61" title="moe_a2a_rate_deepep_low_latency_graph_8rank_gb200_nvl72 · measured · bytes_per_us — open the entry and its provenance">322,300.0</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_floor_deepep_v2_graph_8rank_‹part›">moe_a2a_floor_deepep_v2_graph_8rank_‹part›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L71" title="moe_a2a_floor_deepep_v2_graph_8rank_gb200_nvl72 · measured · us_per_transfer — open the entry and its provenance">50.4</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_v2_graph_8rank_‹part›">moe_a2a_rate_deepep_v2_graph_8rank_‹part›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L81" title="moe_a2a_rate_deepep_v2_graph_8rank_gb200_nvl72 · measured · bytes_per_us — open the entry and its provenance">465,600.0</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_floor_deepep_low_latency_graph_16rank_‹part›">moe_a2a_floor_deepep_low_latency_graph_16rank_‹part›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L91" title="moe_a2a_floor_deepep_low_latency_graph_16rank_gb200_nvl72 · measured · us_per_transfer — open the entry and its provenance">55.6</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_low_latency_graph_16rank_‹part›">moe_a2a_rate_deepep_low_latency_graph_16rank_‹part›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L101" title="moe_a2a_rate_deepep_low_latency_graph_16rank_gb200_nvl72 · measured · bytes_per_us — open the entry and its provenance">298,500.0</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_floor_deepep_v2_graph_16rank_‹part›">moe_a2a_floor_deepep_v2_graph_16rank_‹part›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L111" title="moe_a2a_floor_deepep_v2_graph_16rank_gb200_nvl72 · measured · us_per_transfer — open the entry and its provenance">57.8</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_v2_graph_16rank_‹part›">moe_a2a_rate_deepep_v2_graph_16rank_‹part›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L121" title="moe_a2a_rate_deepep_v2_graph_16rank_gb200_nvl72 · measured · bytes_per_us — open the entry and its provenance">365,200.0</a></span></span></td></tr>
+<tr><td><code title="moe_a2a_floor_deepep_low_latency_graph_16rank_‹part› ‹fabric: ib-400g›">moe_a2a_floor_deepep_low_latency_graph_16rank_‹part› ‹fabric: ib-400g›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L131" title="moe_a2a_floor_deepep_low_latency_graph_16rank_h200 · measured · us_per_transfer — open the entry and its provenance">175.5</a></span></span></td><td class="reg-num"><span class="reg-empty">·</span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_low_latency_graph_16rank_‹part› ‹fabric: ib-400g›">moe_a2a_rate_deepep_low_latency_graph_16rank_‹part› ‹fabric: ib-400g›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L141" title="moe_a2a_rate_deepep_low_latency_graph_16rank_h200 · measured · bytes_per_us — open the entry and its provenance">4,860.0</a></span></span></td><td class="reg-num"><span class="reg-empty">·</span></td></tr>
+<tr><td><code title="moe_a2a_floor_deepep_v2_graph_16rank_‹part› ‹fabric: ib-400g›">moe_a2a_floor_deepep_v2_graph_16rank_‹part› ‹fabric: ib-400g›</code><span class="reg-units">us_per_transfer</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L151" title="moe_a2a_floor_deepep_v2_graph_16rank_h200 · measured · us_per_transfer — open the entry and its provenance">130.8</a></span></span></td><td class="reg-num"><span class="reg-empty">·</span></td></tr>
+<tr><td><code title="moe_a2a_rate_deepep_v2_graph_16rank_‹part› ‹fabric: ib-400g›">moe_a2a_rate_deepep_v2_graph_16rank_‹part› ‹fabric: ib-400g›</code><span class="reg-units">bytes_per_us</span></td><td class="reg-num"><span class="reg-empty">·</span></td><td class="reg-num"><span class="reg-cell"><span class="reg-m reg-m-measured" aria-hidden="true">■</span><span><a class="reg-v" href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml#L161" title="moe_a2a_rate_deepep_v2_graph_16rank_h200 · measured · bytes_per_us — open the entry and its provenance">63,130.0</a></span></span></td><td class="reg-num"><span class="reg-empty">·</span></td></tr>
 </tbody></table></div>
 
-<p class="reg-caption">4 entries (4 measured) across 2 coefficients and 2 parts. A dot (·) is a part the set holds no entry for. Each value links to its entry in <a href="https://github.com/inference-sim/blis-registry/blob/7f6662d7188dc3dc873a37623e1f7bbfe1d6081b/coefficients/cost-model-collectives-inferencex.yaml"><code>coefficients/cost-model-collectives-inferencex.yaml</code></a>, where its sources, rationale and scope are recorded.</p>
+<p class="reg-caption">16 entries (16 measured) across 12 coefficients and 3 parts. A dot (·) is a part the set holds no entry for. Each value links to its entry in <a href="https://github.com/inference-sim/blis-registry/blob/96bead697172ab7f2cf8346e04e65b837014d867/coefficients/cost-model-collectives-inferencex.yaml"><code>coefficients/cost-model-collectives-inferencex.yaml</code></a>, where its sources, rationale and scope are recorded.</p>
 
-<p><strong>Regenerate:</strong> <code>fit_deepep_ll_graph.py</code>; <code>--check</code> is the drift gate.</p>
+<p><strong>Regenerate:</strong> <code>fit_deepep_ll_graph.py</code> (h100 and h200, 8 ranks) and
+<code>fit_deepep_collectivex.py</code> (GB200-NVL72 8 and 16 ranks, H200 16 ranks); <code>--check</code> is the
+drift gate for each.</p>
 
 
 
@@ -1600,13 +1653,13 @@ Without it, the kernel prices as before.</p>
         
         
           
-          <a href="../cost-model-attention/" class="md-footer__link md-footer__link--next" aria-label="Next: cost-model-attention">
+          <a href="../cost-model-fabric/" class="md-footer__link md-footer__link--next" aria-label="Next: cost-model-fabric">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                cost-model-attention
+                cost-model-fabric
               </div>
             </div>
             <div class="md-footer__button md-icon">

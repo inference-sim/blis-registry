@@ -61,6 +61,9 @@ WRITERS = [
     ("relane_gemm_envelope.py", "the GEMM efficiency ramp"),
     ("relane_moe_imbalance.py", "the MoE routing-imbalance median"),
     ("fit_marlin_grouped_ramp.py", "the Marlin W4A16 grouped GEMM ramp"),
+    # The h100/h200 fp16 all-reduce on vLLM 0.31.0's custom kernel. Needs aisimulate
+    # 7980e95 (the 0.31.0 sweep); exits 2, failing, on a tree without it.
+    ("relane_allreduce_vllm.py", "the h100/h200 vLLM 0.31.0 all-reduce triples"),
     # Entry-level: the descriptor entries and A100's MoE median, the families it owns.
     ("emit_primitives.py", "the descriptor entries and the A100 MoE median"),
     # Owns six DeepSeek-V4.1 entries per part (h200, h100) across two sets: two fitted,
@@ -219,7 +222,9 @@ def test_every_fitted_family_has_a_writer():
                | {w.split()[0] for w, _ in RATE_ONLY}
                # Gated against its own (InferenceX CollectiveX) data in
                # test_deepep_ll_graph.py, not against the AISimulate tree.
-               | {"fit_deepep_ll_graph.py", "fit_host_link.py"})
+               | {"fit_deepep_ll_graph.py", "fit_host_link.py", "fit_deepep_collectivex.py"}
+               # Gated against its own (InferenceX OperatorX) data in test_operatorx.py.
+               | {"fit_marlin_nvfp4_grouped_ramp.py"})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -245,6 +250,8 @@ def test_every_fitted_family_has_a_writer():
         "host_link_bandwidth": "fit_host_link.py",
         "gemm_eps_max_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
         "gemm_m_half_w4a16_mxfp4_grouped": "fit_marlin_grouped_ramp.py",
+        "gemm_eps_max_w4a16_nvfp4_grouped": "fit_marlin_nvfp4_grouped_ramp.py",
+        "gemm_m_half_w4a16_nvfp4_grouped": "fit_marlin_nvfp4_grouped_ramp.py",
         "attention_decode_rate_sparse_mla": "fit_deepseek_v41_h200.py",
         "attention_decode_floor_block_index_scores": "fit_deepseek_v41_h200.py",
         "attention_prefill_floor_sparse_mla": "fit_deepseek_v41_prefill.py",
@@ -269,6 +276,10 @@ def test_every_fitted_family_has_a_writer():
                      "low_latency_4rank_gb200_nvl72", "high_throughput_4rank_gb300")},
         **{f"moe_a2a_{t}_deepep_low_latency_graph_8rank_{p}": "fit_deepep_ll_graph.py"
            for t in ("floor", "rate") for p in ("h100", "h200")},
+        **{f"moe_a2a_{t}_deepep_{v}_{w}": "fit_deepep_collectivex.py"
+           for t in ("floor", "rate")
+           for v in ("low_latency_graph", "v2_graph")
+           for w in ("8rank_gb200_nvl72", "16rank_gb200_nvl72", "16rank_h200")},
         **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
            for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }

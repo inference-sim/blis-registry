@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # The re-derivation gates, with the data present: every fitted value must be what its
 # writer derives from the pinned upstream data, and no test may skip except the eight
-# by-design ramp-form ones. A skip is a gate that did not run, so it fails here.
+# by-design ramp-form ones and a named cited-bodies-absent skip (below). A skip is a gate
+# that did not run, so it fails here.
 #
 # Run from the repository root after `pip install -r requirements-fit.txt`:
 #
 #   export AISIMULATE_DATA=<aisimulate>/python/aisimulate/src/aisimulate_core/systems/data
 #   export BLIS_CATALOG=<blis-catalog checkout>        # at CATALOG_SHA in rederive.yml
+#   export AISIMULATE_ALLREDUCE_DATA=<aisimulate @7980e95>/.../systems/data  # relane_allreduce_vllm.py
 #   export COLLECTIVEX_DATA=<dir of cx_run_*.body>     # test_deepep_ll_graph.py
+#   export OPERATORX_DATA=<dir of moe_<Model>.json>    # test_operatorx.py
 #   export INFERENCEX_GOLDEN=<inferencex>/inferencex-e2e/infx/golden_al_distribution  # optional
 #   scripts/rederive.sh
 #
@@ -17,6 +20,7 @@ set -euo pipefail
 
 : "${AISIMULATE_DATA:?set AISIMULATE_DATA to the AISimulate systems/data directory}"
 : "${BLIS_CATALOG:?set BLIS_CATALOG to a blis-catalog checkout at the pinned CATALOG_SHA}"
+: "${AISIMULATE_ALLREDUCE_DATA:?set AISIMULATE_ALLREDUCE_DATA to the systems/data of aisimulate at AISIMULATE_ALLREDUCE_SHA (rederive.yml), the h100/h200 vLLM 0.31.0 all-reduce sweep}"
 
 n=$(find "$AISIMULATE_DATA" -name '*.parquet' | wc -l)
 echo "AISimulate parquets present: $n"
@@ -24,6 +28,7 @@ test "$n" -gt 500
 
 # The vendored descriptors must be the catalog being checked against.
 diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
+diff -r validator/testdata/catalog/networks "$BLIS_CATALOG/networks"
 for g in validator/testdata/catalog/models/*/graph.yaml; do
   diff "$g" "$BLIS_CATALOG/models/${g#validator/testdata/catalog/models/}"
 done
@@ -54,7 +59,13 @@ python -m pytest validator/ -q -rs | tee "$log"
 # carries the one- or three-factor ramp, so the other gate does not apply). Any other
 # skip -- missing data, a missing catalog, a gate whose premise quietly disappeared --
 # is a gate that did not run, and fails.
-unexpected=$(grep '^SKIPPED' "$log" | grep -Ev 'carries the (one|three)-factor ramp' || true)
+# One data skip is accepted, by name: a CollectiveX writer whose cited run bodies are no
+# longer served (the API keeps its latest 15 runs) refuses to re-cite them and skips with
+# "the cited CollectiveX bodies are not present". Its entries then cannot be re-derived from
+# public data, and the skip line says which runs are missing.
+unexpected=$(grep '^SKIPPED' "$log" \
+  | grep -Ev 'carries the (one|three)-factor ramp|the cited CollectiveX bodies are not present' \
+  || true)
 if [ -n "$unexpected" ]; then
   echo "unexpected skips with the data present:" >&2
   echo "$unexpected" >&2

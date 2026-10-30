@@ -122,7 +122,15 @@ BYTES_PER_WEIGHT = {FIT_DTYPE: 0.5 + 1 / 32, HOLDOUT_DTYPE: 0.5 + 2 / 128, FORM_
 # The parts this family is committed for, and why each (see the module docstring): h200
 # and h100, where stock v0.31.0 selects Marlin for MXFP4 experts; gb300, where the Kimi-K3
 # FPM run the KDA validation (blis-registry#41) scores against ran Marlin W4A16.
-PARTS = [("h200_sxm", "h200"), ("gb300", "gb300"), ("h100_sxm", "h100")]
+PARTS = [("h200_sxm", "h200"), ("gb300", "gb300"), ("h100_sxm", "h100"),
+         ("b200_sxm", "b200"), ("b300_sxm", "b300")]
+
+# The landing gate for a part added after the first three (inference-sim/blis-registry#51
+# part 2: b200, b300), declared before their fits were run: the held-out int4 geometric error
+# must not exceed 1.30x, the worst the committed parts reach (gb300 1.266x). A part over it
+# is printed and not written.
+LATE_PARTS = {"b200", "b300"}
+HOLDOUT_GATE = 1.30
 
 # A part measured beside a sibling on the same die, whose latencies are compared row for
 # row so the rationale can say what a difference in the fitted ramp is and is not.
@@ -136,6 +144,16 @@ WHEN = {
     "h100": ("On SM90 v0.31.0 runs MXFP4 routed experts on Marlin (Mxfp4MoEMethod's TRTLLM "
              "and DeepGEMM backends, and the compressed-tensors CutlassExpertsMxfp4, all "
              "require SM100+)."),
+    "b200": ("On this part stock v0.31.0 does NOT select Marlin for MXFP4 experts "
+             "(CutlassExpertsMxfp4, TRTLLM or DeepGEMM), but it DOES run Kimi-K2.5's WNA16 int4 "
+             "experts on Marlin on Blackwell (int_wna16.py:132-141; VLLM_USE_FLASHINFER_MOE_INT4 "
+             "defaults to 0, envs.py:221), so apply this where the deployment's MoE backend is "
+             "Marlin W4A16 (blis-registry#51 part 2)."),
+    "b300": ("On this part stock v0.31.0 does NOT select Marlin for MXFP4 experts "
+             "(CutlassExpertsMxfp4, TRTLLM or DeepGEMM), but it DOES run Kimi-K2.5's WNA16 int4 "
+             "experts on Marlin on Blackwell (int_wna16.py:132-141; VLLM_USE_FLASHINFER_MOE_INT4 "
+             "defaults to 0, envs.py:221), so apply this where the deployment's MoE backend is "
+             "Marlin W4A16 (blis-registry#51 part 2)."),
     "gb300": ("On this part stock v0.31.0 does NOT select Marlin -- CutlassExpertsMxfp4 "
               "(W4A4) for a compressed-tensors MXFP4 checkpoint, TRTLLM or DeepGEMM for OCP "
               "MXFP4 -- so apply this only where the deployment's MoE backend is Marlin W4A16: "
@@ -388,6 +406,10 @@ def main(argv: list[str]) -> int:
     fits = {}
     for sku, chip in PARTS:
         f = fit_part(Path(args.data), Path(args.catalog), sku, chip)
+        if chip in LATE_PARTS and f["holdout"][0] > HOLDOUT_GATE:
+            print(f"{chip:8} NOT written: held-out int4 {f['holdout'][0]:.3f}x exceeds the "
+                  f"declared {HOLDOUT_GATE}x gate")
+            continue
         fits[chip] = f
         form = ", ".join(f"ep {ep} {e:.2f}x" for ep, e in f["form"]["by_ep"].items())
         print(f"{chip:8} eps_max={f['eps']:.3f} m_half={f['mh']:4d}  "

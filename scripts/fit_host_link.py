@@ -28,6 +28,12 @@ blocks (51.6 GB/s): 51 GB/s x 264/288 useful bytes. A measured payload rate alre
 the PCIe line code, so no 128/130 factor. h200 shares the PCIe Gen5 x16 host link and has no
 SM-driven measurement: transferred, stated.
 
+THE BODIES MUST BE THE CITED ONES. CollectiveX's API serves only its latest 15 runs (bodies
+from https://inferencex.semianalysis.com/api/v1/collectivex/runs/<id>?version=1; the bare
+`version=1` query is required). The entries cite the sha256 of the bodies they were fitted on;
+if the bodies present hash to anything else, this refuses (exit 3) rather than re-fit and
+re-cite the entries on different runs.
+
 Usage:
     python scripts/fit_host_link.py --data <dir of CollectiveX run bodies> [--check]
     (or set COLLECTIVEX_DATA)
@@ -112,6 +118,22 @@ def link_entry(part, value, sku, est, h2d, d2h, sha):
     ]
 
 
+def cited_sha(text: str) -> set[str]:
+    """The body sha256 each committed CollectiveX host_link_bandwidth entry cites."""
+    import re
+    import yaml
+    out = set()
+    for e in yaml.safe_load(text)["coefficients"]:
+        (name, body), = e.items()
+        if name != "host_link_bandwidth":
+            continue
+        for s in body.get("sources") or []:
+            m = re.search(r"CollectiveX swap_blocks .*?bodies sha256 ([0-9a-f]{12})", s["cite"])
+            if m:
+                out.add(m.group(1))
+    return out
+
+
 def main(argv) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -127,6 +149,13 @@ def main(argv) -> int:
         h.update((Path(args.data) / r).read_bytes())
     sha = h.hexdigest()[:12]
     before = SET_PATH.read_text(encoding="utf-8")
+    cited = cited_sha(before)
+    if cited != {sha}:
+        print(f"refusing: the cited CollectiveX bodies are not present (the entries cite bodies "
+              f"sha256 {', '.join(sorted(cited))}; the swap_blocks bodies present hash to {sha}). "
+              "The API serves only its latest 15 runs; restore the cited bodies to re-derive.",
+              file=sys.stderr)
+        return 3
     blocks = cb.split(before)
     for part, sku in PARTS.items():
         block = None if part == "h100" else BLOCK

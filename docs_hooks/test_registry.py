@@ -50,7 +50,9 @@ def test_every_entry_appears_in_its_matrix_and_only_under_its_own_parts(s):
     for row, cells in rows.items():
         for part, entries in cells.items():
             for e in entries:
-                assert part in e.hardware, f"{e.name} placed under {part}, outside its scope"
+                # A fabric-only entry's columns are the fabrics it names.
+                columns = e.hardware or e.fabric
+                assert part in columns, f"{e.name} placed under {part}, outside its scope"
                 placed.setdefault(id(e), []).append((row, part))
     for e in s.entries:
         assert id(e) in placed, f"{name}:{e.line} {e.name} is missing from the matrix"
@@ -76,6 +78,23 @@ def test_a_scalar_model_scope_is_one_label_not_its_characters():
     assert registry._fold(e)[0] == "x ‹model: m-1›"
 
 
+def test_a_fabric_scoped_entry_is_its_own_row_labelled_with_its_fabric():
+    e = registry.Entry("moe_a2a_rate_x_16rank_h200",
+                       {"scope": {"hardware": ["h200"], "fabric": ["ib-400g"]},
+                        "units": "bytes_per_us", "method": "measured", "value": 1.0}, 1)
+    row, columns = registry._fold(e)
+    assert row == "moe_a2a_rate_x_16rank_‹part› ‹fabric: ib-400g›"
+    assert columns == ["h200"]
+
+
+def test_a_fabric_only_entry_fills_its_fabric_columns():
+    e = registry.Entry("fabric_bandwidth_efficiency",
+                       {"scope": {"fabric": ["ib-400g"]}, "units": "dimensionless",
+                        "method": "literature", "value": 0.9}, 1)
+    rows, _ = registry.matrix(registry.CoefficientSet("s", "s.yaml", [e]))
+    assert list(rows["fabric_bandwidth_efficiency"]) == ["ib-400g"]
+
+
 @pytest.mark.parametrize("scope", [{"hardware": ["h200"], "tp": [8]}, {"model": ["m"]}],
                          ids=["unshown-scope-key", "no-hardware"])
 def test_the_matrix_refuses_an_entry_it_cannot_show(scope):
@@ -88,8 +107,9 @@ def test_the_matrix_refuses_an_entry_it_cannot_show(scope):
 @pytest.mark.parametrize("s", all_sets(), ids=lambda s: s.name)
 def test_every_quoted_entry_parses_back_to_the_committed_entry(s):
     for e in s.entries:
-        part = e.hardware[0]
-        matches = [x for x in s.entries if x.name == e.name and part in x.hardware]
+        part = e.hardware[0] if e.hardware else e.fabric[0]
+        matches = [x for x in s.entries if x.name == e.name
+                   and (part in x.hardware or (not x.hardware and part in x.fabric))]
         if len(matches) != 1:
             continue  # the directive refuses ambiguous quotes; nothing to compare
         html = registry.render_entry(f"{s.name} {e.name} {part}")

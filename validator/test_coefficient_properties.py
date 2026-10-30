@@ -49,8 +49,8 @@ REPO = Path(__file__).resolve().parent.parent
 # worse than no bound: it reports the invariant as protected.
 #
 # 40 KB for the nine chips the committed coefficients scope to, pinned to blis-catalog
-# release 0.3.0 (676326ec6c708e91ec4981bd6b03922a7fe60512, 2026-10-20), the revision
-# blis-latency-kernel should vendor too. BLIS_CATALOG still overrides, so a working copy can be
+# 0.5.0 (b5550f750cb51571498577fbdc1c68f78cda67db),
+# the revision blis-latency-kernel's testdata/upstream.lock pins too. BLIS_CATALOG still overrides, so a working copy can be
 # checked against a live catalog; a chip rename there is SUPPOSED to break these tests,
 # which is why the copy tracks a commit rather than a branch.
 #
@@ -252,7 +252,7 @@ def test_marlin_weight_only_ramps_sit_at_or_below_the_dense_bf16_envelope():
     for _, name, body in ENTRIES:
         # The W8A16 entry is assumed EQUAL to the BF16 envelope (see the derived-entry test
         # below), so only the fitted grouped ramp can actually violate this bound.
-        if name != "gemm_eps_max_w4a16_mxfp4_grouped":
+        if name not in ("gemm_eps_max_w4a16_mxfp4_grouped", "gemm_eps_max_w4a16_nvfp4_grouped"):
             continue
         for hw in body["scope"]["hardware"]:
             bf16 = _single("gemm_eps_max_bf16", hw)

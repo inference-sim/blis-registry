@@ -48,6 +48,10 @@ REPO_URL = "https://github.com/inference-sim/blis-registry"
 
 # Column order for parts: by generation, then anything new alphabetically. A part absent
 # from this list still renders; it only sorts last.
+# Scope keys beyond hardware a matrix row can carry as a label: a model-scoped or
+# fabric-scoped entry is a different row from the part-wide one of the same name.
+TAGGED_SCOPES = {"model", "fabric"}
+
 PART_ORDER = [
     "l40s", "a100-sxm", "a100-80", "h100", "h200",
     "b200", "b300", "gb200-nvl72", "gb300",
@@ -80,6 +84,10 @@ class Entry:
     @property
     def hardware(self) -> list[str]:
         return list(self.body.get("scope", {}).get("hardware", []))
+
+    @property
+    def fabric(self) -> list[str]:
+        return list(self.body.get("scope", {}).get("fabric", []))
 
     @property
     def other_scope(self) -> dict:
@@ -226,7 +234,8 @@ def on_files(files, config):
 
 
 def _parts(entries) -> list[str]:
-    found = {h for e in entries for h in e.hardware}
+    found = {h for e in entries for h in e.hardware} | {
+        f for e in entries if not e.hardware for f in e.fabric}
     known = [p for p in PART_ORDER if p in found]
     return known + sorted(found - set(known))
 
@@ -338,11 +347,21 @@ def matrix(s: CoefficientSet):
     rows: dict[str, dict[str, list[Entry]]] = {}
     units: dict[str, str] = {}
     for e in s.entries:
-        if set(e.other_scope) - {"model"}:
+        if set(e.other_scope) - TAGGED_SCOPES:
             raise PluginError(
                 f"registry hook: {s.name}:{e.line} {e.name} is scoped by "
-                f"{sorted(set(e.other_scope) - {'model'})}; the matrix view shows hardware "
-                f"and model scopes only. Extend the hook.")
+                f"{sorted(set(e.other_scope) - TAGGED_SCOPES)}; the matrix view shows hardware, "
+                f"model and fabric scopes only. Extend the hook.")
+        if not e.hardware and set(e.other_scope) == {"fabric"}:
+            # A fabric-only entry (cost-model-fabric) belongs to a network, not a part: its
+            # columns are the fabrics it names.
+            stem = e.name
+            cells = rows.setdefault(stem, {})
+            if units.setdefault(stem, e.body["units"]) != e.body["units"]:
+                raise PluginError(f"registry hook: {stem} carries two units in {s.name}")
+            for f in e.fabric:
+                cells.setdefault(f, []).append(e)
+            continue
         if not e.hardware:
             raise PluginError(
                 f"registry hook: {s.name}:{e.line} {e.name} names no hardware, so it has "
@@ -570,7 +589,8 @@ def render_entry(args: str) -> str:
     s = _state["sets"].get(set_name)
     if s is None:
         raise PluginError(f"registry hook: no coefficient set named {set_name!r}")
-    matches = [e for e in s.entries if e.name == name and part in e.hardware]
+    matches = [e for e in s.entries if e.name == name
+               and (part in e.hardware or (not e.hardware and part in e.fabric))]
     if len(matches) != 1:
         raise PluginError(f"registry hook: {len(matches)} entries match {args!r}")
     e = matches[0]

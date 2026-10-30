@@ -25,7 +25,7 @@ the data comes from, and which command regenerates which file.
 | Licence | Apache-2.0, with one MIT third-party file carved out in the `LICENSE` NOTICE and attributed in `THIRD_PARTY_NOTICES.md`. GitHub's license API reports `NOASSERTION` because of that preamble; the text itself says "Except for the third-party material identified in that notice file, this codebase is licensed under the Apache License 2.0", and source files carry `SPDX-License-Identifier: Apache-2.0`. |
 | Provenance | Successor to [`ai-dynamo/aiconfigurator`](https://github.com/ai-dynamo/aiconfigurator); method described in arXiv:2601.06288. |
 | Fetch | `git clone https://github.com/ai-dynamo/aisimulate` — the sweeps are checked into git as Parquet. Git LFS is needed only for retained legacy `.txt` assets, which no fit in this registry reads. `pip install aisimulate` also ships the tree inside the wheel. |
-| Pin | Every committed value re-derives at `2f0f4cd8606d580567b253d02f3d699fe36db865` (2026-10-10), with blis-catalog at release `0.3.0` (`676326e`; the commit `validator/testdata/catalog` vendors). The `rederive` CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it. |
+| Pin | Every committed value re-derives at `2f0f4cd8606d580567b253d02f3d699fe36db865` (2026-10-10), with blis-catalog at `0.5.0` (`b5550f7`; the commit `validator/testdata/catalog` vendors). The `rederive` CI job checks out both; bump either deliberately, with the diff the writers produce. A catalog revision that changes a part's datasheet figure moves every rate fitted as a fraction of it. |
 | Python | `pip install -r requirements-fit.txt` — the validator's dependencies plus `numpy`, `pandas` and `pyarrow`, which the fitters need to read Parquet. |
 
 The two trees the fits read are **not** at the repository root:
@@ -269,6 +269,38 @@ Using the context length for both kinds is what made an early windowed fit land 
 datasheet peak — a physically impossible rate, and the reason the two kinds are fitted
 apart rather than together.
 
+### InferenceX CollectiveX run bodies (`$COLLECTIVEX_DATA`)
+
+Three writers read CollectiveX run bodies: `fit_deepep_ll_graph.py`, `fit_host_link.py` and
+`fit_deepep_collectivex.py`. Fetch the run list and each body from
+
+```
+https://inferencex.semianalysis.com/api/v1/collectivex/runs?version=1
+https://inferencex.semianalysis.com/api/v1/collectivex/runs/<run_id>?version=1
+```
+
+and save each body as `cx_run_<run_id>.body`. The query must be the bare integer
+`version=1`: without it, or with `v1`, the API answers `{"error":"Unknown version"}`. The
+API keeps only its latest 15 runs, so a cited run can stop being fetchable. Each writer
+checks that the bodies its committed entries cite are present and hash to the cited sha256.
+If they are not, it exits 3 rather than re-fit and re-cite the entries on other runs, and
+`validator/test_deepep_ll_graph.py` skips with "the cited CollectiveX bodies are not
+present". The entries `fit_deepep_ll_graph.py` and `fit_host_link.py` wrote cite runs the
+API no longer serves (33356406487, 36334392363, 36367074689, 36402856875, and the
+swap_blocks bodies sha256 `26cad6ccbdaa`). They stay as committed, and those two gates skip
+until the bodies are restored.
+
+### Data freshness, checked 2026-10-30
+
+| source | newest public | what the committed sets cite | outcome |
+|---|---|---|---|
+| AISimulate | `ai-dynamo/aisimulate` `7980e9500c00d9f85d7f296451d12768a743c70e` (2026-10-29) | `2f0f4cd` (main pin), `8ae6b658` (NVFP4 grouped, parked), `95b7f839` (DeepEP) | every parquet the Muse-relevant entries cite is byte-identical at `7980e95`. New since the pin: vLLM 0.30.0/0.31.0 gemm, moe and comm tables. h100/h200 all-reduce relaned to 0.31.0 (held-out better at every width). The 0.31.0 dense gemm tables and the 0.30.0 Marlin rows were scored on held-out points and do NOT beat the committed ramps, so they stay (see the PR) |
+| FPM | `nvidia/aisimulate-fpm-dataset` `dbfcdd9eb62ea733efbc3f0cbd78277f2960061a` (2026-10-19) | `03e006de` (validation only, cited in attention rationales) | FPM fits no committed per-primitive value (§1), so nothing to refit |
+| InferenceX CollectiveX | 20 runs served, newest `1793344844` (source_sha `54135009`) | `1793303708` (GB200/H200 DeepEP); 33356406487 and others (8-rank LL graph, host link), no longer served | every GB200/H200 deepep-v2 series in the new runs equals the cited run point for point; the writer now keeps the cited run |
+| InferenceX OperatorX | `operatorx/compare?op=moe` responses, re-fetched: byte-identical to 2026-10-29 | runs 36292796863 / 36292840239 (InferenceX `8f03d27`) | nothing newer |
+| InferenceX repo / db dump | `SemiAnalysisAI/InferenceX` `ea8b34394a603396d681e3c3d466d81cc885779b`; `InferenceX-app` `db-dump/2026-09-28` | evaluation only (§3) | no coefficient fitted from it |
+| nccl-tests#309, route179.dev | issue last updated 2025-06-19; page sha256 unchanged | `cost-model-fabric` | unchanged |
+
 ### `cost-model-host-overheads.yaml` — not derived from either dataset
 
 All seven entries are `method: assumed` and none is `fitted`. These are host-side costs
@@ -313,7 +345,8 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 |---|---|---|
 | `gemm_eps_max_*`, `gemm_m_half_*` | `relane_gemm_envelope.py` | AISimulate `gemm`, vLLM lane |
 | `moe_routing_imbalance_median` | `relane_moe_imbalance.py` | AISimulate `moe`, vLLM lane |
-| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100 and gb300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_mxfp4_grouped` | `fit_marlin_grouped_ramp.py` | AISimulate `moe`, vLLM `MarlinExperts` MXFP4 rows, h200, h100, gb300, b200 and b300; see methodology §10.5 for where each applies |
+| `gemm_*_w4a16_nvfp4_grouped` (h100, h200) | `fit_marlin_nvfp4_grouped_ramp.py --check` (`$OPERATORX_DATA`) | InferenceX OperatorX MoE, MiniMax-M3, `MarlinExperts` NVFP4 (E4M3 scale per 16, 0.5625 B/weight) |
 | `attention_decode_{floor,rate}` | `relane_attention_decode.py` | AISimulate `attention`, vLLM lane |
 | `attention_decode_*_swa` | `relane_attention_swa.py` | same, windowed rows |
 | `attention_decode_*_mla` | `relane_attention_mla.py` | AISimulate `mla` module tables |
@@ -329,10 +362,15 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `recurrent_decode_*_kda` | `relane_recurrent_kda.py` | AISimulate `kda`, vLLM lane |
 | `recurrent_decode_*_{gdn,mamba2}` | `relane_recurrent_family.py --family X` | AISimulate `linear_attention` |
 | `collective_*` (measured widths) | `emit_collectives.py`, `fit_collectives_vllm.py` | AISimulate `comm` |
+| `collective_*_all_reduce_fp16_{2,4,8}rank_{h100,h200}` (their 16-rank extrapolations follow, `extrapolate_collective_width.py`) | `relane_allreduce_vllm.py --check` (`$AISIMULATE_ALLREDUCE_DATA`, aisimulate `7980e95`) | AISimulate `comm/vllm/0.31.0` custom all-reduce, CUDA-graph lane |
 | `collective_*` (new part) | `insert_collectives_part.py` | same, per operator per lane |
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) and A100's `moe_routing_imbalance_median` | `emit_primitives.py --check` (entry-level) | NVIDIA `systems/<sku>.yaml`; AISimulate `moe/sglang/0.5.10` for A100 |
 | `host_link_bandwidth` (measured, six parts) | `fit_host_link.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX swap_blocks, contiguous, payload >= 64 MiB; h100 is the catalog `cpu_dram` fit's larger direction |
+| `moe_a2a_*_deepep_low_latency_graph_8rank_{h100,h200}` | `fit_deepep_ll_graph.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency, EP8 one node |
+| `moe_a2a_*_deepep_{low_latency_graph,v2_graph}_{8,16}rank_gb200_nvl72`, `..._16rank_h200` | `fit_deepep_collectivex.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency and normal; GB200 EP8/EP16 inside one NVL72, H200 EP16 over two nodes (scoped `fabric: [ib-400g]`) |
+| `gemm_*_nvfp4_grouped` (PARKED, none committed) | `fit_nvfp4_grouped_ramp.py` (`$AISIMULATE_NVFP4_DATA` at aisimulate `8ae6b658`) | AISimulate `moe/vllm/0.30.0` TrtLlmNvFp4ExpertsMonolithic; its held-out error is no better than the dense `nvfp4` ramp's on any part, so the kernel's fallback stands (see the script's docstring) |
+| `fabric_bandwidth_efficiency` (`cost-model-fabric`) | `emit_fabric.py --check` (`--verify DIR` re-hashes the cited pages) | NVIDIA/nccl-tests#309 for ib-400g (`literature`); roce-200g and ethernet-100gbe `assumed` with stated ranges |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
 | `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
 | `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |
@@ -463,6 +501,21 @@ decide whether a reader gets the same figures, and each has silently produced
 wrong numbers during this work.
 
 ### 6.1 The scorer is not on `main`
+
+> **Status (2026-10-30).** [inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851)
+> merged on 2026-10-13 (`0d092d4`), and the `kernel-exclusive` branch below no longer exists.
+> The scorer now lives at `tools/metricscore` on `inference-sim/inference-sim` main.
+> `scripts/compare_registries.py` still runs `go run ./cmd/metricscore` from
+> `/private/tmp/blis-kernel-wt`, so it needs that path updated before it can run. The scorer
+> also needs three corpora (`-corpus aisimulate_e2e.json`, `-engine-settings
+> inferencex_engine_settings.json`, `-absolutes inferencex_absolutes.json`, or
+> `BLIS_MEASUREMENTS`). blis-latency-kernel does not distribute them: its `testdata/README.md`
+> says they are extracted from third-party publications by `scripts/extract_*`. Only
+> `aisimulate_e2e.json` was available for the Muse Spark change (#60), so that change ships
+> without an end-to-end score; see the change's pull request. Separately, no committed
+> scenario lists `cost-model-collectives-inferencex` or `cost-model-fabric` (the scenarios list
+> six sets, `cost-model-primitives` to `cost-model-memory`). An end-to-end score of entries in
+> those two sets is therefore unchanged by construction until a scenario names them.
 
 `cmd/metricscore` exists only on the `kernel-exclusive` branch of the
 `sriumcp/inference-sim` fork, the head of the still-open

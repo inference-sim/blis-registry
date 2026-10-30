@@ -269,6 +269,27 @@ Using the context length for both kinds is what made an early windowed fit land 
 datasheet peak — a physically impossible rate, and the reason the two kinds are fitted
 apart rather than together.
 
+### InferenceX CollectiveX run bodies (`$COLLECTIVEX_DATA`)
+
+Three writers read CollectiveX run bodies: `fit_deepep_ll_graph.py`, `fit_host_link.py` and
+`fit_deepep_collectivex.py`. Fetch the run list and each body from
+
+```
+https://inferencex.semianalysis.com/api/v1/collectivex/runs?version=1
+https://inferencex.semianalysis.com/api/v1/collectivex/runs/<run_id>?version=1
+```
+
+and save each body as `cx_run_<run_id>.body`. The query must be the bare integer
+`version=1`: without it, or with `v1`, the API answers `{"error":"Unknown version"}`. The
+API keeps only its latest 15 runs, so a cited run can stop being fetchable. Each writer
+checks that the bodies its committed entries cite are present and hash to the cited sha256.
+If they are not, it exits 3 rather than re-fit and re-cite the entries on other runs, and
+`validator/test_deepep_ll_graph.py` skips with "the cited CollectiveX bodies are not
+present". The entries `fit_deepep_ll_graph.py` and `fit_host_link.py` wrote cite runs the
+API no longer serves (33356406487, 36334392363, 36367074689, 36402856875, and the
+swap_blocks bodies sha256 `26cad6ccbdaa`). They stay as committed, and those two gates skip
+until the bodies are restored.
+
 ### `cost-model-host-overheads.yaml` — not derived from either dataset
 
 All seven entries are `method: assumed` and none is `fitted`. These are host-side costs
@@ -333,6 +354,8 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) and A100's `moe_routing_imbalance_median` | `emit_primitives.py --check` (entry-level) | NVIDIA `systems/<sku>.yaml`; AISimulate `moe/sglang/0.5.10` for A100 |
 | `host_link_bandwidth` (measured, six parts) | `fit_host_link.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX swap_blocks, contiguous, payload >= 64 MiB; h100 is the catalog `cpu_dram` fit's larger direction |
+| `moe_a2a_*_deepep_low_latency_graph_8rank_{h100,h200}` | `fit_deepep_ll_graph.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency, EP8 one node |
+| `moe_a2a_*_deepep_{low_latency_graph,v2_graph}_{8,16}rank_gb200_nvl72`, `..._16rank_h200` | `fit_deepep_collectivex.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency and normal; GB200 EP8/EP16 inside one NVL72, H200 EP16 over two nodes (scoped `fabric: [ib-400g]`) |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
 | `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
 | `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |

@@ -1,6 +1,7 @@
-"""The DeepEP low-latency graph-mode pair is what its writer derives from CollectiveX.
+"""The CollectiveX-fitted entries are what their writers derive from CollectiveX.
 
-Runs `fit_deepep_ll_graph.py --check` against $COLLECTIVEX_DATA, the directory of InferenceX
+Runs `fit_deepep_ll_graph.py`, `fit_host_link.py` and `fit_deepep_collectivex.py --check`
+against $COLLECTIVEX_DATA, the directory of InferenceX
 CollectiveX run bodies the entries cite; skipped when that data is not present, since it is
 fetched, not vendored.
 """
@@ -48,3 +49,13 @@ def test_host_link_reproduces_from_collectivex():
     assert r.returncode == 0, (
         "the committed host_link_bandwidth entries are not what fit_host_link.py derives.\n"
         f"--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}")
+
+
+@pytest.mark.skipif(not DATA or not any(Path(DATA).glob("cx_run_*.body")),
+                    reason="CollectiveX run bodies not present ($COLLECTIVEX_DATA)")
+def test_gb200_and_h200_ep16_deepep_reproduce_from_collectivex():
+    r = _check("fit_deepep_collectivex.py")
+    assert r.returncode == 0, (
+        "the committed GB200 / H200-EP16 moe_a2a_* entries are not what "
+        f"fit_deepep_collectivex.py derives.\n--- stdout ---\n{r.stdout}\n"
+        f"--- stderr ---\n{r.stderr}")

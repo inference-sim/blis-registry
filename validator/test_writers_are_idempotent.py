@@ -219,7 +219,7 @@ def test_every_fitted_family_has_a_writer():
                | {w.split()[0] for w, _ in RATE_ONLY}
                # Gated against its own (InferenceX CollectiveX) data in
                # test_deepep_ll_graph.py, not against the AISimulate tree.
-               | {"fit_deepep_ll_graph.py", "fit_host_link.py"})
+               | {"fit_deepep_ll_graph.py", "fit_host_link.py", "fit_deepep_collectivex.py"})
     # Family stem -> the writer that owns it.
     owned = {
         "attention_decode_floor": "relane_attention_decode.py",
@@ -269,6 +269,10 @@ def test_every_fitted_family_has_a_writer():
                      "low_latency_4rank_gb200_nvl72", "high_throughput_4rank_gb300")},
         **{f"moe_a2a_{t}_deepep_low_latency_graph_8rank_{p}": "fit_deepep_ll_graph.py"
            for t in ("floor", "rate") for p in ("h100", "h200")},
+        **{f"moe_a2a_{t}_deepep_{v}_{w}": "fit_deepep_collectivex.py"
+           for t in ("floor", "rate")
+           for v in ("low_latency_graph", "v2_graph")
+           for w in ("8rank_gb200_nvl72", "16rank_gb200_nvl72", "16rank_h200")},
         **{f"cudagraph_capture_{t}_full_and_piecewise": "fit_deepseek_v41_capture.py"
            for t in ("floor_bytes", "bytes_per_mixed_token", "bytes_per_decode_token")},
     }

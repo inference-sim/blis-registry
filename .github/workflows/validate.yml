@@ -59,10 +59,9 @@ jobs:
           # acceptance profiles (#65), so cmd/validate-registry now also reads acceptance/
           # and routing/. Each bump was non-breaking for this repository: every committed
           # set validates under the new tag. Bump this tag deliberately on a schema release.
-          # The `fabric` scope key cost-model-fabric uses arrives with blis-schemas#112.
+          # v0.10.0 (#112) adds the `fabric` scope key cost-model-fabric uses.
           repository: inference-sim/blis-schemas
-          # TEMPORARY: the pushed head of inference-sim/blis-schemas#112
-          ref: 3465d9d16dfc1609e2dd9af1a99cb02bcf7deba8
+          ref: v0.10.0
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

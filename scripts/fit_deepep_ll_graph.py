@@ -25,6 +25,14 @@ THE FORM: latency_us = floor + tokens_per_rank x hidden x 2 x top_k / rate, the 
 eager entries and the kernel use. Fitted by mean |log ratio| on tokens {1, 4, 16, 64, 256};
 held out {2, 8, 32, 128}, declared before the fit; band: held-out median |rel err| <= 15%.
 
+THE BODIES MUST BE THE CITED ONES. CollectiveX's API serves only its latest 15 runs, and the
+run bodies are fetched from https://inferencex.semianalysis.com/api/v1/collectivex/runs/<id>?version=1
+(the bare `version=1` query is required; without it the API answers "Unknown version"). A
+re-fit on whatever runs are served today is a different measurement, so it must not overwrite
+an entry that cites other runs. Before fitting, this checks that every run the committed entries
+cite is present and that those bodies hash to the cited sha256; if not, it refuses (exit 3) and
+names what is missing, rather than re-citing the entries to new runs.
+
 Usage:
     python scripts/fit_deepep_ll_graph.py --data <dir of CollectiveX run bodies> [--check]
 """
@@ -38,6 +46,7 @@ import importlib.util
 import json
 import math
 import os
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -130,6 +139,12 @@ def main(argv):
         print("no CollectiveX data: pass --data or set COLLECTIVEX_DATA", file=sys.stderr)
         return 2
     before = SET_PATH.read_text(encoding="utf-8")
+    missing = cited_bodies_absent(before, Path(args.data))
+    if missing:
+        print(f"refusing: the cited CollectiveX bodies are not present ({missing}). The API "
+              "serves only its latest 15 runs; restore the cited bodies to re-derive, or fit "
+              "new runs into new entries rather than re-citing these.", file=sys.stderr)
+        return 3
     blocks = cb.split(before)
     for part, sku in PARTS.items():
         data, runs = points(Path(args.data), sku)
@@ -162,6 +177,31 @@ def main(argv):
     yaml.safe_load(after)
     print(f"{SET_PATH.name} written")
     return 0
+
+
+CITE = re.compile(r"InferenceX CollectiveX runs ([0-9, ]+) \(api/v1/collectivex, contract v1; "
+                  r"bodies sha256 ([0-9a-f]{12})\)")
+
+
+def cited_bodies_absent(text: str, data: Path) -> str:
+    """What of the committed entries' cited bodies is absent or differs, or '' if none."""
+    problems = []
+    for e in yaml.safe_load(text)["coefficients"]:
+        (name, body), = e.items()
+        if not name.startswith("moe_a2a_") or "_low_latency_graph_8rank_" not in name:
+            continue
+        for s in body.get("sources") or []:
+            m = CITE.search(s["cite"])
+            if not m:
+                continue
+            runs = [r.strip() for r in m.group(1).split(",")]
+            absent = [r for r in runs if not (data / f"cx_run_{r}.body").is_file()]
+            if absent:
+                problems.append(f"{name}: runs {', '.join(absent)} absent")
+            elif _sha(str(data), runs) != m.group(2):
+                problems.append(f"{name}: cited bodies hash to {_sha(str(data), runs)}, "
+                                f"not the cited {m.group(2)}")
+    return "; ".join(sorted(set(problems)))
 
 
 def _sha(data: str, runs: list[str]) -> str:

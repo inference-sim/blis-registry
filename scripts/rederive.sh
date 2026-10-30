@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The re-derivation gates, with the data present: every fitted value must be what its
 # writer derives from the pinned upstream data, and no test may skip except the eight
-# by-design ramp-form ones. A skip is a gate that did not run, so it fails here.
+# by-design ramp-form ones and a named cited-bodies-absent skip (below). A skip is a gate
+# that did not run, so it fails here.
 #
 # Run from the repository root after `pip install -r requirements-fit.txt`:
 #
@@ -55,7 +56,13 @@ python -m pytest validator/ -q -rs | tee "$log"
 # carries the one- or three-factor ramp, so the other gate does not apply). Any other
 # skip -- missing data, a missing catalog, a gate whose premise quietly disappeared --
 # is a gate that did not run, and fails.
-unexpected=$(grep '^SKIPPED' "$log" | grep -Ev 'carries the (one|three)-factor ramp' || true)
+# One data skip is accepted, by name: a CollectiveX writer whose cited run bodies are no
+# longer served (the API keeps its latest 15 runs) refuses to re-cite them and skips with
+# "the cited CollectiveX bodies are not present". Its entries then cannot be re-derived from
+# public data, and the skip line says which runs are missing.
+unexpected=$(grep '^SKIPPED' "$log" \
+  | grep -Ev 'carries the (one|three)-factor ramp|the cited CollectiveX bodies are not present' \
+  || true)
 if [ -n "$unexpected" ]; then
   echo "unexpected skips with the data present:" >&2
   echo "$unexpected" >&2

@@ -211,8 +211,11 @@ def test_collective_floors_and_rates_survive_independent_rederivation(
 @pytest.mark.parametrize(
     "sku, chip, vllm",
     [
-        ("h200_sxm", "h200", "0.24.0"),
-        ("h100_sxm", "h100", "0.24.0"),
+        # h200 and h100 were relaned to vLLM 0.31.0's sweep (relane_allreduce_vllm.py),
+        # which AISimulate carries from 7980e95; at the older pinned tree it is absent and
+        # the case skips with that reason.
+        ("h200_sxm", "h200", "0.31.0"),
+        ("h100_sxm", "h100", "0.31.0"),
         ("b200_sxm", "b200", "0.24.0"),
         ("b300_sxm", "b300", "0.24.0"),
     ],
@@ -229,10 +232,15 @@ def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
     4.711us here, and the eager lane is slower than NCCL rather than faster. A test that
     accepted any of the three would accept a 3.4x mispricing.
     """
+    # The 0.31.0 sweep is read from the tree relane_allreduce_vllm.py is pinned to
+    # (AISIMULATE_ALLREDUCE_DATA, aisimulate 7980e95), the rest from the main pin.
+    root = Path(os.environ.get("AISIMULATE_ALLREDUCE_DATA") or DATA) if vllm == "0.31.0" else DATA
+    base = root / sku / "comm" / "vllm" / vllm
+    if not (base / "custom_allreduce_perf.parquet").is_file():
+        pytest.skip(f"{sku}: vllm/{vllm} custom all-reduce sweep absent; set "
+                    f"AISIMULATE_ALLREDUCE_DATA to an aisimulate 7980e95 systems/data tree")
     reg = registry_values()
-    out = run_script(
-        "fit_collectives_vllm.py", str(DATA / sku / "comm" / "vllm" / vllm)
-    )
+    out = run_script("fit_collectives_vllm.py", str(base))
     checked = 0
     for line in out.splitlines():
         parts = line.replace("#", " ").split()

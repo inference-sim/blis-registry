@@ -290,6 +290,17 @@ API no longer serves (33356406487, 36334392363, 36367074689, 36402856875, and th
 swap_blocks bodies sha256 `26cad6ccbdaa`). They stay as committed, and those two gates skip
 until the bodies are restored.
 
+### Data freshness, checked 2026-10-30
+
+| source | newest public | what the committed sets cite | outcome |
+|---|---|---|---|
+| AISimulate | `ai-dynamo/aisimulate` `7980e9500c00d9f85d7f296451d12768a743c70e` (2026-10-29) | `2f0f4cd` (main pin), `8ae6b658` (NVFP4 grouped, parked), `95b7f839` (DeepEP) | every parquet the Muse-relevant entries cite is byte-identical at `7980e95`. New since the pin: vLLM 0.30.0/0.31.0 gemm, moe and comm tables. h100/h200 all-reduce relaned to 0.31.0 (held-out better at every width). The 0.31.0 dense gemm tables and the 0.30.0 Marlin rows were scored on held-out points and do NOT beat the committed ramps, so they stay (see the PR) |
+| FPM | `nvidia/aisimulate-fpm-dataset` `dbfcdd9eb62ea733efbc3f0cbd78277f2960061a` (2026-10-19) | `03e006de` (validation only, cited in attention rationales) | FPM fits no committed per-primitive value (§1), so nothing to refit |
+| InferenceX CollectiveX | 20 runs served, newest `1793344844` (source_sha `54135009`) | `1793303708` (GB200/H200 DeepEP); 33356406487 and others (8-rank LL graph, host link), no longer served | every GB200/H200 deepep-v2 series in the new runs equals the cited run point for point; the writer now keeps the cited run |
+| InferenceX OperatorX | `operatorx/compare?op=moe` responses, re-fetched: byte-identical to 2026-10-29 | runs 36292796863 / 36292840239 (InferenceX `8f03d27`) | nothing newer |
+| InferenceX repo / db dump | `SemiAnalysisAI/InferenceX` `ea8b34394a603396d681e3c3d466d81cc885779b`; `InferenceX-app` `db-dump/2026-09-28` | evaluation only (§3) | no coefficient fitted from it |
+| nccl-tests#309, route179.dev | issue last updated 2025-06-19; page sha256 unchanged | `cost-model-fabric` | unchanged |
+
 ### `cost-model-host-overheads.yaml` — not derived from either dataset
 
 All seven entries are `method: assumed` and none is `fitted`. These are host-side costs
@@ -351,6 +362,7 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `recurrent_decode_*_kda` | `relane_recurrent_kda.py` | AISimulate `kda`, vLLM lane |
 | `recurrent_decode_*_{gdn,mamba2}` | `relane_recurrent_family.py --family X` | AISimulate `linear_attention` |
 | `collective_*` (measured widths) | `emit_collectives.py`, `fit_collectives_vllm.py` | AISimulate `comm` |
+| `collective_*_all_reduce_fp16_{2,4,8}rank_{h100,h200}` (their 16-rank extrapolations follow, `extrapolate_collective_width.py`) | `relane_allreduce_vllm.py --check` (`$AISIMULATE_ALLREDUCE_DATA`, aisimulate `7980e95`) | AISimulate `comm/vllm/0.31.0` custom all-reduce, CUDA-graph lane |
 | `collective_*` (new part) | `insert_collectives_part.py` | same, per operator per lane |
 | `collective_*` (wide groups) | `insert_collectives_wide.py` | same, widths 8 and 16 |
 | descriptors (`vendor_spec`) and A100's `moe_routing_imbalance_median` | `emit_primitives.py --check` (entry-level) | NVIDIA `systems/<sku>.yaml`; AISimulate `moe/sglang/0.5.10` for A100 |

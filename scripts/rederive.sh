@@ -8,6 +8,7 @@
 #
 #   export AISIMULATE_DATA=<aisimulate>/python/aisimulate/src/aisimulate_core/systems/data
 #   export BLIS_CATALOG=<blis-catalog checkout>        # at CATALOG_SHA in rederive.yml
+#   export AISIMULATE_ALLREDUCE_DATA=<aisimulate @7980e95>/.../systems/data  # relane_allreduce_vllm.py
 #   export COLLECTIVEX_DATA=<dir of cx_run_*.body>     # test_deepep_ll_graph.py
 #   export OPERATORX_DATA=<dir of moe_<Model>.json>    # test_operatorx.py
 #   export INFERENCEX_GOLDEN=<inferencex>/inferencex-e2e/infx/golden_al_distribution  # optional
@@ -19,6 +20,7 @@ set -euo pipefail
 
 : "${AISIMULATE_DATA:?set AISIMULATE_DATA to the AISimulate systems/data directory}"
 : "${BLIS_CATALOG:?set BLIS_CATALOG to a blis-catalog checkout at the pinned CATALOG_SHA}"
+: "${AISIMULATE_ALLREDUCE_DATA:?set AISIMULATE_ALLREDUCE_DATA to the systems/data of aisimulate at AISIMULATE_ALLREDUCE_SHA (rederive.yml), the h100/h200 vLLM 0.31.0 all-reduce sweep}"
 
 n=$(find "$AISIMULATE_DATA" -name '*.parquet' | wc -l)
 echo "AISimulate parquets present: $n"

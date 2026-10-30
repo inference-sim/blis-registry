@@ -25,6 +25,10 @@ jobs:
       # repository's history moves; bump it deliberately, together with the diff the
       # writers produce at the new commit (docs/reproducing-coefficients.md).
       AISIMULATE_SHA: 2f0f4cd8606d580567b253d02f3d699fe36db865
+      # A second AISimulate commit, for one family: the h100/h200 fp16 all-reduce triples on
+      # vLLM 0.31.0's custom all-reduce (scripts/relane_allreduce_vllm.py), a sweep the main
+      # pin predates. Moving AISIMULATE_SHA itself would refit every family at once.
+      AISIMULATE_ALLREDUCE_SHA: 7980e9500c00d9f85d7f296451d12768a743c70e
       # The blis-catalog commit validator/testdata/catalog vendors (VENDORED.md). A full
       # checkout rather than the vendored hardware: the MLA writer reads the DeepSeek-V3
       # graph's latent width, and only a catalog carries models/.
@@ -50,6 +54,17 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             python/aisimulate/src/aisimulate_core
+
+      - name: Check out AISimulate at the all-reduce pin (h100/h200 comm only)
+        uses: actions/checkout@v4
+        with:
+          repository: ai-dynamo/aisimulate
+          ref: ${{ env.AISIMULATE_ALLREDUCE_SHA }}
+          path: aisimulate-allreduce
+          fetch-depth: 1
+          sparse-checkout: |
+            python/aisimulate/src/aisimulate_core/systems/data/h100_sxm/comm
+            python/aisimulate/src/aisimulate_core/systems/data/h200_sxm/comm
 
       - name: Check out blis-catalog (pinned to the vendored commit)
         uses: actions/checkout@v4
@@ -86,5 +101,6 @@ jobs:
         env:
           AISIMULATE_DATA: ${{ github.workspace }}/aisimulate/python/aisimulate/src/aisimulate_core/systems/data
           BLIS_CATALOG: ${{ github.workspace }}/blis-catalog
+          AISIMULATE_ALLREDUCE_DATA: ${{ github.workspace }}/aisimulate-allreduce/python/aisimulate/src/aisimulate_core/systems/data
           INFERENCEX_GOLDEN: ${{ github.workspace }}/inferencex/inferencex-e2e/infx/golden_al_distribution
         run: scripts/rederive.sh

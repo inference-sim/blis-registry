@@ -62,7 +62,7 @@ jobs:
           # The `fabric` scope key cost-model-fabric uses arrives with blis-schemas#112.
           repository: inference-sim/blis-schemas
           # TEMPORARY: the pushed head of inference-sim/blis-schemas#112
-          ref: 9f0c0698949284a29fa367aba6b2b21c42fd61cc
+          ref: ecfc6a8f865658a041cd518ca74c004fd48a8cad
           path: blis-schemas
 
       # setup-go after the blis-schemas checkout so the version comes from that module's

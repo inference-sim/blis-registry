@@ -273,7 +273,17 @@ def test_all_reduce_survives_rederivation_from_the_vllm_lane(sku, chip, vllm):
 # vLLM's own copy kernel. A microbenchmark, not an end-to-end row, so it is fit data in
 # full (docs/fitting-principles.md section 3). Named here so no other family follows it in
 # silently; fit_host_link.py is its writer, gated in test_deepep_ll_graph.py.
-MICROBENCHMARK_SOURCED = {"host_link_bandwidth": "InferenceX CollectiveX swap_blocks"}
+#
+# The second: the Marlin NVFP4 W4A16 grouped ramp on h100/h200. AISimulate carries no Marlin
+# NVFP4 MoE rows (its Hopper Marlin rows are MXFP4 and int4 only, through 7980e95); InferenceX
+# OperatorX times vLLM's own MarlinExperts NVFP4 through FusedMoE, an operator microbenchmark.
+# It lives in cost-model-primitives because that is the set a scenario loads the ramp from;
+# fit_marlin_nvfp4_grouped_ramp.py is its writer, gated in test_operatorx.py.
+MICROBENCHMARK_SOURCED = {
+    "host_link_bandwidth": "InferenceX CollectiveX swap_blocks",
+    "gemm_eps_max_w4a16_nvfp4_grouped": "InferenceX OperatorX",
+    "gemm_m_half_w4a16_nvfp4_grouped": "InferenceX OperatorX",
+}
 
 
 def test_no_coefficient_cites_a_non_nvidia_measurement_source():

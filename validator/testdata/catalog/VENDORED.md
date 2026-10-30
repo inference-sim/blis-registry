@@ -1,8 +1,7 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at `c85ee78379483854b06995bc5e51b38146612ed8` (TEMPORARY: the pushed head of
-inference-sim/blis-catalog#47, Muse Spark, until it is released). From `0.3.0` (`676326e`) it
+[blis-catalog] at `0.5.0` (`b5550f750cb51571498577fbdc1c68f78cda67db`, #47, Muse Spark). From `0.3.0` (`676326e`) it
 changes one hardware file, `gb200-nvl72.yaml`, and only its `_comment_interconnect` prose (no
 value), adds the three Muse Spark models' `model.yaml`, and is the first copy to carry
 `networks/*.yaml`: the three fabric classes `cost-model-fabric` scopes to, which

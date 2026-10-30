@@ -1,7 +1,7 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at `eb675efbfad262c2d23b3d50a7281344c775b471` (TEMPORARY: the pushed head of
+[blis-catalog] at `1affd8f5cd7b45f0d7191f9b00d45e750d3bd83e` (TEMPORARY: the pushed head of
 inference-sim/blis-catalog#47, Muse Spark, until it is released). From `0.3.0` (`676326e`) it
 changes one hardware file, `gb200-nvl72.yaml`, and only its `_comment_interconnect` prose (no
 value), adds the three Muse Spark models' `model.yaml`, and is the first copy to carry

@@ -109,6 +109,7 @@ nav:
           - cost-model-primitives: reference/sets/cost-model-primitives.md
           - cost-model-collectives: reference/sets/cost-model-collectives.md
           - cost-model-collectives-inferencex: reference/sets/cost-model-collectives-inferencex.md
+          - cost-model-fabric: reference/sets/cost-model-fabric.md
           - cost-model-attention: reference/sets/cost-model-attention.md
           - cost-model-recurrent: reference/sets/cost-model-recurrent.md
           - cost-model-host-overheads: reference/sets/cost-model-host-overheads.md

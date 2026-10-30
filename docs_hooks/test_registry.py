@@ -50,7 +50,9 @@ def test_every_entry_appears_in_its_matrix_and_only_under_its_own_parts(s):
     for row, cells in rows.items():
         for part, entries in cells.items():
             for e in entries:
-                assert part in e.hardware, f"{e.name} placed under {part}, outside its scope"
+                # A fabric-only entry's columns are the fabrics it names.
+                columns = e.hardware or e.fabric
+                assert part in columns, f"{e.name} placed under {part}, outside its scope"
                 placed.setdefault(id(e), []).append((row, part))
     for e in s.entries:
         assert id(e) in placed, f"{name}:{e.line} {e.name} is missing from the matrix"

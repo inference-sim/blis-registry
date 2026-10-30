@@ -356,6 +356,7 @@ appears with no owner — so a value that cannot be regenerated cannot be added.
 | `host_link_bandwidth` (measured, six parts) | `fit_host_link.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX swap_blocks, contiguous, payload >= 64 MiB; h100 is the catalog `cpu_dram` fit's larger direction |
 | `moe_a2a_*_deepep_low_latency_graph_8rank_{h100,h200}` | `fit_deepep_ll_graph.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency, EP8 one node |
 | `moe_a2a_*_deepep_{low_latency_graph,v2_graph}_{8,16}rank_gb200_nvl72`, `..._16rank_h200` | `fit_deepep_collectivex.py --check` (`$COLLECTIVEX_DATA`) | InferenceX CollectiveX deepep-v2 low-latency and normal; GB200 EP8/EP16 inside one NVL72, H200 EP16 over two nodes (scoped `fabric: [ib-400g]`) |
+| `fabric_bandwidth_efficiency` (`cost-model-fabric`) | `emit_fabric.py --check` (`--verify DIR` re-hashes the cited pages) | NVIDIA/nccl-tests#309 for ib-400g (`literature`); roce-200g and ethernet-100gbe `assumed` with stated ranges |
 | host overheads (`assumed`) | none — see that file's header | not measured by either dataset |
 | `activation_buffer_count_*`, `activation_scratch_floor_bytes` | `emit_memory.py` | AISimulate `sdk/backends` source (`vendor_spec`) |
 | `cudagraph_capture_bytes_*` | `emit_memory.py` | `docs/vllm-cudagraph-capture-samples.csv`, from `mine_vllm_cudagraph_memory.py` (`assumed`) |

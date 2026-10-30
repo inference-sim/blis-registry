@@ -14,7 +14,9 @@ The query must be the bare integer `version=1`: without it, or with `v1`, the AP
 precision bf16 (BF16 dispatch and combine), shape hidden 7168, top-6 of 384 experts, uniform
 routing; the roundtrip (dispatch + combine) p50 per tokens-per-rank point. Within one series
 every body that carries it publishes byte-identical points (asserted below), so each entry
-cites the newest body carrying it, by run id and that body's full sha256.
+cites one body by run id and that body's full sha256: the run it already cites while that
+body is present, else the newest carrying the series. A newer run that publishes the same
+points therefore leaves the entry unchanged; one that publishes different points fails.
 
 WHAT EACH MODE RUNS, AND HOW IT IS TIMED (InferenceX ea6f44d6eaa0908674e6208d61acc8cb5dc3945b,
 the source_sha of the newest run; collectivex/bench and collectivex/docs/methodology.md):
@@ -182,10 +184,12 @@ def bodies(data: Path) -> list[tuple[str, Path, dict]]:
     return sorted(out, key=lambda x: int(x[0]))
 
 
-def series(data: Path, sku: str, mode: str, ranks: int, nodes: int):
-    """The series' points {tokens: roundtrip p50 us}, the newest run carrying it, the other
-    runs that publish it, and the newest body's sha256. Refuses a series whose points differ
-    between bodies, since then one body is not the measurement."""
+def series(data: Path, sku: str, mode: str, ranks: int, nodes: int, prefer: str | None = None):
+    """The series' points {tokens: roundtrip p50 us}, the run cited for it, the other runs
+    that publish it, and the cited body's sha256. The cited run is `prefer` (the run the
+    committed entry already cites) while that body is present, else the newest run carrying
+    the series, so a newer run publishing the same points does not move a citation. Refuses
+    a series whose points differ between bodies, since then one body is not the measurement."""
     phases = ("decode",) if mode == "low-latency" else ("decode", "prefill")
     found: dict[str, dict[int, float]] = {}
     paths = {}
@@ -208,13 +212,16 @@ def series(data: Path, sku: str, mode: str, ranks: int, nodes: int):
             found[run], paths[run] = pts, path
     if not found:
         return None
-    newest = max(found, key=int)
+    newest = prefer if prefer in found else max(found, key=int)
     for run, pts in found.items():
         if pts != found[newest]:
             raise SystemExit(f"{sku} {mode} EP{ranks}: run {run} publishes different points "
                              f"from run {newest}; one body is not the measurement")
     sha = hashlib.sha256(paths[newest].read_bytes()).hexdigest()
-    return found[newest], newest, sorted(set(found) - {newest}, key=int), sha
+    # The corroborating runs named are those up to the cited one, so a later run that
+    # republishes the same points does not rewrite the entry.
+    others = sorted((r for r in found if r != newest and int(r) < int(newest)), key=int)
+    return found[newest], newest, others, sha
 
 
 def fit(b: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
@@ -296,6 +303,19 @@ def owned(name: str) -> bool:
     return any(int(m.group(3)) == r and m.group(4) == stem_chip(p) for p, _, r, _, _ in SERIES)
 
 
+def cited_runs(text: str) -> dict[str, str]:
+    """The run each committed entry this writer owns cites, by entry name."""
+    out = {}
+    for e in yaml.safe_load(text)["coefficients"]:
+        (name, body), = e.items()
+        if owned(name):
+            for s in body.get("sources") or []:
+                m = CITE.search(s["cite"])
+                if m:
+                    out[name] = m.group(1)
+    return out
+
+
 def cited_bodies_absent(text: str, data: Path) -> str:
     problems = []
     for e in yaml.safe_load(text)["coefficients"]:
@@ -332,10 +352,12 @@ def main(argv):
               "serves only its latest 15 runs; restore the cited bodies to re-derive, or fit "
               "new runs into new entries rather than re-citing these.", file=sys.stderr)
         return 3
+    cited = cited_runs(before)
     blocks = cb.split(before)
     for part, sku, ranks, nodes, fabric in SERIES:
         for mode in ("low-latency", "normal"):
-            got = series(data, sku, mode, ranks, nodes)
+            stem = f"{VARIANT[mode]}_{ranks}rank_{stem_chip(part)}"
+            got = series(data, sku, mode, ranks, nodes, cited.get(f"moe_a2a_floor_{stem}"))
             if got is None:
                 raise SystemExit(f"{sku} {mode} EP{ranks}: no series in {data}")
             pts, run, others, sha = got
@@ -348,7 +370,6 @@ def main(argv):
                   f"({'pass' if ok else 'FAIL, not written'})")
             if not ok:
                 continue
-            stem = f"{VARIANT[mode]}_{ranks}rank_{stem_chip(part)}"
             for name, value, units in ((f"moe_a2a_floor_{stem}", floor, "us_per_transfer"),
                                        (f"moe_a2a_rate_{stem}", rate, "bytes_per_us")):
                 cb.upsert(blocks, entry(name, value, units, part, fabric, mode, ranks, run,

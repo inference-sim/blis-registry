@@ -489,6 +489,21 @@ wrong numbers during this work.
 
 ### 6.1 The scorer is not on `main`
 
+> **Status (2026-10-30).** [inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851)
+> merged on 2026-10-13 (`0d092d4`), and the `kernel-exclusive` branch below no longer exists.
+> The scorer now lives at `tools/metricscore` on `inference-sim/inference-sim` main.
+> `scripts/compare_registries.py` still runs `go run ./cmd/metricscore` from
+> `/private/tmp/blis-kernel-wt`, so it needs that path updated before it can run. The scorer
+> also needs three corpora (`-corpus aisimulate_e2e.json`, `-engine-settings
+> inferencex_engine_settings.json`, `-absolutes inferencex_absolutes.json`, or
+> `BLIS_MEASUREMENTS`). blis-latency-kernel does not distribute them: its `testdata/README.md`
+> says they are extracted from third-party publications by `scripts/extract_*`. Only
+> `aisimulate_e2e.json` was available for the Muse Spark change (#60), so that change ships
+> without an end-to-end score; see the change's pull request. Separately, no committed
+> scenario lists `cost-model-collectives-inferencex` or `cost-model-fabric` (the scenarios list
+> six sets, `cost-model-primitives` to `cost-model-memory`). An end-to-end score of entries in
+> those two sets is therefore unchanged by construction until a scenario names them.
+
 `cmd/metricscore` exists only on the `kernel-exclusive` branch of the
 `sriumcp/inference-sim` fork, the head of the still-open
 [inference-sim#1851](https://github.com/inference-sim/inference-sim/pull/1851).

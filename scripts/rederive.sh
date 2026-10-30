@@ -24,6 +24,7 @@ test "$n" -gt 500
 
 # The vendored descriptors must be the catalog being checked against.
 diff -r validator/testdata/catalog/hardware "$BLIS_CATALOG/hardware"
+diff -r validator/testdata/catalog/networks "$BLIS_CATALOG/networks"
 for g in validator/testdata/catalog/models/*/graph.yaml; do
   diff "$g" "$BLIS_CATALOG/models/${g#validator/testdata/catalog/models/}"
 done

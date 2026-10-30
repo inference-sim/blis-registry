@@ -1,9 +1,16 @@
 # Vendored chip descriptors
 
 The nine `hardware/*.yaml` files the committed coefficients scope to, copied from
-[blis-catalog] at release `0.3.0`, `676326ec6c708e91ec4981bd6b03922a7fe60512` (2026-10-20).
-blis-latency-kernel vendors the same descriptors and should be bumped to this release too,
-so the two repositories check against one revision. The previous pin was `0.2.3`
+[blis-catalog] at `eb675efbfad262c2d23b3d50a7281344c775b471` (TEMPORARY: the pushed head of
+inference-sim/blis-catalog#47, Muse Spark, until it is released). From `0.3.0` (`676326e`) it
+changes one hardware file, `gb200-nvl72.yaml`, and only its `_comment_interconnect` prose (no
+value), adds the three Muse Spark models' `model.yaml`, and is the first copy to carry
+`networks/*.yaml`: the three fabric classes `cost-model-fabric` scopes to, which
+`validator/test_fabric.py` reads to require one `fabric_bandwidth_efficiency` per fabric.
+blis-latency-kernel's `testdata/upstream.lock` pins the same commit.
+
+Before that the pin was release `0.3.0`, `676326ec6c708e91ec4981bd6b03922a7fe60512`
+(2026-10-20). The pin before that was `0.2.3`
 (`3ed02ff`, also tagged `0.2.2`); `0.3.0` changes only `MemoryGiB` on b200, b300,
 gb200-nvl72, gb300, h100 and h200 (now the device total the CUDA driver reports), which
 no fitter or test here reads, so no coefficient moved. It also adds five models, whose
@@ -24,7 +31,7 @@ Copied verbatim, with three model graphs beside them:
 models/deepseek-v3/graph.yaml   models/kimi-k3/graph.yaml   models/deepseek-v4-pro/graph.yaml
 ```
 
-and every model's `models/<name>/model.yaml` (39 of them), which name the model and the
+and every model's `models/<name>/model.yaml` (42 of them), which name the model and the
 Hugging Face repository it was derived from. `scripts/emit_acceptance_profiles.py` reads
 them to resolve an InferenceX curve's model to a catalog name, and refuses a curve whose
 model is none of them, so the copy must be the catalog's whole model list, not a subset.
@@ -84,8 +91,8 @@ branch.
 ## Kept in step with CI
 
 `.github/workflows/rederive.yml` checks out blis-catalog at this same commit and fails if
-its `hardware/`, any of the three vendored model graphs, or the set of `model.yaml` files
-differs from this copy, so the property tests and the re-derivation gates always read one
+its `hardware/`, its `networks/`, any of the three vendored model graphs, or the set of
+`model.yaml` files differs from this copy, so the property tests and the re-derivation gates always read one
 revision.
 
 `devices/storage.yaml` is copied verbatim from blis-catalog `deec066` (the merge of
